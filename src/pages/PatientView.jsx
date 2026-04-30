@@ -520,30 +520,21 @@ export default function PatientView({ onLogout }) {
                 )}
               </div>
 
-              <h3 className="pv-section-label">
-                Test Results Trend
-                {allObsData && (
-                  <button className="pv-trend-toggle" onClick={() => setTrendPeriod(trendPeriod === '12m' ? 'all' : '12m')}>
-                    {trendPeriod === '12m' ? 'Show All' : '12 Month View'}
-                  </button>
-                )}
-              </h3>
+              <h3 className="pv-section-label">Test Results Trend</h3>
               {(() => {
                 const tabs = getTrendTabs(allObsData);
                 if (!tabs.length) return <p className="pv-empty-text">No trend data available</p>;
                 const activeKey = trendTab || tabs[0]?.key;
                 const cfg = tabs.find(t => t.key === activeKey) || tabs[0];
-                const cutoff = trendPeriod === '12m' ? new Date(new Date().setFullYear(new Date().getFullYear() - 1)) : null;
                 const datasets = [];
                 const allDates = new Set();
                 cfg.codes.forEach((code, idx) => {
                   const obs = allObsData[code];
                   if (!obs) return;
-                  const filtered = cutoff ? obs.points.filter(p => p.date >= cutoff) : obs.points;
-                  filtered.forEach(p => allDates.add(p.date.toISOString().slice(0, 10)));
+                  obs.points.forEach(p => allDates.add(p.date.toISOString().slice(0, 10)));
                   datasets.push({
                     label: obs.display,
-                    data: filtered.map(p => ({ x: p.date.toISOString().slice(0, 10), y: p.value })),
+                    data: obs.points.map(p => ({ x: p.date.toISOString().slice(0, 10), y: p.value })),
                     borderColor: cfg.colors[idx % cfg.colors.length],
                     backgroundColor: cfg.fill ? cfg.colors[idx % cfg.colors.length] + '20' : 'transparent',
                     fill: !!cfg.fill, tension: 0.3, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2,
@@ -554,7 +545,7 @@ export default function PatientView({ onLogout }) {
                 datasets.forEach(ds => { ds.data = labels.map(lbl => { const pt = ds.data.find(d => d.x === lbl); return pt ? pt.y : null; }); });
                 if (cfg.targets) cfg.targets.forEach((t, idx) => { if (t != null) datasets.push({ label: `Target (${t})`, data: labels.map(() => t), borderColor: cfg.colors[idx % cfg.colors.length] || '#94A3B8', borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, fill: false }); });
                 const options = {
-                  responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, spanGaps: true,
+                  responsive: false, interaction: { mode: 'index', intersect: false }, spanGaps: true,
                   plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 12, font: { size: 10 } } }, tooltip: { backgroundColor: '#fff', titleColor: '#1E293B', bodyColor: '#475569', borderColor: '#E2E8F0', borderWidth: 1, padding: 10, cornerRadius: 8, callbacks: { title: (items) => { const d = new Date(labels[items[0].dataIndex]); return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}-${String(d.getFullYear()).slice(-2)}`; }, label: ctx => ctx.raw == null ? null : ctx.raw } } },
                   scales: { x: { grid: { display: false }, ticks: { font: { size: 9 }, maxTicksLimit: 6, callback: (_, i) => { const d = new Date(labels[i]); return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}-${String(d.getFullYear()).slice(-2)}`; } } }, y: { grid: { color: '#F1F5F9' }, ticks: { font: { size: 10 } }, beginAtZero: true } },
                 };
@@ -565,7 +556,7 @@ export default function PatientView({ onLogout }) {
                         <button key={tab.key} className={`pv-trend-tab${(activeKey) === tab.key ? ' active' : ''}`} onClick={() => setTrendTab(tab.key)}>{tab.label}</button>
                       ))}
                     </div>
-                    <div style={{ height: '220px' }}><Line data={{ labels, datasets }} options={options} /></div>
+                    <div className="pv-chart-scroll"><div className="pv-chart-inner"><Line data={{ labels, datasets }} options={options} width={500} height={220} /></div></div>
                     {cfg.targetLabels && <div className="pv-trend-legend">{cfg.targetLabels.map((l, i) => <span key={i} className="pv-trend-legend-item">{l}</span>)}</div>}
                   </>
                 );
