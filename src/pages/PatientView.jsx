@@ -1,10 +1,164 @@
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { callFhirApi, buildUrl } from '../services/fhir';
+import { callAI } from '../services/ai';
+import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT } from '../config/prompts';
 import '../styles/patient.css';
+
+const NOTIFICATIONS = [
+  { text: 'Lab results are ready for review', time: '2 hours ago' },
+  { text: 'New message from your care team', time: '5 hours ago' },
+  { text: 'Upcoming appointment reminder', time: '1 day ago' },
+];
+
+function formatObsDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function statusColor(status) {
+  switch ((status || '').toLowerCase()) {
+    case 'good': return 'pv-status-good';
+    case 'fair': return 'pv-status-fair';
+    case 'poor': return 'pv-status-poor';
+    case 'critical': return 'pv-status-critical';
+    default: return 'pv-status-fair';
+  }
+}
 
 export default function PatientView({ onLogout }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const patientId = searchParams.get('id') || localStorage.getItem('p360_patient_id') || '';
+
+  const [patientName, setPatientName] = useState('');
+  const [healthStatus, setHealthStatus] = useState(null);
+  const [conditions, setConditions] = useState([]);
+  const [lastMed, setLastMed] = useState(null);
+  const [observations, setObservations] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [showNotif, setShowNotif] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(true);
+  const notifRef = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotif(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (!patientId) return;
+    loadData();
+  }, [patientId]);
+
+  async function loadData() {
+    try {
+      const [patientRes, condRes, medRes, obsRes] = await Promise.all([
+        callFhirApi(buildUrl('/baseR4/Patient', { _id: patientId, page: 0, size: 1 })),
+        callFhirApi(buildUrl('/baseR4/Condition', { patient: patientId, page: 0, size: 100 })),
+        callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: patientId, page: 0, size: 100 })),
+        callFhirApi(buildUrl('/baseR4/Observation/search', { patient: patientId, page: 0, size: 100 })),
+      ]);
+
+      const pt = patientRes?.entry?.[0]?.resource;
+      const given = pt?.name?.[0]?.given?.join(' ') || '';
+      const family = pt?.name?.[0]?.family || '';
+      const fullName = `${given} ${family}`.trim();
+      setPatientName(fullName || 'Patient');
+
+      const condEntries = condRes?.entry || [];
+      const condData = condEntries.map(e => {
+        const r = e.resource;
+        return {
+          code: r.code?.coding?.[0]?.code || '',
+          display: r.code?.coding?.[0]?.display || '',
+          clinicalStatus: r.clinicalStatus?.coding?.[0]?.code || '',
+        };
+      });
+
+      const medEntries = medRes?.entry || [];
+      const meds = medEntries.map(e => {
+        const r = e.resource;
+        return {
+          name: r.medicationCodeableConcept?.coding?.[0]?.display || r.medicationCodeableConcept?.text || 'Unknown',
+          status: r.status || '',
+          authoredOn: r.authoredOn || '',
+          dosage: r.dosageInstruction?.[0]?.text || '',
+        };
+      }).sort((a, b) => (b.authoredOn || '').localeCompare(a.authoredOn || ''));
+      setLastMed(meds[0] || null);
+
+      const obsEntries = obsRes?.entry || [];
+      const obsMap = {};
+      obsEntries.forEach(e => {
+        const r = e.resource;
+        const code = r.code?.coding?.[0]?.code || '';
+        const display = r.code?.coding?.[0]?.display || '';
+        const value = r.valueQuantity?.value ?? r.valueString ?? '';
+        const unit = r.valueQuantity?.unit || '';
+        const date = r.effectiveDateTime || r.issued || '';
+        if (!code) return;
+        if (!obsMap[code] || (date > (obsMap[code].date || ''))) {
+          obsMap[code] = { code, display, value, unit, date };
+        }
+      });
+      const latestObs = Object.values(obsMap).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      setObservations(latestObs);
+      setLoading(false);
+
+      const condSummary = condData.map(c => `${c.display} (${c.clinicalStatus})`).join(', ');
+      const obsSummary = latestObs.map(o => `${o.display}: ${o.value} ${o.unit}`).join(', ');
+      const medSummary = meds.map(m => `${m.name} (${m.status})`).join(', ');
+      const patientContext = `Patient: ${fullName}\nConditions: ${condSummary || 'None found'}\nObservations: ${obsSummary || 'None found'}\nMedications: ${medSummary || 'None found'}`;
+
+      const [statusResult, condResult, tasksResult] = await Promise.allSettled([
+        callAI(HEALTH_STATUS_PROMPT, patientContext),
+        callAI(CONDITIONS_PROMPT, `Condition data: ${JSON.stringify(condData)}`),
+        callAI(TASKS_PROMPT, patientContext),
+      ]);
+
+      if (statusResult.status === 'fulfilled') {
+        try { setHealthStatus(JSON.parse(statusResult.value)); }
+        catch { setHealthStatus({ status: 'Fair', reason: 'Unable to assess' }); }
+      } else {
+        setHealthStatus({ status: 'Fair', reason: 'Unable to assess' });
+      }
+
+      if (condResult.status === 'fulfilled') {
+        try {
+          const parsed = JSON.parse(condResult.value);
+          setConditions(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setConditions(condData.map(c => c.display).filter(Boolean));
+        }
+      } else {
+        setConditions(condData.map(c => c.display).filter(Boolean));
+      }
+
+      if (tasksResult.status === 'fulfilled') {
+        try {
+          const parsed = JSON.parse(tasksResult.value);
+          setTasks(Array.isArray(parsed) ? parsed.slice(0, 2) : []);
+        } catch {
+          setTasks(['Stay hydrated throughout the day', 'Take a short walk after meals']);
+        }
+      } else {
+        setTasks(['Stay hydrated throughout the day', 'Take a short walk after meals']);
+      }
+
+      setAiLoading(false);
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setLoading(false);
+      setAiLoading(false);
+    }
+  }
 
   return (
     <div className="pv-page">
@@ -15,15 +169,31 @@ export default function PatientView({ onLogout }) {
           <span className="pv-nav-title">Patient 360 Portal</span>
         </div>
         <div className="pv-nav-right">
-          <div className="pv-nav-bell">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span className="pv-nav-badge">5</span>
+          <div className="pv-nav-bell-wrap" ref={notifRef}>
+            <div className="pv-nav-bell" onClick={() => setShowNotif(!showNotif)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span className="pv-nav-badge">3</span>
+            </div>
+            {showNotif && (
+              <div className="pv-notif-dropdown">
+                <div className="pv-notif-header">Notifications</div>
+                {NOTIFICATIONS.map((n, i) => (
+                  <div className="pv-notif-item" key={i}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div className="pv-notif-text">
+                      <span>{n.text}</span>
+                      <span className="pv-notif-time">{n.time}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="pv-nav-user">
-            <span className="pv-nav-user-name">Sarah Johnson</span>
+            <span className="pv-nav-user-name">{patientName || 'Loading...'}</span>
             <span className="pv-nav-user-role">PATIENT</span>
           </div>
-          <div className="pv-nav-avatar">
+          <div className="pv-nav-avatar" onClick={onLogout} title="Log Out" style={{ cursor: 'pointer' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
         </div>
@@ -32,7 +202,7 @@ export default function PatientView({ onLogout }) {
       {/* Sub-header */}
       <div className="pv-subheader">
         <h1 className="pv-page-title">My Health Dashboard</h1>
-        <button className="pv-back" onClick={() => navigate('/')}>
+        <button className="pv-back" onClick={() => navigate(`/?id=${patientId}`)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
           Back to Home
         </button>
@@ -41,58 +211,90 @@ export default function PatientView({ onLogout }) {
       {/* ── Top Row ── */}
       <div className="pv-grid pv-grid-top">
 
-        {/* ── My Health ── */}
+        {/* ── My Health (DYNAMIC) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#EF4444" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
             My Health
           </h2>
 
-          <div className="pv-health-status">
-            Health Status: <span className="pv-pill pv-pill-green">Good</span>
-          </div>
-
-          <div className="pv-upcoming-appt">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            Upcoming Appointment: Apr 18, 2026 at 2:00 PM
-          </div>
-
-          <h3 className="pv-section-label">My Conditions</h3>
-          <ul className="pv-condition-list">
-            <li><span className="pv-check green">✓</span> Type 2 Diabetes</li>
-            <li><span className="pv-check green">✓</span> Hypertension</li>
-          </ul>
-
-          <h3 className="pv-section-label">Medications Today</h3>
-          <ul className="pv-med-today">
-            <li><span className="pv-check green">✓</span> Metformin - 8:00 AM ✓</li>
-            <li><span className="pv-check orange">⏳</span> Lisinopril - 8:00 PM (pending)</li>
-          </ul>
-
-          <h3 className="pv-section-label">Recent Test Results</h3>
-          <div className="pv-test-results">
-            <div className="pv-test-row">
-              <span>Blood Sugar:</span>
-              <span className="pv-test-val">120 mg/dL</span>
+          {loading ? (
+            <div className="pv-loading">
+              <div className="pv-spinner"></div>
+              <span>Loading health data...</span>
             </div>
-            <div className="pv-test-row">
-              <span>Blood Pressure:</span>
-              <span className="pv-test-val">118/76</span>
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="pv-health-status">
+                Health Status:{' '}
+                {aiLoading ? (
+                  <span className="pv-pill pv-status-loading">Analyzing...</span>
+                ) : healthStatus ? (
+                  <span className={`pv-pill ${statusColor(healthStatus.status)}`}>{healthStatus.status}</span>
+                ) : (
+                  <span className="pv-pill pv-status-fair">Fair</span>
+                )}
+              </div>
 
-          <div className="pv-messages">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span>Messages (2 new)</span>
-          </div>
-          <p className="pv-msg-preview">Your doctor answered your question about diet</p>
+              <h3 className="pv-section-label">My Conditions</h3>
+              {aiLoading ? (
+                <p className="pv-loading-text">Evaluating conditions...</p>
+              ) : conditions.length > 0 ? (
+                <ul className="pv-condition-list">
+                  {conditions.map((c, i) => (
+                    <li key={i}><span className="pv-check green">✓</span> {c}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="pv-empty-text">No conditions found</p>
+              )}
 
-          <h3 className="pv-section-label">Things to Do Today</h3>
-          <label className="pv-todo"><input type="checkbox" /> Take evening medication</label>
-          <label className="pv-todo"><input type="checkbox" /> Log blood sugar reading</label>
+              <h3 className="pv-section-label">Last Medication Taken</h3>
+              {lastMed ? (
+                <div className="pv-last-med">
+                  <span className="pv-check green">✓</span>
+                  <span>{lastMed.name}</span>
+                  {lastMed.dosage && <span className="pv-med-dose"> — {lastMed.dosage}</span>}
+                </div>
+              ) : (
+                <p className="pv-empty-text">No medications found</p>
+              )}
+
+              <h3 className="pv-section-label">Recent Test Results</h3>
+              {observations.length > 0 ? (
+                <div className="pv-test-results">
+                  {observations.map((o, i) => (
+                    <div className="pv-test-row" key={i}>
+                      <span>{o.display}:</span>
+                      <span className="pv-test-val">{o.value} {o.unit}</span>
+                      <span className="pv-test-date">{formatObsDate(o.date)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="pv-empty-text">No test results found</p>
+              )}
+
+              <h3 className="pv-section-label">Things to Do Today</h3>
+              {aiLoading ? (
+                <p className="pv-loading-text">Generating tasks...</p>
+              ) : tasks.length > 0 ? (
+                <ul className="pv-todo-list">
+                  {tasks.map((t, i) => (
+                    <li key={i}>
+                      <span className="pv-todo-dot"></span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="pv-empty-text">No tasks for today</p>
+              )}
+            </>
+          )}
         </div>
 
-        {/* ── My Health Summary ── */}
+        {/* ── My Health Summary (unchanged) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -153,7 +355,7 @@ export default function PatientView({ onLogout }) {
           <p className="pv-trend-label">↓ Improving trend</p>
         </div>
 
-        {/* ── Appointments & Visits ── */}
+        {/* ── Appointments & Visits (unchanged) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -206,7 +408,7 @@ export default function PatientView({ onLogout }) {
         </div>
       </div>
 
-      {/* ── Bottom Row ── */}
+      {/* ── Bottom Row (unchanged) ── */}
       <div className="pv-grid pv-grid-bottom">
 
         {/* ── My Medications ── */}

@@ -291,6 +291,74 @@
 }
 .pv-upload-btn:hover { background: #F9FAFB; }
 
+/* ── Health Status Pills ── */
+.pv-status-good { background: #DCFCE7; color: #16A34A; }
+.pv-status-fair { background: #FEF3C7; color: #D97706; }
+.pv-status-poor { background: #FFEDD5; color: #EA580C; }
+.pv-status-critical { background: #FEE2E2; color: #DC2626; }
+.pv-status-loading { background: #F1F5F9; color: #64748B; }
+
+/* ── Notifications Dropdown ── */
+.pv-nav-bell-wrap { position: relative; }
+.pv-nav-bell { cursor: pointer; padding: 6px; border-radius: 50%; transition: background 0.15s; }
+.pv-nav-bell:hover { background: rgba(255,255,255,0.15); }
+.pv-notif-dropdown {
+  position: absolute; top: 42px; right: 0; z-index: 200;
+  width: 280px; background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+.pv-notif-header {
+  padding: 12px 16px; font-size: 14px; font-weight: 600; color: #1E293B;
+  border-bottom: 1px solid #F1F5F9;
+}
+.pv-notif-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid #F8FAFC;
+  transition: background 0.15s; cursor: pointer;
+}
+.pv-notif-item:hover { background: #F8FAFC; }
+.pv-notif-item:last-child { border-bottom: none; }
+.pv-notif-item svg { flex-shrink: 0; margin-top: 2px; }
+.pv-notif-text { display: flex; flex-direction: column; }
+.pv-notif-text span:first-child { font-size: 13px; color: #1E293B; line-height: 1.4; }
+.pv-notif-time { font-size: 11px; color: #94A3B8; margin-top: 2px; }
+
+/* ── Loading ── */
+.pv-loading {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 12px; padding: 40px 0;
+}
+.pv-spinner {
+  width: 28px; height: 28px;
+  border: 3px solid #DBEAFE; border-top-color: #2563EB;
+  border-radius: 50%; animation: pv-spin 0.7s linear infinite;
+}
+@keyframes pv-spin { to { transform: rotate(360deg); } }
+.pv-loading-text { font-size: 12px; color: #94A3B8; font-style: italic; }
+.pv-empty-text { font-size: 13px; color: #94A3B8; padding: 4px 0; }
+
+/* ── Last Medication ── */
+.pv-last-med {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #1E293B; padding: 4px 0;
+}
+.pv-med-dose { color: #64748B; }
+
+/* ── Test Results with Date ── */
+.pv-test-date { font-size: 11px; color: #94A3B8; margin-left: auto; white-space: nowrap; }
+
+/* ── Things to Do (no checkbox) ── */
+.pv-todo-list { list-style: none; padding: 0; }
+.pv-todo-list li {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: #374151; padding: 5px 0;
+}
+.pv-todo-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #3B82F6; flex-shrink: 0;
+}
+
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .pv-grid { grid-template-columns: 1fr; padding: 16px; }
