@@ -278,8 +278,10 @@ export default function PatientView({ onLogout }) {
               {lastMed ? (
                 <div className="pv-last-med">
                   <span className="pv-check green">✓</span>
-                  <span>{lastMed.name}</span>
-                  {lastMed.authoredOn && <span className="pv-med-date"> — {formatDateTime(lastMed.authoredOn)}</span>}
+                  <div className="pv-last-med-info">
+                    <span>{lastMed.name}</span>
+                    {lastMed.authoredOn && <span className="pv-med-date">{formatDateTime(lastMed.authoredOn)}</span>}
+                  </div>
                 </div>
               ) : (
                 <p className="pv-empty-text">No medications found</p>

@@ -361,10 +361,12 @@
 
 /* ── Last Medication ── */
 .pv-last-med {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: flex-start; gap: 8px;
   font-size: 13px; color: #1E293B; padding: 4px 0;
 }
-.pv-med-dose { color: #64748B; }
+.pv-last-med-info {
+  display: flex; flex-direction: column;
+}
 
 /* ── Last Med Date ── */
 .pv-med-date { color: #64748B; font-size: 12px; }
