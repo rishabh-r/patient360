@@ -1,0 +1,298 @@
+/* ── Page ── */
+.pv-page { min-height: 100vh; background: #F8FAFC; }
+
+/* ── Navbar ── */
+.pv-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px; padding: 0 24px;
+  background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%);
+  color: #fff; position: sticky; top: 0; z-index: 100;
+}
+.pv-nav-left { display: flex; align-items: center; gap: 12px; }
+.pv-nav-logo { height: 32px; object-fit: contain; }
+.pv-nav-title { font-size: 17px; font-weight: 600; }
+.pv-nav-right { display: flex; align-items: center; gap: 16px; }
+.pv-nav-bell { position: relative; padding: 6px; cursor: pointer; }
+.pv-nav-badge {
+  position: absolute; top: 0; right: -2px;
+  background: #EF4444; color: #fff; font-size: 9px; font-weight: 700;
+  width: 16px; height: 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.pv-nav-user { display: flex; flex-direction: column; align-items: flex-end; }
+.pv-nav-user-name { font-size: 13px; font-weight: 600; }
+.pv-nav-user-role { font-size: 9px; font-weight: 500; letter-spacing: 0.8px; opacity: 0.85; }
+.pv-nav-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4);
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.1);
+}
+
+/* ── Sub-header ── */
+.pv-subheader {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 32px;
+  background: #fff; border-bottom: 1px solid #E2E8F0;
+}
+.pv-page-title { font-size: 18px; font-weight: 600; color: #1E293B; }
+.pv-back {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 500; color: #2563EB; cursor: pointer;
+}
+.pv-back:hover { text-decoration: underline; }
+
+/* ── Grid ── */
+.pv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  padding: 20px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.pv-grid-top { padding-bottom: 0; }
+.pv-grid-bottom { padding-top: 8px; }
+
+/* ── Card ── */
+.pv-card {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 20px;
+}
+.pv-card-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 16px; font-weight: 600; color: #1E293B;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #F1F5F9;
+}
+
+/* ── Shared ── */
+.pv-section-label {
+  font-size: 13px; font-weight: 600; color: #374151;
+  margin: 16px 0 8px;
+}
+.pv-pill {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  padding: 2px 10px; border-radius: 20px;
+}
+.pv-pill-green { background: #DCFCE7; color: #16A34A; }
+.pv-pill-blue-outline {
+  background: #EFF6FF; color: #2563EB;
+  border: 1px solid #BFDBFE;
+}
+
+/* ── My Health card ── */
+.pv-health-status { font-size: 13px; color: #475569; margin-bottom: 12px; }
+.pv-upcoming-appt {
+  display: flex; align-items: center; gap: 8px;
+  background: #EEF2FF; border-radius: 8px; padding: 10px 12px;
+  font-size: 12px; font-weight: 500; color: #1E293B;
+  margin-bottom: 4px;
+}
+.pv-condition-list, .pv-med-today {
+  list-style: none; padding: 0;
+}
+.pv-condition-list li, .pv-med-today li {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #1E293B; padding: 3px 0;
+}
+.pv-check { font-size: 12px; }
+.pv-check.green { color: #22C55E; }
+.pv-check.orange { color: #F59E0B; }
+.pv-test-results { margin-bottom: 8px; }
+.pv-test-row {
+  display: flex; justify-content: space-between;
+  font-size: 13px; color: #475569; padding: 3px 0;
+}
+.pv-test-val { font-weight: 600; color: #2563EB; }
+.pv-messages {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: #1E293B;
+  margin-top: 12px;
+}
+.pv-msg-preview { font-size: 12px; color: #64748B; margin: 2px 0 8px; }
+.pv-todo, .pv-task {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #374151; padding: 4px 0; cursor: pointer;
+}
+.pv-todo input, .pv-task input {
+  width: 16px; height: 16px; accent-color: #2563EB; cursor: pointer;
+}
+
+/* ── Health Summary card ── */
+.pv-condition-card {
+  background: #F8FAFC; border-left: 3px solid #6366F1;
+  border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;
+  font-size: 13px; color: #374151; line-height: 1.5;
+}
+.pv-goals { list-style: none; padding: 0; }
+.pv-goals li {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #374151; padding: 3px 0;
+}
+.pv-goal-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #22C55E; flex-shrink: 0;
+}
+.pv-allergy-card {
+  background: #FEF2F2; border-radius: 8px; padding: 12px;
+  margin-top: 12px;
+}
+.pv-allergy-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: #DC2626;
+  margin-bottom: 6px;
+}
+.pv-allergy-item { font-size: 12px; color: #DC2626; padding: 1px 0; }
+.pv-care-team { margin-bottom: 4px; }
+.pv-team-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #374151; padding: 4px 0;
+}
+.pv-trend-sub {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #475569; margin-bottom: 10px;
+}
+.pv-trend-bars {
+  display: flex; gap: 8px; align-items: flex-end; height: 70px;
+  padding-bottom: 4px;
+}
+.pv-bar {
+  width: 56px; border-radius: 4px 4px 0 0;
+}
+.pv-trend-label { font-size: 12px; color: #22C55E; font-weight: 500; margin-top: 4px; }
+
+/* ── Appointments card ── */
+.pv-appt-card {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 10px 12px; border: 1px solid #E2E8F0; border-radius: 8px;
+  margin-bottom: 8px;
+}
+.pv-appt-upcoming { border-color: #BFDBFE; background: #F0F9FF; }
+.pv-appt-info { display: flex; flex-direction: column; }
+.pv-appt-doc { font-size: 13px; font-weight: 600; color: #1E293B; }
+.pv-appt-type { font-size: 11px; color: #64748B; margin-top: 2px; }
+.pv-appt-date { font-size: 11px; color: #64748B; white-space: nowrap; }
+.pv-appt-date.blue { color: #2563EB; font-weight: 600; }
+.pv-televisit-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px; border-radius: 8px;
+  background: #6366F1; color: #fff;
+  font-size: 13px; font-weight: 600;
+  margin: 12px 0;
+  transition: background 0.15s;
+}
+.pv-televisit-btn:hover { background: #4F46E5; }
+.pv-view-summary {
+  font-size: 12px; color: #2563EB; font-weight: 500;
+  display: inline-block; margin: -4px 0 4px 12px;
+}
+.pv-followup-card {
+  background: #FFFBEB; border-radius: 8px; padding: 10px 12px;
+  font-size: 12px; color: #374151; line-height: 1.7;
+}
+.pv-auth-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 13px; color: #374151; padding: 8px 12px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+}
+
+/* ── Medications card ── */
+.pv-med-card {
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  padding: 14px; margin-bottom: 12px;
+}
+.pv-med-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.pv-med-name { font-size: 14px; font-weight: 600; color: #1E293B; }
+.pv-med-detail {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; color: #475569; padding: 2px 0;
+}
+.pv-med-reminder {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #64748B; margin-top: 6px;
+}
+.pv-missed-alert {
+  background: #FEF2F2; border: 1px solid #FECACA;
+  border-radius: 8px; padding: 12px; margin: 12px 0;
+}
+.pv-missed-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 600; color: #DC2626;
+  margin-bottom: 4px;
+}
+.pv-missed-alert p { font-size: 12px; color: #374151; }
+.pv-mark-taken {
+  font-size: 12px; color: #2563EB; font-weight: 500;
+  display: inline-block; margin-top: 4px;
+}
+.pv-refill-btn {
+  width: 100%; padding: 12px; border-radius: 8px;
+  background: #2563EB; color: #fff;
+  font-size: 14px; font-weight: 600;
+  transition: background 0.15s;
+}
+.pv-refill-btn:hover { background: #1D4ED8; }
+
+/* ── Care Plan & Tasks card ── */
+.pv-goal-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 12px;
+}
+.pv-goal-label { font-size: 12px; color: #374151; }
+.pv-goal-value { font-size: 12px; color: #64748B; }
+.pv-progress-bar {
+  width: 100%; height: 8px; background: #E2E8F0;
+  border-radius: 4px; margin-top: 4px; overflow: hidden;
+}
+.pv-progress-fill {
+  height: 100%; border-radius: 4px; transition: width 0.3s;
+}
+.pv-progress-fill.green { background: #22C55E; }
+.pv-progress-fill.blue { background: #3B82F6; }
+.pv-progress-fill.red { background: #EF4444; }
+
+.pv-weekly-ring {
+  position: relative; width: 80px; height: 80px;
+  margin: 16px auto 0;
+}
+.pv-ring-text {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.pv-ring-pct { font-size: 16px; font-weight: 700; color: #1E293B; }
+.pv-ring-label { font-size: 10px; color: #64748B; }
+
+/* ── Documents card ── */
+.pv-doc-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #F1F5F9;
+}
+.pv-doc-row:last-of-type { border-bottom: none; }
+.pv-doc-icon { flex-shrink: 0; }
+.pv-doc-text { display: flex; flex-direction: column; flex: 1; }
+.pv-doc-title { font-size: 13px; font-weight: 500; color: #1E293B; }
+.pv-doc-sub { font-size: 11px; color: #64748B; margin-top: 1px; }
+.pv-doc-view { font-size: 12px; color: #2563EB; font-weight: 500; flex-shrink: 0; }
+.pv-upload-btn {
+  width: 100%; padding: 10px; border-radius: 8px;
+  background: #fff; color: #374151;
+  font-size: 13px; font-weight: 500;
+  border: 1px solid #D1D5DB; margin-top: 12px;
+  transition: background 0.15s;
+}
+.pv-upload-btn:hover { background: #F9FAFB; }
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .pv-grid { grid-template-columns: 1fr; padding: 16px; }
+  .pv-subheader { padding: 12px 16px; }
+}
