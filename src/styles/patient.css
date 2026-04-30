@@ -369,6 +369,11 @@
 /* ── Last Med Date ── */
 .pv-med-date { color: #64748B; font-size: 12px; }
 
+/* ── Test Results Fixed Height ── */
+.pv-test-results {
+  min-height: 84px;
+}
+
 /* ── Test Results Pagination ── */
 .pv-obs-pagination {
   display: flex; align-items: center; justify-content: center;
