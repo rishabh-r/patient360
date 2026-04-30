@@ -375,7 +375,7 @@
 
 /* ── Test Results Fixed Height ── */
 .pv-test-results {
-  min-height: 84px;
+  min-height: 140px;
 }
 
 /* ── Test Results Pagination ── */

@@ -25,7 +25,7 @@ function formatDateTime(dateStr) {
   return `${date}, ${time}`;
 }
 
-const OBS_PER_PAGE = 3;
+const OBS_PER_PAGE = 5;
 
 const ALL_OBS_GROUPS = [
   { key: 'bp', label: 'BP', codes: ['8480-6', '8462-4'], colors: ['#EF4444', '#3B82F6'], targets: [120, 80], targetLabels: ['Systolic (120)', 'Diastolic (80)'] },
