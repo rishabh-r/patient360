@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { callFhirApi, buildUrl } from '../services/fhir';
 import '../styles/home.css';
 
 const DATA_SOURCES = [
@@ -64,7 +65,7 @@ export default function HomePage({ onLogout }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const patientId = searchParams.get('id') || localStorage.getItem('p360_patient_id') || '';
-  const userName = localStorage.getItem('p360_user') || 'User';
+  const [userName, setUserName] = useState('');
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
 
@@ -75,6 +76,18 @@ export default function HomePage({ onLogout }) {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  useEffect(() => {
+    if (!patientId) return;
+    callFhirApi(buildUrl('/baseR4/Patient', { _id: patientId, page: 0, size: 1 }))
+      .then(res => {
+        const pt = res?.entry?.[0]?.resource;
+        const given = pt?.name?.[0]?.given?.join(' ') || '';
+        const family = pt?.name?.[0]?.family || '';
+        setUserName(`${given} ${family}`.trim() || 'User');
+      })
+      .catch(() => setUserName(localStorage.getItem('p360_user') || 'User'));
+  }, [patientId]);
 
   const goToView = (route) => {
     if (route) navigate(`${route}?id=${patientId}`);
