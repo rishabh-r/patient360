@@ -274,7 +274,7 @@ export default function PatientView({ onLogout }) {
       if (summaryResult.status === 'fulfilled') {
         try {
           const parsed = JSON.parse(summaryResult.value);
-          setHealthSummary(Array.isArray(parsed) ? parsed.slice(0, 3) : []);
+          setHealthSummary(Array.isArray(parsed) ? parsed.slice(0, 1) : [parsed]);
         } catch {
           setHealthSummary([]);
         }
