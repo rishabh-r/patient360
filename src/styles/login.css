@@ -21,7 +21,11 @@
 .ls-topbar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+.ls-topbar-logo {
+  height: 36px;
+  object-fit: contain;
 }
 .ls-topbar-title {
   font-size: 18px;

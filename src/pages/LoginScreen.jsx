@@ -32,9 +32,7 @@ export default function LoginScreen({ onLoginSuccess }) {
     <div className="ls-page">
       <div className="ls-topbar">
         <div className="ls-topbar-brand">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-          </svg>
+          <img src="/images/LogoRsi.png" alt="R Systems" className="ls-topbar-logo" />
           <span className="ls-topbar-title">Patient 360 Portal</span>
         </div>
         <span className="ls-topbar-badge">Secure Healthcare Access</span>
