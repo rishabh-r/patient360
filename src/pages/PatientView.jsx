@@ -128,10 +128,20 @@ export default function PatientView({ onLogout }) {
       const medSummary = meds.map(m => `${m.name} (${m.status})`).join(', ');
       const patientContext = `Patient: ${fullName}\nConditions: ${condSummary || 'None found'}\nObservations: ${obsSummary || 'None found'}\nMedications: ${medSummary || 'None found'}`;
 
-      const [statusResult, condResult, tasksResult] = await Promise.allSettled([
-        callAI(HEALTH_STATUS_PROMPT, patientContext),
-        callAI(CONDITIONS_PROMPT, `Condition data: ${JSON.stringify(condData)}`),
-        callAI(TASKS_PROMPT, patientContext),
+      const today = new Date().toISOString().split('T')[0];
+      const tasksCacheKey = `p360_tasks_${patientId}_${today}`;
+      const cachedTasks = sessionStorage.getItem(tasksCacheKey);
+      let tasksPromise;
+      if (cachedTasks) {
+        tasksPromise = Promise.resolve({ status: 'cached', value: cachedTasks });
+      } else {
+        tasksPromise = callAI(TASKS_PROMPT, patientContext).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' }));
+      }
+
+      const [statusResult, condResult, tasksResult] = await Promise.all([
+        callAI(HEALTH_STATUS_PROMPT, patientContext).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' })),
+        callAI(CONDITIONS_PROMPT, `Condition data: ${JSON.stringify(condData)}`).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' })),
+        tasksPromise,
       ]);
 
       if (statusResult.status === 'fulfilled') {
@@ -152,10 +162,15 @@ export default function PatientView({ onLogout }) {
         setConditions(condData.map(c => c.display).filter(Boolean).slice(0, 2));
       }
 
-      if (tasksResult.status === 'fulfilled') {
+      if (tasksResult.status === 'cached') {
+        try { setTasks(JSON.parse(tasksResult.value)); }
+        catch { setTasks(['Stay hydrated throughout the day', 'Take a short walk after meals']); }
+      } else if (tasksResult.status === 'fulfilled') {
         try {
           const parsed = JSON.parse(tasksResult.value);
-          setTasks(Array.isArray(parsed) ? parsed.slice(0, 2) : []);
+          const taskList = Array.isArray(parsed) ? parsed.slice(0, 2) : [];
+          setTasks(taskList);
+          sessionStorage.setItem(tasksCacheKey, JSON.stringify(taskList));
         } catch {
           setTasks(['Stay hydrated throughout the day', 'Take a short walk after meals']);
         }
