@@ -60,6 +60,8 @@
   border: 1px solid #E2E8F0;
   border-radius: 12px;
   padding: 20px;
+  min-width: 0;
+  overflow: hidden;
 }
 .pv-card-title {
   display: flex; align-items: center; gap: 8px;
@@ -430,11 +432,14 @@
 /* ── Clinical Trends ── */
 .pv-chart-scroll {
   overflow-x: auto; overflow-y: hidden;
+  max-width: 100%;
   scrollbar-width: thin; scrollbar-color: #CBD5E1 transparent;
+  padding-bottom: 4px;
 }
-.pv-chart-scroll::-webkit-scrollbar { height: 5px; }
+.pv-chart-scroll::-webkit-scrollbar { height: 6px; }
 .pv-chart-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
-.pv-chart-inner { min-width: 500px; }
+.pv-chart-scroll::-webkit-scrollbar-track { background: #F1F5F9; border-radius: 3px; }
+.pv-chart-inner { min-width: 480px; width: 480px; }
 .pv-trend-tabs {
   display: flex; gap: 6px; overflow-x: auto;
   padding-bottom: 10px; scrollbar-width: thin;

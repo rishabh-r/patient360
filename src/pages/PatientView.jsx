@@ -556,7 +556,7 @@ export default function PatientView({ onLogout }) {
                         <button key={tab.key} className={`pv-trend-tab${(activeKey) === tab.key ? ' active' : ''}`} onClick={() => setTrendTab(tab.key)}>{tab.label}</button>
                       ))}
                     </div>
-                    <div className="pv-chart-scroll"><div className="pv-chart-inner"><Line data={{ labels, datasets }} options={options} width={500} height={220} /></div></div>
+                    <div className="pv-chart-scroll"><div className="pv-chart-inner"><Line data={{ labels, datasets }} options={options} width={480} height={200} /></div></div>
                     {cfg.targetLabels && <div className="pv-trend-legend">{cfg.targetLabels.map((l, i) => <span key={i} className="pv-trend-legend-item">{l}</span>)}</div>}
                   </>
                 );
