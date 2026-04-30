@@ -2,8 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { callAI } from '../services/ai';
-import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT } from '../config/prompts';
+import { FHIR_BASE } from '../config/constants';
+import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT } from '../config/prompts';
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import '../styles/patient.css';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const NOTIFICATIONS = [
   { text: 'Lab results are ready for review', time: '2 hours ago' },
@@ -21,6 +26,47 @@ function formatDateTime(dateStr) {
 }
 
 const OBS_PER_PAGE = 3;
+
+const ALL_OBS_GROUPS = [
+  { key: 'bp', label: 'BP', codes: ['8480-6', '8462-4'], colors: ['#EF4444', '#3B82F6'], targets: [120, 80], targetLabels: ['Systolic (120)', 'Diastolic (80)'] },
+  { key: 'glucose', label: 'Glucose', codes: ['2345-7'], colors: ['#8B5CF6'], targets: [130], targetLabels: ['Target: 70-130 mg/dL'], fill: true },
+  { key: 'heartrate', label: 'Heart Rate', codes: ['8867-4'], colors: ['#F59E0B'], targets: null, targetLabels: ['Normal: 60-100 bpm'] },
+  { key: 'hba1c', label: 'HbA1c', codes: ['4548-4'], colors: ['#22C55E'], targets: [7.0], targetLabels: ['Target: < 7.0%'] },
+  { key: 'creatinine', label: 'Creatinine', codes: ['2160-0'], colors: ['#EF4444'], targets: [1.3], targetLabels: ['Upper: 1.3 mg/dL'] },
+  { key: 'ntprobnp', label: 'NT-proBNP', codes: ['33762-6'], colors: ['#EC4899'], targets: [125], targetLabels: ['Upper: 125 pg/mL'] },
+  { key: 'potassium', label: 'Potassium', codes: ['2823-3'], colors: ['#F59E0B'], targets: null, targetLabels: ['Normal: 3.5-5.0 mEq/L'] },
+  { key: 'ldl', label: 'LDL', codes: ['2090-9'], colors: ['#3B82F6'], targets: [100], targetLabels: ['Target: < 100 mg/dL'] },
+  { key: 'cholesterol', label: 'Cholesterol', codes: ['2093-3'], colors: ['#6366F1'], targets: [200], targetLabels: ['Upper: 200 mg/dL'] },
+  { key: 'triglycerides', label: 'Triglycerides', codes: ['1644-4'], colors: ['#F97316'], targets: [150], targetLabels: ['Upper: 150 mg/dL'] },
+  { key: 'sodium', label: 'Sodium', codes: ['2951-2'], colors: ['#14B8A6'], targets: null, targetLabels: ['Normal: 136-145 mEq/L'] },
+];
+
+function parseObsForTrends(bundle) {
+  if (!bundle?.entry?.length) return null;
+  const byCode = {};
+  for (const e of bundle.entry) {
+    const r = e.resource;
+    if (r.resourceType !== 'Observation') continue;
+    const code = r.code?.coding?.[0]?.code || '';
+    const display = r.code?.coding?.[0]?.display || '';
+    const value = r.valueQuantity?.value ?? parseFloat(r.valueString);
+    const unit = r.valueQuantity?.unit || r.valueQuantity?.code || '';
+    const date = r.effectiveDateTime || r.issued || '';
+    if (!code || isNaN(value)) continue;
+    if (!byCode[code]) byCode[code] = { display, unit, points: [] };
+    byCode[code].points.push({ date: new Date(date), value });
+  }
+  for (const c of Object.values(byCode)) c.points.sort((a, b) => a.date - b.date);
+  return Object.keys(byCode).length ? byCode : null;
+}
+
+function getTrendTabs(obsData) {
+  if (!obsData) return [];
+  return ALL_OBS_GROUPS
+    .map(g => ({ ...g, totalPoints: g.codes.reduce((sum, c) => sum + (obsData[c]?.points?.length || 0), 0) }))
+    .filter(g => g.totalPoints > 0)
+    .sort((a, b) => b.totalPoints - a.totalPoints);
+}
 
 function statusColor(status) {
   switch ((status || '').toLowerCase()) {
@@ -49,6 +95,12 @@ export default function PatientView({ onLogout }) {
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(true);
   const [obsPage, setObsPage] = useState(1);
+  const [healthSummary, setHealthSummary] = useState([]);
+  const [allergies, setAllergies] = useState([]);
+  const [careTeam, setCareTeam] = useState([]);
+  const [allObsData, setAllObsData] = useState(null);
+  const [trendTab, setTrendTab] = useState(null);
+  const [trendPeriod, setTrendPeriod] = useState('all');
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -68,11 +120,13 @@ export default function PatientView({ onLogout }) {
 
   async function loadData() {
     try {
-      const [patientRes, condRes, medRes, obsRes] = await Promise.all([
+      const [patientRes, condRes, medRes, obsRes, allergyRes, eocRes] = await Promise.all([
         callFhirApi(buildUrl('/baseR4/Patient', { _id: patientId, page: 0, size: 1 })),
         callFhirApi(buildUrl('/baseR4/Condition', { patient: patientId, page: 0, size: 100 })),
         callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: patientId, page: 0, size: 100 })),
         callFhirApi(buildUrl('/baseR4/Observation/search', { patient: patientId, page: 0, size: 100 })),
+        callFhirApi(buildUrl('/baseR4/AllergyIntolerance', { patient: patientId, page: 0, size: 100 })),
+        callFhirApi(buildUrl('/baseR4/EpisodeOfCare', { patient: patientId, page: 0, size: 100 })),
       ]);
 
       const pt = patientRes?.entry?.[0]?.resource;
@@ -121,6 +175,44 @@ export default function PatientView({ onLogout }) {
       });
       const latestObs = Object.values(obsMap).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       setObservations(latestObs);
+
+      const allergyEntries = allergyRes?.entry || [];
+      setAllergies(allergyEntries.map(e => {
+        const r = e.resource;
+        return {
+          name: r.code?.coding?.[0]?.display || 'Unknown',
+          criticality: r.criticality || 'low',
+          category: (r.category || [])[0] || '',
+        };
+      }));
+
+      const trendData = parseObsForTrends(obsRes);
+      setAllObsData(trendData);
+
+      const team = [];
+      const practIds = {};
+      for (const e of (eocRes?.entry || [])) {
+        const r = e.resource;
+        const cm = r.careManager;
+        if (!cm) continue;
+        const name = cm.display || 'Care Manager';
+        const program = r.type?.[0]?.coding?.[0]?.display || r.type?.[0]?.text || 'Care Program';
+        const practId = cm.reference?.replace('Practitioner/', '') || '';
+        if (!team.some(t => t.name === name)) {
+          team.push({ name, initials: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(), program, email: '', practId });
+          if (practId) practIds[practId] = null;
+        }
+      }
+      await Promise.all(Object.keys(practIds).map(async id => {
+        try {
+          const pr = await callFhirApi(`${FHIR_BASE}/baseR4/Practitioner?_id=${id}&page=0&size=1`);
+          const email = pr?.entry?.[0]?.resource?.telecom?.find(t => t.system === 'email')?.value || '';
+          practIds[id] = email;
+        } catch {}
+      }));
+      team.forEach(m => { if (m.practId && practIds[m.practId]) m.email = practIds[m.practId]; });
+      setCareTeam(team);
+
       setLoading(false);
 
       const condSummary = condData.map(c => `${c.display} (${c.clinicalStatus})`).join(', ');
@@ -138,10 +230,11 @@ export default function PatientView({ onLogout }) {
         tasksPromise = callAI(TASKS_PROMPT, patientContext).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' }));
       }
 
-      const [statusResult, condResult, tasksResult] = await Promise.all([
+      const [statusResult, condResult, tasksResult, summaryResult] = await Promise.all([
         callAI(HEALTH_STATUS_PROMPT, patientContext).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' })),
         callAI(CONDITIONS_PROMPT, `Condition data: ${JSON.stringify(condData)}`).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' })),
         tasksPromise,
+        callAI(HEALTH_SUMMARY_PROMPT, patientContext).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' })),
       ]);
 
       if (statusResult.status === 'fulfilled') {
@@ -176,6 +269,15 @@ export default function PatientView({ onLogout }) {
         }
       } else {
         setTasks(['Stay hydrated throughout the day', 'Take a short walk after meals']);
+      }
+
+      if (summaryResult.status === 'fulfilled') {
+        try {
+          const parsed = JSON.parse(summaryResult.value);
+          setHealthSummary(Array.isArray(parsed) ? parsed.slice(0, 3) : []);
+        } catch {
+          setHealthSummary([]);
+        }
       }
 
       setAiLoading(false);
@@ -358,65 +460,118 @@ export default function PatientView({ onLogout }) {
           )}
         </div>
 
-        {/* ── My Health Summary (unchanged) ── */}
+        {/* ── My Health Summary (DYNAMIC) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
             My Health Summary
           </h2>
 
-          <h3 className="pv-section-label">Conditions Explained</h3>
-          <div className="pv-condition-card">
-            <p><strong>Type 2 Diabetes:</strong> Your body doesn't use insulin well. We're managing this with medication and lifestyle changes.</p>
-          </div>
-          <div className="pv-condition-card">
-            <p><strong>Hypertension:</strong> High blood pressure. Controlled with daily medication and low-salt diet.</p>
-          </div>
+          {loading ? (
+            <div className="pv-loading"><div className="pv-spinner"></div><span>Loading...</span></div>
+          ) : (
+            <>
+              <h3 className="pv-section-label">Health Overview</h3>
+              {aiLoading ? (
+                <p className="pv-loading-text">Generating summary...</p>
+              ) : healthSummary.length > 0 ? (
+                healthSummary.map((s, i) => (
+                  <div className="pv-condition-card" key={i}>
+                    <p><strong>{s.condition}:</strong> {s.summary}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="pv-empty-text">No summary available</p>
+              )}
 
-          <h3 className="pv-section-label">Current Care Plan & Goals</h3>
-          <ul className="pv-goals">
-            <li><span className="pv-goal-dot"></span> Keep blood sugar under 140 mg/dL</li>
-            <li><span className="pv-goal-dot"></span> Walk 30 minutes daily</li>
-            <li><span className="pv-goal-dot"></span> Reduce sodium intake</li>
-          </ul>
+              <div className="pv-allergy-card">
+                <h3 className="pv-allergy-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  Allergies & Safety Info
+                </h3>
+                {allergies.length > 0 ? (
+                  allergies.map((a, i) => (
+                    <p className="pv-allergy-item" key={i}>• {a.name} — {a.criticality}</p>
+                  ))
+                ) : (
+                  <p className="pv-allergy-item">No known allergies</p>
+                )}
+              </div>
 
-          <div className="pv-allergy-card">
-            <h3 className="pv-allergy-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              Allergies & Safety Info
-            </h3>
-            <p className="pv-allergy-item">• Penicillin - severe reaction</p>
-            <p className="pv-allergy-item">• Shellfish - moderate</p>
-          </div>
+              <h3 className="pv-section-label">My Care Team</h3>
+              <div className="pv-care-team">
+                {careTeam.length > 0 ? (
+                  careTeam.map((m, i) => (
+                    <div className="pv-team-card" key={i}>
+                      <div className="pv-team-avatar">{m.initials}</div>
+                      <div className="pv-team-info">
+                        <span className="pv-team-name">{m.name}</span>
+                        <span className="pv-team-program">{m.program}</span>
+                      </div>
+                      {m.email && (
+                        <a href={`mailto:${m.email}`} className="pv-team-email" title={m.email}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>
+                        </a>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="pv-empty-text">No care coordinators found</p>
+                )}
+              </div>
 
-          <h3 className="pv-section-label">My Care Team</h3>
-          <div className="pv-care-team">
-            <div className="pv-team-row">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              Dr. Michael Chen - Primary Care
-            </div>
-            <div className="pv-team-row">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              Dr. Lisa Park - Endocrinologist
-            </div>
-            <div className="pv-team-row">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              Jane Smith RN - Care Manager
-            </div>
-          </div>
-
-          <h3 className="pv-section-label">Test Results Trend</h3>
-          <p className="pv-trend-sub">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg>
-            Blood Sugar · Last 3 Months
-          </p>
-          <div className="pv-trend-bars">
-            <div className="pv-bar" style={{ height: 60, background: '#3B82F6' }}></div>
-            <div className="pv-bar" style={{ height: 52, background: '#60A5FA' }}></div>
-            <div className="pv-bar" style={{ height: 48, background: '#60A5FA' }}></div>
-            <div className="pv-bar" style={{ height: 40, background: '#22C55E' }}></div>
-          </div>
-          <p className="pv-trend-label">↓ Improving trend</p>
+              <h3 className="pv-section-label">
+                Test Results Trend
+                {allObsData && (
+                  <button className="pv-trend-toggle" onClick={() => setTrendPeriod(trendPeriod === '12m' ? 'all' : '12m')}>
+                    {trendPeriod === '12m' ? 'Show All' : '12 Month View'}
+                  </button>
+                )}
+              </h3>
+              {(() => {
+                const tabs = getTrendTabs(allObsData);
+                if (!tabs.length) return <p className="pv-empty-text">No trend data available</p>;
+                const activeKey = trendTab || tabs[0]?.key;
+                const cfg = tabs.find(t => t.key === activeKey) || tabs[0];
+                const cutoff = trendPeriod === '12m' ? new Date(new Date().setFullYear(new Date().getFullYear() - 1)) : null;
+                const datasets = [];
+                const allDates = new Set();
+                cfg.codes.forEach((code, idx) => {
+                  const obs = allObsData[code];
+                  if (!obs) return;
+                  const filtered = cutoff ? obs.points.filter(p => p.date >= cutoff) : obs.points;
+                  filtered.forEach(p => allDates.add(p.date.toISOString().slice(0, 10)));
+                  datasets.push({
+                    label: obs.display,
+                    data: filtered.map(p => ({ x: p.date.toISOString().slice(0, 10), y: p.value })),
+                    borderColor: cfg.colors[idx % cfg.colors.length],
+                    backgroundColor: cfg.fill ? cfg.colors[idx % cfg.colors.length] + '20' : 'transparent',
+                    fill: !!cfg.fill, tension: 0.3, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2,
+                  });
+                });
+                if (!datasets.length || !allDates.size) return <p className="pv-empty-text">No data for selected period</p>;
+                const labels = [...allDates].sort();
+                datasets.forEach(ds => { ds.data = labels.map(lbl => { const pt = ds.data.find(d => d.x === lbl); return pt ? pt.y : null; }); });
+                if (cfg.targets) cfg.targets.forEach((t, idx) => { if (t != null) datasets.push({ label: `Target (${t})`, data: labels.map(() => t), borderColor: cfg.colors[idx % cfg.colors.length] || '#94A3B8', borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, fill: false }); });
+                const options = {
+                  responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, spanGaps: true,
+                  plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 12, font: { size: 10 } } }, tooltip: { backgroundColor: '#fff', titleColor: '#1E293B', bodyColor: '#475569', borderColor: '#E2E8F0', borderWidth: 1, padding: 10, cornerRadius: 8, callbacks: { title: (items) => { const d = new Date(labels[items[0].dataIndex]); return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}-${String(d.getFullYear()).slice(-2)}`; }, label: ctx => ctx.raw == null ? null : ctx.raw } } },
+                  scales: { x: { grid: { display: false }, ticks: { font: { size: 9 }, maxTicksLimit: 6, callback: (_, i) => { const d = new Date(labels[i]); return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}-${String(d.getFullYear()).slice(-2)}`; } } }, y: { grid: { color: '#F1F5F9' }, ticks: { font: { size: 10 } }, beginAtZero: true } },
+                };
+                return (
+                  <>
+                    <div className="pv-trend-tabs">
+                      {tabs.map(tab => (
+                        <button key={tab.key} className={`pv-trend-tab${(activeKey) === tab.key ? ' active' : ''}`} onClick={() => setTrendTab(tab.key)}>{tab.label}</button>
+                      ))}
+                    </div>
+                    <div style={{ height: '220px' }}><Line data={{ labels, datasets }} options={options} /></div>
+                    {cfg.targetLabels && <div className="pv-trend-legend">{cfg.targetLabels.map((l, i) => <span key={i} className="pv-trend-legend-item">{l}</span>)}</div>}
+                  </>
+                );
+              })()}
+            </>
+          )}
         </div>
 
         {/* ── Appointments & Visits (unchanged) ── */}

@@ -405,6 +405,65 @@
   background: #3B82F6; flex-shrink: 0;
 }
 
+/* ── Care Team Cards ── */
+.pv-team-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid #F1F5F9;
+}
+.pv-team-card:last-child { border-bottom: none; }
+.pv-team-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #EFF6FF; color: #3B82F6;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.pv-team-info { display: flex; flex-direction: column; flex: 1; }
+.pv-team-name { font-size: 13px; font-weight: 600; color: #1E293B; }
+.pv-team-program { font-size: 11px; color: #64748B; margin-top: 1px; }
+.pv-team-email {
+  width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; flex-shrink: 0;
+}
+.pv-team-email:hover { background: #F1F5F9; }
+
+/* ── Clinical Trends ── */
+.pv-trend-toggle {
+  font-size: 11px; font-weight: 500; color: #2563EB;
+  margin-left: auto; cursor: pointer;
+  padding: 3px 10px; border: 1px solid #DBEAFE;
+  border-radius: 14px; background: #EFF6FF;
+  transition: background 0.15s;
+}
+.pv-trend-toggle:hover { background: #DBEAFE; }
+.pv-trend-tabs {
+  display: flex; gap: 6px; overflow-x: auto;
+  padding-bottom: 10px; scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+.pv-trend-tabs::-webkit-scrollbar { height: 4px; }
+.pv-trend-tabs::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+.pv-trend-tab {
+  padding: 5px 14px; font-size: 11px; font-weight: 500;
+  color: #64748B; border: 1px solid #E2E8F0;
+  border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+  cursor: pointer; transition: all 0.15s; background: #fff;
+}
+.pv-trend-tab:hover { border-color: #CBD5E1; }
+.pv-trend-tab.active {
+  background: #2563EB; color: #fff; border-color: #2563EB;
+}
+.pv-trend-legend {
+  display: flex; gap: 12px; justify-content: center;
+  padding-top: 6px;
+}
+.pv-trend-legend-item {
+  font-size: 10px; color: #64748B;
+}
+.pv-section-label {
+  display: flex; align-items: center; gap: 8px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .pv-grid { grid-template-columns: 1fr; padding: 16px; }
