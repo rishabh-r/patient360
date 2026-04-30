@@ -40,13 +40,16 @@ export default function PatientView({ onLogout }) {
   const [observations, setObservations] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(true);
   const notifRef = useRef(null);
+  const profileRef = useRef(null);
 
   useEffect(() => {
     function handleClick(e) {
       if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotif(false);
+      if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfile(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -193,8 +196,22 @@ export default function PatientView({ onLogout }) {
             <span className="pv-nav-user-name">{patientName || 'Loading...'}</span>
             <span className="pv-nav-user-role">PATIENT</span>
           </div>
-          <div className="pv-nav-avatar" onClick={onLogout} title="Log Out" style={{ cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <div className="pv-profile-wrap" ref={profileRef}>
+            <div className="pv-nav-avatar" onClick={() => setShowProfile(!showProfile)} style={{ cursor: 'pointer' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            {showProfile && (
+              <div className="pv-profile-dropdown">
+                <div className="pv-profile-info">
+                  <span className="pv-profile-name">{patientName}</span>
+                  <span className="pv-profile-email">{localStorage.getItem('p360_email') || ''}</span>
+                </div>
+                <div className="pv-profile-signout" onClick={onLogout}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Sign Out
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </nav>

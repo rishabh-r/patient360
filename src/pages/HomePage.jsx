@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/home.css';
 
@@ -64,6 +65,16 @@ export default function HomePage({ onLogout }) {
   const [searchParams] = useSearchParams();
   const patientId = searchParams.get('id') || localStorage.getItem('p360_patient_id') || '';
   const userName = localStorage.getItem('p360_user') || 'User';
+  const [showProfile, setShowProfile] = useState(false);
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfile(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const goToView = (route) => {
     if (route) navigate(`${route}?id=${patientId}`);
@@ -88,8 +99,22 @@ export default function HomePage({ onLogout }) {
               <span className="home-nav-user-name">{userName}</span>
               <span className="home-nav-user-role">PATIENT</span>
             </div>
-            <div className="home-nav-avatar" onClick={onLogout} title="Log Out" style={{ cursor: 'pointer' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div className="home-profile-wrap" ref={profileRef}>
+              <div className="home-nav-avatar" onClick={() => setShowProfile(!showProfile)} style={{ cursor: 'pointer' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              {showProfile && (
+                <div className="home-profile-dropdown">
+                  <div className="home-profile-info">
+                    <span className="home-profile-name">{userName}</span>
+                    <span className="home-profile-email">{localStorage.getItem('p360_email') || ''}</span>
+                  </div>
+                  <div className="home-profile-signout" onClick={onLogout}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sign Out
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
