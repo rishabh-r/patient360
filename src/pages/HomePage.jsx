@@ -66,6 +66,7 @@ export default function HomePage({ onLogout }) {
   const [searchParams] = useSearchParams();
   const patientId = searchParams.get('id') || localStorage.getItem('p360_patient_id') || '';
   const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
 
@@ -85,6 +86,8 @@ export default function HomePage({ onLogout }) {
         const given = pt?.name?.[0]?.given?.join(' ') || '';
         const family = pt?.name?.[0]?.family || '';
         setUserName(`${given} ${family}`.trim() || 'User');
+        const email = (pt?.telecom || []).find(t => t.system === 'email')?.value || '';
+        setUserEmail(email);
       })
       .catch(() => setUserName(localStorage.getItem('p360_user') || 'User'));
   }, [patientId]);
@@ -118,10 +121,10 @@ export default function HomePage({ onLogout }) {
               </div>
               {showProfile && (
                 <div className="home-profile-dropdown">
-                  <div className="home-profile-info">
-                    <span className="home-profile-name">{userName}</span>
-                    <span className="home-profile-email">{localStorage.getItem('p360_email') || ''}</span>
-                  </div>
+                <div className="home-profile-info">
+                  <span className="home-profile-name">{userName}</span>
+                  <span className="home-profile-email">{userEmail}</span>
+                </div>
                   <div className="home-profile-signout" onClick={onLogout}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                     Sign Out

@@ -38,6 +38,7 @@ export default function PatientView({ onLogout }) {
   const patientId = searchParams.get('id') || localStorage.getItem('p360_patient_id') || '';
 
   const [patientName, setPatientName] = useState('');
+  const [patientEmail, setPatientEmail] = useState('');
   const [healthStatus, setHealthStatus] = useState(null);
   const [conditions, setConditions] = useState([]);
   const [lastMed, setLastMed] = useState(null);
@@ -79,6 +80,8 @@ export default function PatientView({ onLogout }) {
       const family = pt?.name?.[0]?.family || '';
       const fullName = `${given} ${family}`.trim();
       setPatientName(fullName || 'Patient');
+      const email = (pt?.telecom || []).find(t => t.system === 'email')?.value || '';
+      setPatientEmail(email);
 
       const condEntries = condRes?.entry || [];
       const condData = condEntries.map(e => {
@@ -209,7 +212,7 @@ export default function PatientView({ onLogout }) {
               <div className="pv-profile-dropdown">
                 <div className="pv-profile-info">
                   <span className="pv-profile-name">{patientName}</span>
-                  <span className="pv-profile-email">{localStorage.getItem('p360_email') || ''}</span>
+                  <span className="pv-profile-email">{patientEmail}</span>
                 </div>
                 <div className="pv-profile-signout" onClick={onLogout}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
