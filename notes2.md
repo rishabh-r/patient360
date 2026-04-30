@@ -2752,3 +2752,74 @@ The first container "My Health" in Patient View is now fully dynamic with FHIR A
 11. `faa2272` — Cache daily tasks in sessionStorage - same tasks all day, new ones next day
 
 ---
+
+
+## Session: April 30, 2026 (continued) — 2nd Container + Refinements
+
+### 2nd Container — My Health Summary (DYNAMIC)
+
+#### Overview
+The second container "My Health Summary" is now fully dynamic with FHIR API integration, AI-powered health overview, and Chart.js clinical trends.
+
+#### Dependencies Added
+- `chart.js` — Chart.js 4.x for line charts
+- `react-chartjs-2` — React wrapper for Chart.js
+- Chart.js modules registered: `CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler`
+
+#### New API Calls Added to loadData()
+- `/baseR4/AllergyIntolerance?patient={id}` — Allergies & Safety Info
+- `/baseR4/EpisodeOfCare?patient={id}` — Care Team (care managers/coordinators)
+- Practitioner API fetched per care manager for email (same pattern as Time Traveler)
+
+#### New Prompt Added
+- `HEALTH_SUMMARY_PROMPT` — Returns single JSON object `{ condition: "Overall Health Summary", summary: "..." }`. One unified summary covering all conditions, observations, and medications in 2-3 patient-friendly sentences.
+
+#### Sections in 2nd Container
+
+| Section | Source | Details |
+|---------|--------|---------|
+| Health Overview | AI | Single overall health summary in purple-border card format. Covers all conditions, observations, medications in one paragraph |
+| Conditions Explained | -- | **Removed** (replaced by Health Overview) |
+| Current Care Plan & Goals | -- | **Removed** |
+| Allergies & Safety Info | `/baseR4/AllergyIntolerance` API | Dynamic — shows allergy name + criticality (high/low) from API |
+| My Care Team | `/baseR4/EpisodeOfCare` API | Dynamic — care managers/coordinators with initials avatar, name, program name, mailto email link |
+| Test Results Trend | `/baseR4/Observation/search` + Chart.js | Line charts with horizontal scroll tabs, auto-detected observation groups, fixed 480px chart width inside scrollable container |
+
+#### Care Team Parsing (from EpisodeOfCare)
+- Iterates `eocRes.entry` → extracts `careManager.display` (name), `type[0].coding[0].display` (program)
+- Deduplicates by name
+- Fetches each care manager's Practitioner record for email (`telecom` where `system === 'email'`)
+- Shows initials avatar, name, program, and mailto email icon
+
+#### Clinical Trends Implementation
+- `ALL_OBS_GROUPS` — 11 observation groups with chart config (key, label, codes, colors, targets, targetLabels)
+- `parseObsForTrends(bundle)` — Groups all observations by LOINC code with all data points sorted by date
+- `getTrendTabs(obsData)` — Returns available tabs sorted by data density
+- Chart.js `Line` component with `responsive: false`, fixed 480x200px
+- Chart inside scrollable container (`overflow-x: auto`, `max-width: 100%`) so card width stays normal
+- Horizontal scroll tabs (pill-shaped, `overflow-x: auto`)
+- Tooltip: mm-dd-yy date format, value only
+- Target/reference dashed lines when available
+- **12 Month View toggle**: Removed — always shows all data
+- **Card constraint**: `min-width: 0; overflow: hidden` on `.pv-card` prevents chart from stretching grid
+
+#### Health Overview — Single Summary (Iteration)
+- Initially showed 3 per-condition summaries (Type 2 Diabetes, Hypertension, High Cholesterol separately)
+- **Changed to**: Single overall summary covering everything in one card
+- Prompt returns single JSON object instead of array
+- Parsing handles both object and array responses
+
+#### Test Results — 5 Per Page
+- Changed `OBS_PER_PAGE` from 3 to 5
+- Fixed min-height updated from 84px to 140px (fits 5 rows)
+- Pagination only shows when more than 5 results
+
+### Git Commits (this sub-session, chronological)
+
+12. `b6a65c5` — Dynamic 2nd container: AI health summary, allergies from API, care team from EpisodeOfCare, clinical trends charts
+13. `1fbbbdb` — Remove 12 Month View toggle, add horizontal scroll to chart
+14. `788c75b` — Fix chart width: constrain card with overflow hidden, visible scrollbar
+15. `d9796a4` — Health Overview: single overall summary instead of per-condition breakdowns
+16. `7d48468` — Show 5 test results per page instead of 3
+
+---
