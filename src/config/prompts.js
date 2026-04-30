@@ -9,10 +9,10 @@ Status must be one of:
 - "Poor" — multiple uncontrolled conditions, significant observation abnormalities
 - "Critical" — acute or severe conditions, dangerously abnormal observation values`;
 
-export const CONDITIONS_PROMPT = `You are a clinical AI. From the patient's condition data, extract their primary diseases in simple patient-friendly language.
+export const CONDITIONS_PROMPT = `You are a clinical AI. From the patient's condition data, identify the 2 most important and well-known primary diseases in simple patient-friendly language.
 
-Return ONLY a valid JSON array of strings, maximum 5 items. Use common disease names patients would understand.
-Example: ["Type 2 Diabetes", "High Blood Pressure", "Chronic Kidney Disease Stage 3"]`;
+Return ONLY a valid JSON array of exactly 2 strings. Pick the most significant, widely recognized conditions. Use common disease names patients would understand.
+Example: ["Type 2 Diabetes", "High Blood Pressure"]`;
 
 export const TASKS_PROMPT = `You are a health wellness AI. Based on the patient's conditions and medications, generate exactly 2 personalized, actionable health tasks for today.
 

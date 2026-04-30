@@ -366,8 +366,26 @@
 }
 .pv-med-dose { color: #64748B; }
 
-/* ── Test Results with Date ── */
-.pv-test-date { font-size: 11px; color: #94A3B8; margin-left: auto; white-space: nowrap; }
+/* ── Last Med Date ── */
+.pv-med-date { color: #64748B; font-size: 12px; }
+
+/* ── Test Results Pagination ── */
+.pv-obs-pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px; padding-top: 10px;
+}
+.pv-obs-page-btn {
+  padding: 4px 10px; font-size: 12px; font-weight: 500;
+  border: 1px solid #E2E8F0; border-radius: 6px;
+  color: #475569; background: #fff; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pv-obs-page-btn:hover:not(:disabled) { background: #F1F5F9; }
+.pv-obs-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pv-obs-page-active {
+  background: #2563EB; color: #fff; border-color: #2563EB; font-weight: 600;
+}
+.pv-obs-page-active:hover { background: #1D4ED8; }
 
 /* ── Things to Do (no checkbox) ── */
 .pv-todo-list { list-style: none; padding: 0; }

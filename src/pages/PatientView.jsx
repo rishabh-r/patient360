@@ -11,12 +11,16 @@ const NOTIFICATIONS = [
   { text: 'Upcoming appointment reminder', time: '1 day ago' },
 ];
 
-function formatObsDate(dateStr) {
+function formatDateTime(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   if (isNaN(d)) return dateStr;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${date}, ${time}`;
 }
+
+const OBS_PER_PAGE = 3;
 
 function statusColor(status) {
   switch ((status || '').toLowerCase()) {
@@ -43,6 +47,7 @@ export default function PatientView({ onLogout }) {
   const [showProfile, setShowProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(true);
+  const [obsPage, setObsPage] = useState(1);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -136,12 +141,12 @@ export default function PatientView({ onLogout }) {
       if (condResult.status === 'fulfilled') {
         try {
           const parsed = JSON.parse(condResult.value);
-          setConditions(Array.isArray(parsed) ? parsed : []);
+          setConditions(Array.isArray(parsed) ? parsed.slice(0, 2) : []);
         } catch {
-          setConditions(condData.map(c => c.display).filter(Boolean));
+          setConditions(condData.map(c => c.display).filter(Boolean).slice(0, 2));
         }
       } else {
-        setConditions(condData.map(c => c.display).filter(Boolean));
+        setConditions(condData.map(c => c.display).filter(Boolean).slice(0, 2));
       }
 
       if (tasksResult.status === 'fulfilled') {
@@ -271,7 +276,7 @@ export default function PatientView({ onLogout }) {
                 <div className="pv-last-med">
                   <span className="pv-check green">✓</span>
                   <span>{lastMed.name}</span>
-                  {lastMed.dosage && <span className="pv-med-dose"> — {lastMed.dosage}</span>}
+                  {lastMed.authoredOn && <span className="pv-med-date"> — {formatDateTime(lastMed.authoredOn)}</span>}
                 </div>
               ) : (
                 <p className="pv-empty-text">No medications found</p>
@@ -279,15 +284,37 @@ export default function PatientView({ onLogout }) {
 
               <h3 className="pv-section-label">Recent Test Results</h3>
               {observations.length > 0 ? (
-                <div className="pv-test-results">
-                  {observations.map((o, i) => (
-                    <div className="pv-test-row" key={i}>
-                      <span>{o.display}:</span>
-                      <span className="pv-test-val">{o.value} {o.unit}</span>
-                      <span className="pv-test-date">{formatObsDate(o.date)}</span>
+                <>
+                  <div className="pv-test-results">
+                    {observations.slice((obsPage - 1) * OBS_PER_PAGE, obsPage * OBS_PER_PAGE).map((o, i) => (
+                      <div className="pv-test-row" key={i}>
+                        <span>{o.display}:</span>
+                        <span className="pv-test-val">{o.value} {o.unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {observations.length > OBS_PER_PAGE && (
+                    <div className="pv-obs-pagination">
+                      <button
+                        className="pv-obs-page-btn"
+                        disabled={obsPage <= 1}
+                        onClick={() => setObsPage(obsPage - 1)}
+                      >Prev</button>
+                      {Array.from({ length: Math.ceil(observations.length / OBS_PER_PAGE) }, (_, i) => (
+                        <button
+                          key={i}
+                          className={`pv-obs-page-btn${obsPage === i + 1 ? ' pv-obs-page-active' : ''}`}
+                          onClick={() => setObsPage(i + 1)}
+                        >{i + 1}</button>
+                      ))}
+                      <button
+                        className="pv-obs-page-btn"
+                        disabled={obsPage >= Math.ceil(observations.length / OBS_PER_PAGE)}
+                        onClick={() => setObsPage(obsPage + 1)}
+                      >Next</button>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               ) : (
                 <p className="pv-empty-text">No test results found</p>
               )}
