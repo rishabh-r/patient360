@@ -2654,3 +2654,101 @@ Unlike Time Traveller which uses one massive system prompt for a conversational 
 2. `8d96c25` — Add R Systems logo to login topbar
 
 ---
+
+
+## Session: April 30, 2026
+
+### My Health Container — Made Fully Dynamic
+
+#### Overview
+The first container "My Health" in Patient View is now fully dynamic with FHIR API integration and AI-powered sections.
+
+#### Files Created
+- `src/services/ai.js` — AI call utility (non-streaming POST to `/api/chat`, returns assistant message content)
+- `src/config/prompts.js` — Three focused prompt templates: `HEALTH_STATUS_PROMPT`, `CONDITIONS_PROMPT`, `TASKS_PROMPT`
+
+#### Files Modified
+- `src/pages/PatientView.jsx` — Complete rewrite of first container with dynamic data
+- `src/pages/HomePage.jsx` — Dynamic patient name + email from API, profile dropdown with Sign Out
+- `src/styles/patient.css` — New styles for status colors, notifications, pagination, profile dropdown
+- `src/styles/home.css` — Profile dropdown styles for Home Page
+
+#### Data Flow
+1. On page load, 4 parallel FHIR API calls fire:
+   - `/baseR4/Patient?_id={id}` — patient name + email (from telecom)
+   - `/baseR4/Condition?patient={id}` — conditions data
+   - `/baseR4/MedicationRequest?patient={id}` — medications
+   - `/baseR4/Observation/search?patient={id}` — observations
+2. FHIR data renders immediately (loading spinner until ready)
+3. Then 3 parallel AI calls fire (show "Analyzing..." / "Evaluating..." while loading):
+   - Health Status — returns `{ status, reason }`
+   - Conditions — returns array of 2 disease names
+   - Tasks — returns array of 2 daily tasks (cached per day)
+
+#### My Health Container Sections (Dynamic)
+
+| Section | Source | Details |
+|---------|--------|---------|
+| Health Status | AI | Evaluates conditions + observations + medications. Returns Good (green `#DCFCE7`), Fair (amber `#FEF3C7`), Poor (orange `#FFEDD5`), or Critical (red `#FEE2E2`) |
+| My Conditions | AI | Evaluates FHIR condition data, returns exactly 2 most important patient-friendly disease names (e.g., "Type 2 Diabetes", "High Blood Pressure") |
+| Last Medication Taken | FHIR API | Name on top, date/time below (from `authoredOn` attribute). Format: "Aug 20, 2025, 6:20 AM". Only 1 most recent medication shown |
+| Recent Test Results | FHIR API | Latest value per observation type (no dates shown). 3 per page with Prev/1/2/3/Next pagination. Fixed min-height container so pagination bar doesn't jump |
+| Things to Do Today | AI (cached) | 2 personalized daily tasks, no checkboxes. Cached in `sessionStorage` with key `p360_tasks_{patientId}_{YYYY-MM-DD}` — same tasks all day, new ones next day |
+
+#### Removed Sections
+- **Upcoming Appointment banner** (purple banner) — removed from My Health container
+- **Messages section** — removed
+
+#### Navbar Changes (Both Home Page + Patient View)
+- **Patient Name**: Dynamic from Patient API (`name[0].given + name[0].family`), fetched using patient ID from URL query param `?id=`
+- **Patient Email**: Dynamic from Patient API (`telecom` where `system === 'email'`), shown in profile dropdown. NOT from logged-in credentials
+- **Notifications Bell**: Clickable, shows dropdown with 3 notifications. Closes on outside click
+- **Profile Avatar**: Clickable, shows dropdown with patient name + email + "Sign Out" button
+- **Sign Out**: Clears all `p360_` localStorage keys, redirects to login page
+
+#### AI Prompts (src/config/prompts.js)
+
+**HEALTH_STATUS_PROMPT**: Returns JSON `{ status, reason }`. Status is Good/Fair/Poor/Critical based on conditions control, observation ranges, medication adherence.
+
+**CONDITIONS_PROMPT**: Returns JSON array of exactly 2 strings. Picks most important, widely recognized conditions in patient-friendly language.
+
+**TASKS_PROMPT**: Returns JSON array of exactly 2 strings. Personalized daily health tasks based on conditions and medications.
+
+#### AI Service (src/services/ai.js)
+- `callAI(systemPrompt, userMessage)` — POST to `/api/chat` with `stream: false`, `temperature: 0.4`, `max_tokens: 500`
+- Returns trimmed assistant message content
+- Graceful fallbacks if AI fails: status defaults to "Fair", conditions fall back to FHIR display names, tasks default to generic suggestions
+
+#### Tasks Caching Logic
+- Cache key: `p360_tasks_{patientId}_{YYYY-MM-DD}` in `sessionStorage`
+- On load: check if today's cache exists → use it (skip AI call)
+- If no cache: call AI → parse response → cache result
+- Next day: date portion of key changes → cache miss → fresh AI call
+
+#### Test Results Pagination
+- `OBS_PER_PAGE = 3`
+- `obsPage` state (starts at 1)
+- Slices observations array: `observations.slice((obsPage - 1) * 3, obsPage * 3)`
+- Pagination bar: Prev / numbered buttons / Next
+- Active page: blue highlight (`#2563EB`)
+- Fixed container height (`min-height: 84px`) prevents pagination bar from jumping when last page has fewer items
+
+#### Profile Dropdown (both pages)
+- Shows patient name (from API) + email (from API telecom)
+- "Sign Out" with red logout icon
+- Clicking Sign Out: `clearSession()` removes all `p360_` keys → redirects to `/`
+- Dropdown closes on outside click (`mousedown` event listener with ref)
+
+### Git Commits (this session, chronological)
+
+3. `ef3e665` — Add notes2.md with full project memory
+4. `5e63676` — Make My Health container dynamic: AI health status, conditions, observations, last med, tasks, notifications dropdown, dynamic patient name
+5. `9528de1` — Add Sign Out dropdown to profile avatar on Patient View and Home Page
+6. `799b7e4` — Last med: name+date only; test results: remove dates, 3 per page with pagination; conditions: limit to 2 most important
+7. `9d83d8a` — Show patient name from API on Home Page dashboard navbar
+8. `e2ef78e` — Fix test results pagination jump - fixed min-height container
+9. `07bb4b6` — Show patient email from API (telecom) instead of logged-in email on both dashboard and patient view
+10. `44f7cd1` — Move last medication date/time below the medication name
+11. `faa2272` — Cache daily tasks in sessionStorage - same tasks all day, new ones next day
+
+---
