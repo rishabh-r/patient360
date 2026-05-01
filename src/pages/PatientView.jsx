@@ -108,6 +108,10 @@ export default function PatientView({ onLogout }) {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [apptAiLoading, setApptAiLoading] = useState(true);
   const [apptPage, setApptPage] = useState(1);
+  const [lifestyleGoals, setLifestyleGoals] = useState(null);
+  const lifestyleDateRef = useRef('');
+
+  const GOAL_TARGETS = { steps: 1000, water: 12, exercise: 45 };
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -123,7 +127,43 @@ export default function PatientView({ onLogout }) {
   useEffect(() => {
     if (!patientId) return;
     loadData();
+    fetchLifestyleGoals();
+    const interval = setInterval(() => {
+      const today = new Date().toISOString().split('T')[0];
+      if (lifestyleDateRef.current && lifestyleDateRef.current !== today) {
+        fetchLifestyleGoals();
+      }
+    }, 60000);
+    return () => clearInterval(interval);
   }, [patientId]);
+
+  async function fetchLifestyleGoals() {
+    try {
+      const res = await callFhirApi(buildUrl('/baseR4/care-plan/lifestyle-goals', { patientId }));
+      const ext = res?.extension?.[0]?.extension || [];
+      const goals = {};
+      for (const e of ext) {
+        if (e.url === 'dailySteps') {
+          const subs = e.extension || [];
+          goals.steps = (subs.find(s => s.url === 'achieved')?.valueInteger) ?? 0;
+        } else if (e.url === 'waterIntake') {
+          const subs = e.extension || [];
+          goals.water = (subs.find(s => s.url === 'achieved')?.valueInteger) ?? 0;
+        } else if (e.url === 'exerciseMinutes') {
+          const subs = e.extension || [];
+          goals.exercise = (subs.find(s => s.url === 'achieved')?.valueInteger) ?? 0;
+        } else if (e.url === 'date') {
+          goals.date = e.valueDate || '';
+          lifestyleDateRef.current = goals.date;
+        }
+      }
+      const stepsPct = Math.min((goals.steps / GOAL_TARGETS.steps) * 100, 100);
+      const waterPct = Math.min((goals.water / GOAL_TARGETS.water) * 100, 100);
+      const exercisePct = Math.min((goals.exercise / GOAL_TARGETS.exercise) * 100, 100);
+      goals.weeklyPct = Math.round((stepsPct + waterPct + exercisePct) / 3);
+      setLifestyleGoals(goals);
+    } catch {}
+  }
 
   async function loadData() {
     try {
@@ -809,42 +849,48 @@ export default function PatientView({ onLogout }) {
           <label className="pv-task"><input type="checkbox" /> Schedule follow-up appointment</label>
 
           <h3 className="pv-section-label">Lifestyle Goals</h3>
-          <div className="pv-goal-row">
-            <span className="pv-goal-label">Daily Steps</span>
-            <span className="pv-goal-value">7,340 / 10,000</span>
-          </div>
-          <div className="pv-progress-bar">
-            <div className="pv-progress-fill green" style={{ width: '73.4%' }}></div>
-          </div>
+          {lifestyleGoals ? (
+            <>
+              <div className="pv-goal-row">
+                <span className="pv-goal-label">Daily Steps</span>
+                <span className="pv-goal-value">{lifestyleGoals.steps?.toLocaleString()} / {GOAL_TARGETS.steps.toLocaleString()}</span>
+              </div>
+              <div className="pv-progress-bar">
+                <div className="pv-progress-fill green" style={{ width: `${Math.min((lifestyleGoals.steps / GOAL_TARGETS.steps) * 100, 100)}%` }}></div>
+              </div>
 
-          <div className="pv-goal-row">
-            <span className="pv-goal-label">Water Intake (8 glasses)</span>
-            <span className="pv-goal-value">5 / 8</span>
-          </div>
-          <div className="pv-progress-bar">
-            <div className="pv-progress-fill blue" style={{ width: '62.5%' }}></div>
-          </div>
+              <div className="pv-goal-row">
+                <span className="pv-goal-label">Water Intake ({GOAL_TARGETS.water} glasses)</span>
+                <span className="pv-goal-value">{lifestyleGoals.water} / {GOAL_TARGETS.water}</span>
+              </div>
+              <div className="pv-progress-bar">
+                <div className="pv-progress-fill blue" style={{ width: `${Math.min((lifestyleGoals.water / GOAL_TARGETS.water) * 100, 100)}%` }}></div>
+              </div>
 
-          <div className="pv-goal-row">
-            <span className="pv-goal-label">Exercise (30 min)</span>
-            <span className="pv-goal-value">20 / 30 min</span>
-          </div>
-          <div className="pv-progress-bar">
-            <div className="pv-progress-fill red" style={{ width: '66.7%' }}></div>
-          </div>
+              <div className="pv-goal-row">
+                <span className="pv-goal-label">Exercise ({GOAL_TARGETS.exercise} min)</span>
+                <span className="pv-goal-value">{lifestyleGoals.exercise} / {GOAL_TARGETS.exercise} min</span>
+              </div>
+              <div className="pv-progress-bar">
+                <div className="pv-progress-fill red" style={{ width: `${Math.min((lifestyleGoals.exercise / GOAL_TARGETS.exercise) * 100, 100)}%` }}></div>
+              </div>
 
-          <div className="pv-weekly-ring">
-            <svg width="80" height="80" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="32" fill="none" stroke="#E2E8F0" strokeWidth="6" />
-              <circle cx="40" cy="40" r="32" fill="none" stroke="#22C55E" strokeWidth="6"
-                strokeDasharray={`${0.70 * 2 * Math.PI * 32} ${2 * Math.PI * 32}`}
-                strokeLinecap="round" transform="rotate(-90 40 40)" />
-            </svg>
-            <div className="pv-ring-text">
-              <span className="pv-ring-pct">70%</span>
-              <span className="pv-ring-label">Weekly</span>
-            </div>
-          </div>
+              <div className="pv-weekly-ring">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="32" fill="none" stroke="#E2E8F0" strokeWidth="6" />
+                  <circle cx="40" cy="40" r="32" fill="none" stroke={lifestyleGoals.weeklyPct >= 70 ? '#22C55E' : lifestyleGoals.weeklyPct >= 40 ? '#F59E0B' : '#EF4444'} strokeWidth="6"
+                    strokeDasharray={`${(lifestyleGoals.weeklyPct / 100) * 2 * Math.PI * 32} ${2 * Math.PI * 32}`}
+                    strokeLinecap="round" transform="rotate(-90 40 40)" />
+                </svg>
+                <div className="pv-ring-text">
+                  <span className="pv-ring-pct">{lifestyleGoals.weeklyPct}%</span>
+                  <span className="pv-ring-label">Overall</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="pv-loading-text">Loading lifestyle data...</p>
+          )}
         </div>
 
         {/* ── Documents ── */}
