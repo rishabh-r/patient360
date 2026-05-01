@@ -111,7 +111,7 @@ export default function PatientView({ onLogout }) {
   const [lifestyleGoals, setLifestyleGoals] = useState(null);
   const lifestyleDateRef = useRef('');
 
-  const GOAL_TARGETS = { steps: 1000, water: 12, exercise: 45 };
+  const GOAL_TARGETS = { steps: 10000, water: 10, exercise: 40 };
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
