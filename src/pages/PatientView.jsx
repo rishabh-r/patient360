@@ -643,6 +643,7 @@ export default function PatientView({ onLogout }) {
               <h3 className="pv-section-label">Upcoming Appointments</h3>
               {upcomingAppts.length > 0 ? (
                 <>
+                  <div className="pv-appt-list">
                   {upcomingAppts.slice((apptPage - 1) * 3, apptPage * 3).map((a, i) => {
                     const globalIdx = (apptPage - 1) * 3 + i;
                     return (
@@ -655,6 +656,7 @@ export default function PatientView({ onLogout }) {
                       </div>
                     );
                   })}
+                  </div>
                   {upcomingAppts.length > 3 && (
                     <div className="pv-obs-pagination">
                       <button className="pv-obs-page-btn" disabled={apptPage <= 1} onClick={() => setApptPage(apptPage - 1)}>Prev</button>
