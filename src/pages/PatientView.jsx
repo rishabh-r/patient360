@@ -107,6 +107,7 @@ export default function PatientView({ onLogout }) {
   const [apptInstructions, setApptInstructions] = useState([]);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [apptAiLoading, setApptAiLoading] = useState(true);
+  const [apptPage, setApptPage] = useState(1);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -641,15 +642,29 @@ export default function PatientView({ onLogout }) {
             <>
               <h3 className="pv-section-label">Upcoming Appointments</h3>
               {upcomingAppts.length > 0 ? (
-                upcomingAppts.map((a, i) => (
-                  <div className={`pv-appt-card${i === 0 ? ' pv-appt-upcoming' : ''}`} key={a.id}>
-                    <div className="pv-appt-info">
-                      <span className="pv-appt-doc">{a.practName || a.serviceType}</span>
-                      <span className="pv-appt-type">{a.description || a.reasonCode}</span>
+                <>
+                  {upcomingAppts.slice((apptPage - 1) * 3, apptPage * 3).map((a, i) => {
+                    const globalIdx = (apptPage - 1) * 3 + i;
+                    return (
+                      <div className={`pv-appt-card${globalIdx === 0 ? ' pv-appt-upcoming' : ''}`} key={a.id}>
+                        <div className="pv-appt-info">
+                          <span className="pv-appt-doc">{a.practName || a.serviceType}</span>
+                          <span className="pv-appt-type">{a.description || a.reasonCode}</span>
+                        </div>
+                        <span className={`pv-appt-date${globalIdx === 0 ? ' blue' : ''}`}>{formatDateTime(a.start)}</span>
+                      </div>
+                    );
+                  })}
+                  {upcomingAppts.length > 3 && (
+                    <div className="pv-obs-pagination">
+                      <button className="pv-obs-page-btn" disabled={apptPage <= 1} onClick={() => setApptPage(apptPage - 1)}>Prev</button>
+                      {Array.from({ length: Math.ceil(upcomingAppts.length / 3) }, (_, i) => (
+                        <button key={i} className={`pv-obs-page-btn${apptPage === i + 1 ? ' pv-obs-page-active' : ''}`} onClick={() => setApptPage(i + 1)}>{i + 1}</button>
+                      ))}
+                      <button className="pv-obs-page-btn" disabled={apptPage >= Math.ceil(upcomingAppts.length / 3)} onClick={() => setApptPage(apptPage + 1)}>Next</button>
                     </div>
-                    <span className={`pv-appt-date${i === 0 ? ' blue' : ''}`}>{formatDateTime(a.start)}</span>
-                  </div>
-                ))
+                  )}
+                </>
               ) : (
                 <p className="pv-empty-text">No upcoming appointments</p>
               )}
