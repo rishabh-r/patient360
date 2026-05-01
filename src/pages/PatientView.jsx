@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
-import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT } from '../config/prompts';
+import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT, APPT_SUMMARY_PROMPT, APPT_INSTRUCTIONS_PROMPT } from '../config/prompts';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import '../styles/patient.css';
@@ -101,6 +101,12 @@ export default function PatientView({ onLogout }) {
   const [allObsData, setAllObsData] = useState(null);
   const [trendTab, setTrendTab] = useState(null);
   const [trendPeriod, setTrendPeriod] = useState('all');
+  const [upcomingAppts, setUpcomingAppts] = useState([]);
+  const [lastPastAppt, setLastPastAppt] = useState(null);
+  const [apptSummary, setApptSummary] = useState(null);
+  const [apptInstructions, setApptInstructions] = useState([]);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [apptAiLoading, setApptAiLoading] = useState(true);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -120,13 +126,14 @@ export default function PatientView({ onLogout }) {
 
   async function loadData() {
     try {
-      const [patientRes, condRes, medRes, obsRes, allergyRes, eocRes] = await Promise.all([
+      const [patientRes, condRes, medRes, obsRes, allergyRes, eocRes, apptRes] = await Promise.all([
         callFhirApi(buildUrl('/baseR4/Patient', { _id: patientId, page: 0, size: 1 })),
         callFhirApi(buildUrl('/baseR4/Condition', { patient: patientId, page: 0, size: 100 })),
         callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: patientId, page: 0, size: 100 })),
         callFhirApi(buildUrl('/baseR4/Observation/search', { patient: patientId, page: 0, size: 100 })),
         callFhirApi(buildUrl('/baseR4/AllergyIntolerance', { patient: patientId, page: 0, size: 100 })),
         callFhirApi(buildUrl('/baseR4/EpisodeOfCare', { patient: patientId, page: 0, size: 100 })),
+        callFhirApi(buildUrl('/baseR4/Appointment', { patient: patientId, page: 0, size: 100 })),
       ]);
 
       const pt = patientRes?.entry?.[0]?.resource;
@@ -213,6 +220,46 @@ export default function PatientView({ onLogout }) {
       team.forEach(m => { if (m.practId && practIds[m.practId]) m.email = practIds[m.practId]; });
       setCareTeam(team);
 
+      const now = new Date();
+      const apptEntries = apptRes?.entry || [];
+      const practIdSet = new Set();
+      const rawAppts = apptEntries.map(e => {
+        const r = e.resource;
+        const practRef = (r.participant || []).find(p => p.actor?.reference?.startsWith('Practitioner/'));
+        const practId = practRef?.actor?.reference?.replace('Practitioner/', '') || '';
+        if (practId) practIdSet.add(practId);
+        return {
+          id: r.id,
+          description: r.description || '',
+          serviceType: r.serviceType?.[0]?.text || '',
+          reasonCode: r.reasonCode?.[0]?.text || '',
+          start: r.start || '',
+          end: r.end || '',
+          status: r.status || '',
+          location: (r.extension || []).find(x => x.url === 'Location')?.valueString || '',
+          practId,
+          practName: '',
+        };
+      });
+      const practNameMap = {};
+      await Promise.all([...practIdSet].map(async id => {
+        try {
+          const pr = await callFhirApi(`${FHIR_BASE}/baseR4/Practitioner?_id=${id}&page=0&size=1`);
+          const res = pr?.entry?.[0]?.resource;
+          const prefix = res?.name?.[0]?.prefix?.[0] || '';
+          const given = res?.name?.[0]?.given?.join(' ') || '';
+          const family = res?.name?.[0]?.family || '';
+          practNameMap[id] = `${prefix} ${given} ${family}`.replace(/\s+/g, ' ').trim();
+        } catch {}
+      }));
+      rawAppts.forEach(a => { if (a.practId && practNameMap[a.practId]) a.practName = practNameMap[a.practId]; });
+
+      const upcoming = rawAppts.filter(a => new Date(a.start) > now && a.status === 'booked').sort((a, b) => new Date(a.start) - new Date(b.start));
+      setUpcomingAppts(upcoming);
+
+      const past = rawAppts.filter(a => new Date(a.start) <= now).sort((a, b) => new Date(b.start) - new Date(a.start));
+      setLastPastAppt(past[0] || null);
+
       setLoading(false);
 
       const condSummary = condData.map(c => `${c.display} (${c.clinicalStatus})`).join(', ');
@@ -281,10 +328,26 @@ export default function PatientView({ onLogout }) {
       }
 
       setAiLoading(false);
+
+      if (past[0]?.description) {
+        const apptContext = `Appointment: ${past[0].description}\nService: ${past[0].serviceType}\nReason: ${past[0].reasonCode}\nPatient conditions: ${condSummary}\nMedications: ${medSummary}`;
+        const [sumRes, instrRes] = await Promise.allSettled([
+          callAI(APPT_SUMMARY_PROMPT, apptContext),
+          callAI(APPT_INSTRUCTIONS_PROMPT, apptContext),
+        ]);
+        if (sumRes.status === 'fulfilled') {
+          try { setApptSummary(JSON.parse(sumRes.value).summary); } catch { setApptSummary(past[0].description); }
+        } else { setApptSummary(past[0].description); }
+        if (instrRes.status === 'fulfilled') {
+          try { const p = JSON.parse(instrRes.value); setApptInstructions(Array.isArray(p) ? p.slice(0, 3) : []); } catch { setApptInstructions([]); }
+        }
+      }
+      setApptAiLoading(false);
     } catch (err) {
       console.error('Error loading data:', err);
       setLoading(false);
       setAiLoading(false);
+      setApptAiLoading(false);
     }
   }
 
@@ -565,57 +628,98 @@ export default function PatientView({ onLogout }) {
           )}
         </div>
 
-        {/* ── Appointments & Visits (unchanged) ── */}
+        {/* ── Appointments & Visits (DYNAMIC) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             Appointments & Visits
           </h2>
 
-          <h3 className="pv-section-label">Upcoming Appointments</h3>
-          <div className="pv-appt-card pv-appt-upcoming">
-            <div className="pv-appt-info">
-              <span className="pv-appt-doc">Dr. Michael Chen</span>
-              <span className="pv-appt-type">Quarterly Check-up</span>
-            </div>
-            <span className="pv-appt-date blue">Apr 18, 2:00 PM</span>
-          </div>
-          <div className="pv-appt-card">
-            <div className="pv-appt-info">
-              <span className="pv-appt-doc">Dr. Lisa Park</span>
-              <span className="pv-appt-type">Diabetes Follow-Up</span>
-            </div>
-            <span className="pv-appt-date">May 2, 10:00 AM</span>
-          </div>
+          {loading ? (
+            <div className="pv-loading"><div className="pv-spinner"></div><span>Loading...</span></div>
+          ) : (
+            <>
+              <h3 className="pv-section-label">Upcoming Appointments</h3>
+              {upcomingAppts.length > 0 ? (
+                upcomingAppts.map((a, i) => (
+                  <div className={`pv-appt-card${i === 0 ? ' pv-appt-upcoming' : ''}`} key={a.id}>
+                    <div className="pv-appt-info">
+                      <span className="pv-appt-doc">{a.practName || a.serviceType}</span>
+                      <span className="pv-appt-type">{a.description || a.reasonCode}</span>
+                    </div>
+                    <span className={`pv-appt-date${i === 0 ? ' blue' : ''}`}>{formatDateTime(a.start)}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="pv-empty-text">No upcoming appointments</p>
+              )}
 
-          <button className="pv-televisit-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-            Start Tele-Visit
-          </button>
+              <button className="pv-televisit-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                Start Tele-Visit
+              </button>
 
-          <h3 className="pv-section-label">Past Appointments</h3>
-          <div className="pv-appt-card">
-            <div className="pv-appt-info">
-              <span className="pv-appt-doc">Dr. Michael Chen</span>
-              <span className="pv-appt-type">Annual Physical</span>
-            </div>
-            <span className="pv-appt-date">Jan 15, 2026</span>
-          </div>
-          <a href="#" className="pv-view-summary">View Summary</a>
+              <h3 className="pv-section-label">Past Appointments</h3>
+              {lastPastAppt ? (
+                <>
+                  <div className="pv-appt-card">
+                    <div className="pv-appt-info">
+                      <span className="pv-appt-doc">{lastPastAppt.practName || lastPastAppt.serviceType}</span>
+                      <span className="pv-appt-type">{lastPastAppt.description || lastPastAppt.reasonCode}</span>
+                    </div>
+                    <span className="pv-appt-date">{formatDateTime(lastPastAppt.start)}</span>
+                  </div>
+                  <a href="#" className="pv-view-summary" onClick={(e) => { e.preventDefault(); setShowSummaryModal(true); }}>View Summary</a>
+                </>
+              ) : (
+                <p className="pv-empty-text">No past appointments</p>
+              )}
 
-          <h3 className="pv-section-label">Follow-up Instructions</h3>
-          <div className="pv-followup-card">
-            <p>• Monitor blood sugar daily</p>
-            <p>• Schedule eye exam within 3 months</p>
-            <p>• Continue current medications</p>
-          </div>
+              <h3 className="pv-section-label">AI Recommended Instructions</h3>
+              {apptAiLoading ? (
+                <p className="pv-loading-text">Generating instructions...</p>
+              ) : apptInstructions.length > 0 ? (
+                <div className="pv-followup-card">
+                  {apptInstructions.map((inst, i) => <p key={i}>• {inst}</p>)}
+                </div>
+              ) : (
+                <p className="pv-empty-text">No instructions available</p>
+              )}
 
-          <h3 className="pv-section-label">Authorizations</h3>
-          <div className="pv-auth-row">
-            <span>MRI - Lower Back</span>
-            <span className="pv-pill pv-pill-green">Approved</span>
-          </div>
+              <h3 className="pv-section-label">Authorizations</h3>
+              <div className="pv-auth-row">
+                <span>HbA1c Lab Panel</span>
+                <span className="pv-pill pv-pill-green">Approved</span>
+              </div>
+              <div className="pv-auth-row" style={{ marginTop: '6px' }}>
+                <span>Diabetic Retinopathy Screening</span>
+                <span className="pv-pill pv-pill-green">Approved</span>
+              </div>
+            </>
+          )}
         </div>
+
+        {showSummaryModal && (
+          <div className="pv-modal-overlay" onClick={() => setShowSummaryModal(false)}>
+            <div className="pv-modal" onClick={e => e.stopPropagation()}>
+              <div className="pv-modal-header">
+                <h3>Visit Summary</h3>
+                <button className="pv-modal-close" onClick={() => setShowSummaryModal(false)}>×</button>
+              </div>
+              <div className="pv-modal-body">
+                {lastPastAppt && (
+                  <div className="pv-modal-appt-info">
+                    <p><strong>{lastPastAppt.practName}</strong> — {lastPastAppt.serviceType}</p>
+                    <p className="pv-modal-date">{formatDateTime(lastPastAppt.start)}</p>
+                  </div>
+                )}
+                <div className="pv-condition-card" style={{ marginTop: '12px' }}>
+                  <p>{apptSummary || lastPastAppt?.description || 'No summary available'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Bottom Row (unchanged) ── */}

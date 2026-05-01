@@ -21,6 +21,18 @@ Return ONLY a valid JSON object:
 
 Keep it concise, patient-friendly, reference actual observation values and medications when available. Do not use medical jargon. Cover everything in one unified summary.`;
 
+export const APPT_SUMMARY_PROMPT = `You are a clinical AI writing for patients. Based on the appointment's clinical note/description, write a brief patient-friendly summary of what was done or discussed during this visit.
+
+Return ONLY a valid JSON object:
+{"summary": "2-3 sentence patient-friendly summary of the visit"}
+
+Keep it simple, no medical jargon.`;
+
+export const APPT_INSTRUCTIONS_PROMPT = `You are a clinical AI. Based on the appointment's clinical note and patient context, generate 3 personalized follow-up instructions for the patient.
+
+Return ONLY a valid JSON array of exactly 3 strings. Each instruction should be actionable and specific.
+Example: ["Monitor blood sugar daily and record readings", "Schedule a follow-up eye exam within 3 months", "Continue taking prescribed medications as directed"]`;
+
 export const TASKS_PROMPT = `You are a health wellness AI. Based on the patient's conditions and medications, generate exactly 2 personalized, actionable health tasks for today.
 
 Return ONLY a valid JSON array of exactly 2 strings. Keep tasks simple, specific, and achievable in one day.

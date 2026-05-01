@@ -468,6 +468,32 @@
   display: flex; align-items: center; gap: 8px;
 }
 
+/* ── Modal ── */
+.pv-modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+}
+.pv-modal {
+  background: #fff; border-radius: 12px; width: 440px; max-width: 90vw;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.15); overflow: hidden;
+}
+.pv-modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid #F1F5F9;
+}
+.pv-modal-header h3 { font-size: 16px; font-weight: 600; color: #1E293B; }
+.pv-modal-close {
+  width: 28px; height: 28px; border-radius: 6px;
+  font-size: 20px; color: #64748B; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.pv-modal-close:hover { background: #F1F5F9; }
+.pv-modal-body { padding: 20px; }
+.pv-modal-appt-info p { font-size: 14px; color: #1E293B; }
+.pv-modal-date { font-size: 12px; color: #64748B; margin-top: 2px; }
+
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .pv-grid { grid-template-columns: 1fr; padding: 16px; }
