@@ -247,7 +247,7 @@ export default function PatientView({ onLogout }) {
         try {
           const pr = await callFhirApi(`${FHIR_BASE}/baseR4/Practitioner?_id=${id}&page=0&size=1`);
           const res = pr?.entry?.[0]?.resource;
-          const prefix = res?.name?.[0]?.prefix?.[0] || '';
+          const prefix = res?.name?.[0]?.prefix?.[0] || 'Dr.';
           const given = res?.name?.[0]?.given?.join(' ') || '';
           const family = res?.name?.[0]?.family || '';
           practNameMap[id] = `${prefix} ${given} ${family}`.replace(/\s+/g, ' ').trim();
