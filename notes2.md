@@ -2823,3 +2823,101 @@ The second container "My Health Summary" is now fully dynamic with FHIR API inte
 16. `7d48468` — Show 5 test results per page instead of 3
 
 ---
+
+
+## Session: May 1, 2026
+
+### 3rd Container — Appointments & Visits (DYNAMIC)
+
+#### Overview
+The third container is now fully dynamic with FHIR Appointment API integration, practitioner name resolution, AI visit summary, and AI recommended instructions.
+
+#### New API Calls
+- `/baseR4/Appointment?patient={id}&page=0&size=100` — fetches all appointments
+- Practitioner API per unique practitioner ID from appointment participants — resolves doctor names
+
+#### New Prompts Added (src/config/prompts.js)
+- `APPT_SUMMARY_PROMPT` — Takes appointment description/clinical note, returns `{ summary }` in patient-friendly language
+- `APPT_INSTRUCTIONS_PROMPT` — Takes appointment context + patient conditions/meds, returns array of 3 follow-up instructions
+
+#### Appointment Parsing Logic
+- Extracts: `description`, `serviceType`, `reasonCode`, `start`, `end`, `status`, `location` (from extension), practitioner reference
+- Resolves practitioner names with `Dr.` prefix (fallback if API doesn't return prefix)
+- **Upcoming**: `start > today` + `status === 'booked'`, sorted nearest first. 3 per page with pagination
+- **Past**: `start <= today`, sorted most recent first, shows only 1 (the latest)
+- Today's date recalculated on each page load
+
+#### Sections in 3rd Container
+
+| Section | Source | Details |
+|---------|--------|---------|
+| Upcoming Appointments | Appointment API | All future booked appointments, 3 per page with Prev/Next pagination. First one highlighted blue |
+| Start Tele-Visit | Static | Unchanged button |
+| Past Appointments | Appointment API | Only the 1 most recent past appointment |
+| View Summary | AI | Clicking opens modal with practitioner name, date, and AI-generated patient-friendly visit summary |
+| AI Recommended Instructions | AI | Renamed from "Follow-up Instructions". 3 personalized instructions from AI based on clinical note + patient context |
+| Authorizations | Static | Changed to "HbA1c Lab Panel" + "Diabetic Retinopathy Screening" (both Approved) |
+
+#### Appointment Pagination
+- 3 per page, fixed container height `220px` with `overflow-y: hidden`
+- Pagination bar stays fixed position regardless of content
+- Same Prev/1/2/Next style as test results
+
+#### Visit Summary Modal
+- Opens on "View Summary" click
+- Shows practitioner name + service type + date
+- AI-generated summary in purple-border card format
+- Closes on overlay click or X button
+- CSS: `.pv-modal-overlay`, `.pv-modal`, `.pv-modal-header`, `.pv-modal-body`
+
+#### Dr. Prefix
+- All practitioner names in appointments show "Dr." prefix
+- Uses API's `prefix` field if available, falls back to "Dr." if not
+
+### 5th Container — Lifestyle Goals (DYNAMIC, partial)
+
+#### Overview
+Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic from the care-plan API.
+
+#### API
+- `GET /baseR4/care-plan/lifestyle-goals?patientId={id}`
+- Response: CarePlan resource with nested extensions for dailySteps, waterIntake, exerciseMinutes, weekly-completion-pct, date
+- Auth: Same Bearer token as other FHIR APIs
+
+#### Response Parsing
+- Iterates `extension[0].extension` array
+- Extracts `achieved` values from nested extensions for each goal type
+- Stores `date` from `valueDate` field for auto-refresh tracking
+
+#### Static Targets (not from API)
+- Daily Steps: 10,000
+- Water Intake: 10 glasses
+- Exercise: 40 minutes
+
+#### Percentage Calculation (not from API)
+- Each goal: `Math.min((achieved / target) * 100, 100)`
+- Overall: `Math.round((stepsPct + waterPct + exercisePct) / 3)`
+- Ring color: green (>=70%), amber (>=40%), red (<40%)
+
+#### Auto-Refresh
+- 60-second `setInterval` checks if the API's `date` field has changed
+- If date changes (e.g., midnight rollover), `fetchLifestyleGoals()` fires again
+- `lifestyleDateRef` tracks the last known date
+
+#### State
+- `lifestyleGoals` — `{ steps, water, exercise, date, weeklyPct }`
+- `lifestyleDateRef` — ref tracking last API date for change detection
+- `GOAL_TARGETS` — static object `{ steps: 10000, water: 10, exercise: 40 }`
+
+### Git Commits (this session, chronological)
+
+17. `983f2e5` — Dynamic 3rd container: upcoming/past appointments from API, AI visit summary modal, AI recommended instructions
+18. `ce675e4` — Show 3 upcoming appointments per page with pagination
+19. `36c56d1` — Fix appointment pagination jump - fixed min-height container
+20. `b3de7d1` — Fix appointment pagination: use fixed height container
+21. `2eaa407` — Increase appointment list height to 220px to prevent card text cutoff
+22. `6da47fe` — Add Dr. prefix to practitioner names in appointments
+23. `34992c7` — Dynamic lifestyle goals from care-plan API with static targets, calculated percentage, and auto-refresh
+24. `e868187` — Fix lifestyle targets: steps 10000, water 10, exercise 40
+
+---
