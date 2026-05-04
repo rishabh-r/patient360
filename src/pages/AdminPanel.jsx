@@ -165,7 +165,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                   <div className="ap-detail-row"><span className="ap-detail-label">Status</span><span>{selectedUser.isActive ? 'Active' : 'Inactive'}</span></div>
                   <div className="ap-detail-row"><span className="ap-detail-label">User ID</span><span className="ap-detail-id">{selectedUser.id}</span></div>
                   {selectedUser.patientRefId && <div className="ap-detail-row"><span className="ap-detail-label">Patient Ref ID</span><span className="ap-detail-id">{selectedUser.patientRefId}</span></div>}
-                  {selectedUser.practitionerRefId && <div className="ap-detail-row"><span className="ap-detail-label">Practitioner Ref ID</span><span className="ap-detail-id">{selectedUser.practitionerRefId}</span></div>}
+                  {selectedUser.practitionerRefId && <div className="ap-detail-row"><span className="ap-detail-label">Practitioner/Manager Ref ID</span><span className="ap-detail-id">{selectedUser.practitionerRefId}</span></div>}
                   {selectedUser.createdAt && <div className="ap-detail-row"><span className="ap-detail-label">Created</span><span>{new Date(selectedUser.createdAt).toLocaleString()}</span></div>}
                   {selectedUser.lastLoginAt && <div className="ap-detail-row"><span className="ap-detail-label">Last Login</span><span>{new Date(selectedUser.lastLoginAt).toLocaleString()}</span></div>}
                 </div>
@@ -209,11 +209,11 @@ export default function AdminPanel({ isOpen, onClose }) {
             </div>
             <div className="ap-field">
               <label>Patient Ref ID</label>
-              <input type="text" value={form.patientRefId} onChange={e => setForm({ ...form, patientRefId: e.target.value })} placeholder="UUID (for PATIENT role)" />
+              <input type="text" value={form.patientRefId} onChange={e => setForm({ ...form, patientRefId: e.target.value })} placeholder="UUID (for PATIENT role)" disabled={form.role !== 'PATIENT'} className={form.role !== 'PATIENT' ? 'ap-disabled' : ''} />
             </div>
             <div className="ap-field">
-              <label>Practitioner Ref ID</label>
-              <input type="text" value={form.practitionerRefId} onChange={e => setForm({ ...form, practitionerRefId: e.target.value })} placeholder="UUID (for PROVIDER/CARE_MANAGER)" />
+              <label>Practitioner/Manager Ref ID</label>
+              <input type="text" value={form.practitionerRefId} onChange={e => setForm({ ...form, practitionerRefId: e.target.value })} placeholder="UUID (for PROVIDER/CARE_MANAGER)" disabled={form.role === 'PATIENT'} className={form.role === 'PATIENT' ? 'ap-disabled' : ''} />
             </div>
 
             {formMsg && <div className={`ap-msg ${formMsg.startsWith('User created') ? 'ap-msg-green' : 'ap-msg-red'}`}>{formMsg}</div>}

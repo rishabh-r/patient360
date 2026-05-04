@@ -23,7 +23,7 @@ function App() {
     } else if (role === 'CARE_MANAGER') {
       window.location.href = `/care-manager?id=${refId}`;
     } else {
-      window.location.href = `/?id=${refId}`;
+      window.location.href = '/';
     }
   };
 

@@ -150,6 +150,10 @@
   outline: none; border-color: #2563EB;
   box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
 }
+input.ap-disabled {
+  background: #F1F5F9; color: #94A3B8; cursor: not-allowed;
+}
+
 .ap-submit {
   width: 100%; padding: 12px; border-radius: 8px;
   background: #2563EB; color: #fff;

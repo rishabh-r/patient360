@@ -448,7 +448,7 @@ export default function PatientView({ onLogout }) {
       {/* Sub-header */}
       <div className="pv-subheader">
         <h1 className="pv-page-title">My Health Dashboard</h1>
-        <button className="pv-back" onClick={() => navigate(`/?id=${patientId}`)}>
+        <button className="pv-back" onClick={() => navigate('/')}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
           Back to Home
         </button>
