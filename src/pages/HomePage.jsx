@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import AdminPanel from './AdminPanel';
+import UserSelectModal from './UserSelectModal';
 import '../styles/home.css';
 
 const DATA_SOURCES = [
@@ -75,6 +77,8 @@ export default function HomePage({ onLogout }) {
   const userName = localStorage.getItem('p360_user') || 'User';
   const userEmail = localStorage.getItem('p360_email') || '';
   const [showProfile, setShowProfile] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [selectModal, setSelectModal] = useState(null);
   const profileRef = useRef(null);
 
   useEffect(() => {
@@ -87,8 +91,21 @@ export default function HomePage({ onLogout }) {
 
   const allowedRoutes = ROLE_ALLOWED_ROUTES[role] || [];
 
+  const ROUTE_TO_ROLE = { '/patient-view': 'PATIENT', '/healthcare-provider': 'PROVIDER', '/care-manager': 'CARE_MANAGER' };
+
   const goToView = (route) => {
-    if (route && allowedRoutes.includes(route)) navigate(`${route}?id=${refId}`);
+    if (!route || !allowedRoutes.includes(route)) return;
+    if (role === 'ADMIN') {
+      setSelectModal({ route, selectRole: ROUTE_TO_ROLE[route] || 'PATIENT' });
+    } else {
+      navigate(`${route}?id=${refId}`);
+    }
+  };
+
+  const handleUserSelect = (user) => {
+    const id = user.patientRefId || user.practitionerRefId || '';
+    setSelectModal(null);
+    navigate(`${selectModal.route}?id=${id}`);
   };
 
   const isRouteAllowed = (route) => {
@@ -106,6 +123,12 @@ export default function HomePage({ onLogout }) {
           <span className="home-nav-title">Patient 360 Portal</span>
         </div>
         <div className="home-nav-right">
+          {role === 'ADMIN' && (
+            <button className="home-nav-admin" onClick={() => setShowAdmin(true)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Manage Users
+            </button>
+          )}
           <div className="home-nav-bell">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span className="home-nav-badge">3</span>
@@ -212,6 +235,16 @@ export default function HomePage({ onLogout }) {
           </div>
         </div>
       </div>
+
+      <AdminPanel isOpen={showAdmin} onClose={() => setShowAdmin(false)} />
+
+      {selectModal && (
+        <UserSelectModal
+          role={selectModal.selectRole}
+          onSelect={handleUserSelect}
+          onClose={() => setSelectModal(null)}
+        />
+      )}
     </div>
   );
 }
