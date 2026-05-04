@@ -16,6 +16,11 @@ function App() {
     const role = localStorage.getItem('p360_role') || '';
     const refId = localStorage.getItem('p360_ref_id') || '';
 
+    if (!refId && role !== 'ADMIN') {
+      window.location.href = '/';
+      return;
+    }
+
     if (role === 'PATIENT') {
       window.location.href = `/patient-view?id=${refId}`;
     } else if (role === 'PROVIDER') {

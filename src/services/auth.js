@@ -1,4 +1,4 @@
-import { LOGIN_URL, USERS_URL } from '../config/constants';
+import { LOGIN_URL } from '../config/constants';
 
 export async function doLogin(email, password) {
   const res = await fetch(LOGIN_URL, {
@@ -20,26 +20,15 @@ export async function doLogin(email, password) {
   const userId = data.userId || '';
   const userEmail = data.email || email;
   const name = email.split('@')[0];
+  const refId = data.refId || '';
 
   localStorage.setItem('p360_token', token);
   localStorage.setItem('p360_user', name);
   localStorage.setItem('p360_email', userEmail);
   localStorage.setItem('p360_role', role);
   localStorage.setItem('p360_user_id', userId);
-  localStorage.setItem('p360_login_ts', Date.now().toString());
-
-  let refId = '';
-  try {
-    const userRes = await fetch(`${USERS_URL}/${userId}`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-    });
-    if (userRes.ok) {
-      const userData = await userRes.json();
-      refId = userData.patientRefId || userData.practitionerRefId || '';
-    }
-  } catch {}
-
   localStorage.setItem('p360_ref_id', refId);
+  localStorage.setItem('p360_login_ts', Date.now().toString());
 
   return { name, role, refId };
 }
