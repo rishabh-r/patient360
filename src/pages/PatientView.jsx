@@ -118,6 +118,7 @@ export default function PatientView({ onLogout }) {
   const [taskFilter, setTaskFilter] = useState('pending');
   const [clinicNotes, setClinicNotes] = useState([]);
   const [notePage, setNotePage] = useState(1);
+  const [actionsLoading, setActionsLoading] = useState(true);
   const [lifestyleGoals, setLifestyleGoals] = useState(null);
   const lifestyleDateRef = useRef('');
 
@@ -405,6 +406,7 @@ export default function PatientView({ onLogout }) {
         const parsed = JSON.parse(actRes);
         setAiActions(Array.isArray(parsed) ? parsed.slice(0, 4) : []);
       } catch { setAiActions([]); }
+      setActionsLoading(false);
 
       // Task Queue
       try {
@@ -957,7 +959,9 @@ export default function PatientView({ onLogout }) {
           <div className="pv-care-scroll">
             {careTab === 'actions' && (
               <div className="pv-actions-content">
-                {aiActions.length > 0 ? (
+                {actionsLoading ? (
+                  <div className="pv-loading"><div className="pv-spinner"></div><span>Generating AI recommendations...</span></div>
+                ) : aiActions.length > 0 ? (
                   <>
                     {aiActions.map((a, i) => (
                       <div className="pv-action-card" key={i}>
