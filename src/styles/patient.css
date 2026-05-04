@@ -167,6 +167,9 @@
 }
 .pv-trend-label { font-size: 12px; color: #22C55E; font-weight: 500; margin-top: 4px; }
 
+/* ── Medications list ── */
+.pv-meds-list { min-height: 240px; }
+
 /* ── Appointments card ── */
 .pv-appt-list { height: 220px; overflow-y: hidden; }
 .pv-appt-card {

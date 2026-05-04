@@ -108,6 +108,9 @@ export default function PatientView({ onLogout }) {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [apptAiLoading, setApptAiLoading] = useState(true);
   const [apptPage, setApptPage] = useState(1);
+  const [activeMeds, setActiveMeds] = useState([]);
+  const [stoppedMeds, setStoppedMeds] = useState([]);
+  const [medPage, setMedPage] = useState(1);
   const [lifestyleGoals, setLifestyleGoals] = useState(null);
   const lifestyleDateRef = useRef('');
 
@@ -203,9 +206,13 @@ export default function PatientView({ onLogout }) {
           status: r.status || '',
           authoredOn: r.authoredOn || '',
           dosage: r.dosageInstruction?.[0]?.text || '',
+          reason: r.reasonCode?.[0]?.coding?.[0]?.display || r.reasonCode?.[0]?.text || '',
+          frequency: r.dosageInstruction?.[0]?.timing?.code?.text || r.dosageInstruction?.[0]?.timing?.repeat?.frequency ? `${r.dosageInstruction?.[0]?.timing?.repeat?.frequency}x daily` : '',
         };
       }).sort((a, b) => (b.authoredOn || '').localeCompare(a.authoredOn || ''));
       setLastMed(meds[0] || null);
+      setActiveMeds(meds.filter(m => m.status === 'active'));
+      setStoppedMeds(meds.filter(m => m.status === 'stopped' || m.status === 'cancelled'));
 
       const obsEntries = obsRes?.entry || [];
       const obsMap = {};
@@ -782,55 +789,61 @@ export default function PatientView({ onLogout }) {
       {/* ── Bottom Row (unchanged) ── */}
       <div className="pv-grid pv-grid-bottom">
 
-        {/* ── My Medications ── */}
+        {/* ── My Medications (DYNAMIC) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3"/></svg>
             My Medications
           </h2>
 
-          <div className="pv-med-card">
-            <div className="pv-med-header">
-              <span className="pv-med-name">Metformin 500mg</span>
-              <span className="pv-pill pv-pill-green">Active</span>
-            </div>
-            <p className="pv-med-detail"><strong>Purpose:</strong> Controls blood sugar levels</p>
-            <p className="pv-med-detail"><strong>Dose:</strong> 1 tablet, twice daily (morning & evening)</p>
-            <div className="pv-med-detail">
-              <span>Refill Status:</span>
-              <span className="pv-pill pv-pill-blue-outline">15 days left</span>
-            </div>
-            <p className="pv-med-reminder">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-              Daily reminder: 8:00 AM, 8:00 PM
-            </p>
-          </div>
+          {loading ? (
+            <div className="pv-loading"><div className="pv-spinner"></div><span>Loading...</span></div>
+          ) : activeMeds.length > 0 ? (
+            <>
+              <div className="pv-meds-list">
+                {activeMeds.slice((medPage - 1) * 2, medPage * 2).map((m, i) => (
+                  <div className="pv-med-card" key={i}>
+                    <div className="pv-med-header">
+                      <span className="pv-med-name">{m.name}</span>
+                      <span className="pv-pill pv-pill-green">Active</span>
+                    </div>
+                    {m.reason && <p className="pv-med-detail"><strong>Purpose:</strong> {m.reason}</p>}
+                    {m.dosage && <p className="pv-med-detail"><strong>Dose:</strong> {m.dosage}</p>}
+                    {m.authoredOn && (
+                      <p className="pv-med-reminder">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        Prescribed: {formatDateTime(m.authoredOn)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {activeMeds.length > 2 && (
+                <div className="pv-obs-pagination">
+                  <button className="pv-obs-page-btn" disabled={medPage <= 1} onClick={() => setMedPage(medPage - 1)}>Prev</button>
+                  {Array.from({ length: Math.ceil(activeMeds.length / 2) }, (_, i) => (
+                    <button key={i} className={`pv-obs-page-btn${medPage === i + 1 ? ' pv-obs-page-active' : ''}`} onClick={() => setMedPage(i + 1)}>{i + 1}</button>
+                  ))}
+                  <button className="pv-obs-page-btn" disabled={medPage >= Math.ceil(activeMeds.length / 2)} onClick={() => setMedPage(medPage + 1)}>Next</button>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="pv-empty-text">No active medications</p>
+          )}
 
-          <div className="pv-med-card">
-            <div className="pv-med-header">
-              <span className="pv-med-name">Lisinopril 10mg</span>
-              <span className="pv-pill pv-pill-green">Active</span>
+          {stoppedMeds.length > 0 && (
+            <div className="pv-missed-alert">
+              <div className="pv-missed-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Missed Medications
+              </div>
+              {stoppedMeds.map((m, i) => (
+                <p key={i}>• {m.name}</p>
+              ))}
+              <a href="#" className="pv-mark-taken" onClick={e => e.preventDefault()}>Mark as taken</a>
             </div>
-            <p className="pv-med-detail"><strong>Purpose:</strong> Lowers blood pressure</p>
-            <p className="pv-med-detail"><strong>Dose:</strong> 1 tablet, once daily (evening)</p>
-            <div className="pv-med-detail">
-              <span>Refill Status:</span>
-              <span className="pv-pill pv-pill-blue-outline">30 days left</span>
-            </div>
-            <p className="pv-med-reminder">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-              Daily reminder: 8:00 PM
-            </p>
-          </div>
-
-          <div className="pv-missed-alert">
-            <div className="pv-missed-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              Missed Dose Alert
-            </div>
-            <p>You missed Metformin yesterday at 8:00 PM</p>
-            <a href="#" className="pv-mark-taken">Mark as taken</a>
-          </div>
+          )}
 
           <button className="pv-refill-btn">Request Refill</button>
         </div>
