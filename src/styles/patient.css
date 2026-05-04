@@ -411,6 +411,88 @@
   background: #3B82F6; flex-shrink: 0;
 }
 
+/* ── Care Plan Tabs ── */
+.pv-care-tabs {
+  display: flex; gap: 0; border-bottom: 1px solid #E2E8F0; margin-bottom: 12px;
+}
+.pv-care-tab {
+  flex: 1; padding: 8px; font-size: 12px; font-weight: 500;
+  color: #64748B; text-align: center; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.15s;
+}
+.pv-care-tab:hover { color: #1E293B; }
+.pv-care-tab.active { color: #2563EB; border-bottom-color: #2563EB; font-weight: 600; }
+
+.pv-care-scroll {
+  max-height: 280px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: #CBD5E1 transparent;
+  margin-bottom: 8px;
+}
+.pv-care-scroll::-webkit-scrollbar { width: 5px; }
+.pv-care-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+
+/* ── AI Action Cards ── */
+.pv-action-card {
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.pv-action-top {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+}
+.pv-action-top input[type="checkbox"] { width: 15px; height: 15px; accent-color: #2563EB; cursor: pointer; }
+.pv-action-title { font-size: 13px; font-weight: 600; color: #1E293B; flex: 1; }
+.pv-action-desc { font-size: 12px; color: #475569; line-height: 1.4; }
+.pv-action-meta { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+.pv-pri-high { background: #FEF2F2; color: #B91C1C; font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
+.pv-pri-med { background: #FFFBEB; color: #B45309; font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
+.pv-pri-low { background: #F8FAFC; color: #475569; font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
+.pv-approve-btn {
+  width: 100%; padding: 8px; border-radius: 6px;
+  background: #2563EB; color: #fff;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  margin-top: 4px; transition: background 0.15s;
+}
+.pv-approve-btn:hover { background: #1D4ED8; }
+
+/* ── Task Queue ── */
+.pv-queue-filters {
+  display: flex; gap: 6px; margin-bottom: 10px;
+}
+.pv-queue-filter {
+  padding: 5px 10px; font-size: 11px; font-weight: 500;
+  border: 1px solid #E2E8F0; border-radius: 20px;
+  color: #64748B; cursor: pointer; transition: all 0.15s;
+}
+.pv-queue-filter:hover { border-color: #CBD5E1; }
+.pv-queue-filter.active { background: #2563EB; color: #fff; border-color: #2563EB; }
+
+.pv-task-card {
+  border: 1px solid #DBEAFE; border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px; background: #F0F9FF;
+}
+.pv-task-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.pv-task-title { font-size: 13px; font-weight: 600; color: #1E293B; flex: 1; }
+.pv-task-btns { display: flex; gap: 6px; margin-top: 6px; }
+.pv-task-start {
+  padding: 4px 12px; border-radius: 5px; font-size: 11px; font-weight: 600;
+  background: #22C55E; color: #fff; cursor: pointer;
+}
+.pv-task-done {
+  padding: 4px 12px; border-radius: 5px; font-size: 11px; font-weight: 600;
+  border: 1px solid #22C55E; color: #22C55E; cursor: pointer; margin-top: 6px;
+}
+.pv-task-completed-label { font-size: 11px; color: #16A34A; font-weight: 600; display: block; margin-top: 6px; }
+
+/* ── Clinical Notes ── */
+.pv-note-card {
+  border-bottom: 1px solid #F1F5F9; padding: 8px 0;
+}
+.pv-note-card:last-of-type { border-bottom: none; }
+.pv-note-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.pv-note-author { font-size: 12px; font-weight: 600; color: #1E293B; }
+.pv-note-date { font-size: 10px; color: #94A3B8; }
+.pv-note-text { font-size: 12px; color: #475569; line-height: 1.4; }
+
 /* ── Care Team Cards ── */
 .pv-team-card {
   display: flex; align-items: center; gap: 10px;

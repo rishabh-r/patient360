@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
-import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT, APPT_SUMMARY_PROMPT, APPT_INSTRUCTIONS_PROMPT } from '../config/prompts';
+import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT, APPT_SUMMARY_PROMPT, APPT_INSTRUCTIONS_PROMPT, AI_ACTIONS_PROMPT } from '../config/prompts';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import '../styles/patient.css';
@@ -111,6 +111,13 @@ export default function PatientView({ onLogout }) {
   const [activeMeds, setActiveMeds] = useState([]);
   const [stoppedMeds, setStoppedMeds] = useState([]);
   const [medPage, setMedPage] = useState(1);
+  const [aiActions, setAiActions] = useState([]);
+  const [selectedActions, setSelectedActions] = useState([]);
+  const [taskQueue, setTaskQueue] = useState([]);
+  const [careTab, setCareTab] = useState('actions');
+  const [taskFilter, setTaskFilter] = useState('pending');
+  const [clinicNotes, setClinicNotes] = useState([]);
+  const [notePage, setNotePage] = useState(1);
   const [lifestyleGoals, setLifestyleGoals] = useState(null);
   const lifestyleDateRef = useRef('');
 
@@ -391,6 +398,45 @@ export default function PatientView({ onLogout }) {
         }
       }
       setApptAiLoading(false);
+
+      // AI Recommended Actions
+      try {
+        const actRes = await callAI(AI_ACTIONS_PROMPT, patientContext);
+        const parsed = JSON.parse(actRes);
+        setAiActions(Array.isArray(parsed) ? parsed.slice(0, 4) : []);
+      } catch { setAiActions([]); }
+
+      // Task Queue
+      try {
+        const [pRes, ipRes, cRes] = await Promise.all([
+          callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'pending' })).catch(() => []),
+          callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'in-process' })).catch(() => []),
+          callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'completed' })).catch(() => []),
+        ]);
+        const mapTask = (arr, s) => (Array.isArray(arr) ? arr : []).map(t => ({
+          id: t.actionId || t.id || '', title: t.action || t.title || '', priority: t.priority || '',
+          status: s, description: t.description || '', notes: t.aiRationale || t.notes || '',
+          dueDate: t.dueDate || '',
+        }));
+        setTaskQueue([...mapTask(pRes, 'pending'), ...mapTask(ipRes, 'inprocess'), ...mapTask(cRes, 'completed')]);
+      } catch { setTaskQueue([]); }
+
+      // Clinical Notes (DocumentReference)
+      try {
+        const notesRes = await callFhirApi(buildUrl('/baseR4/DocumentReference', { patient: patientId, 'type.coding': '11506-3', page: 0, size: 100 }));
+        const notes = (notesRes?.entry || []).map(e => {
+          const r = e.resource;
+          return {
+            author: r.author?.[0]?.display || 'Unknown',
+            text: r.description || '',
+            fullText: r.content?.[0]?.attachment?.data ? atob(r.content[0].attachment.data) : '',
+            date: r.date || '',
+            type: 'Clinical',
+          };
+        }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        setClinicNotes(notes);
+      } catch { setClinicNotes([]); }
+
     } catch (err) {
       console.error('Error loading data:', err);
       setLoading(false);
@@ -398,6 +444,53 @@ export default function PatientView({ onLogout }) {
       setApptAiLoading(false);
     }
   }
+
+  const role = localStorage.getItem('p360_role') || '';
+  const canAct = role === 'CARE_MANAGER' || role === 'PROVIDER';
+
+  async function handleApprove() {
+    const selected = aiActions.filter((_, i) => selectedActions.includes(i));
+    if (!selected.length) return;
+    try {
+      const body = selected.map(a => ({
+        patientId, priority: a.priority, action: a.title,
+        description: a.description, aiRationale: a.rationale,
+        dueDate: new Date(Date.now() + (a.timeframe?.includes('24') ? 86400000 : a.timeframe?.includes('48') ? 172800000 : a.timeframe?.includes('week') ? 604800000 : 259200000)).toISOString().split('T')[0],
+      }));
+      await fetch(`${FHIR_BASE}/baseR4/portal/create-recommendations`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      setSelectedActions([]);
+      refreshTaskQueue();
+    } catch {}
+  }
+
+  async function refreshTaskQueue() {
+    try {
+      const [pRes, ipRes, cRes] = await Promise.all([
+        callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'pending' })).catch(() => []),
+        callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'in-process' })).catch(() => []),
+        callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'completed' })).catch(() => []),
+      ]);
+      const mt = (arr, s) => (Array.isArray(arr) ? arr : []).map(t => ({ id: t.actionId || t.id || '', title: t.action || t.title || '', priority: t.priority || '', status: s, description: t.description || '', notes: t.aiRationale || t.notes || '', dueDate: t.dueDate || '' }));
+      setTaskQueue([...mt(pRes, 'pending'), ...mt(ipRes, 'inprocess'), ...mt(cRes, 'completed')]);
+    } catch {}
+  }
+
+  async function updateTaskStatus(taskId, newStatus) {
+    try {
+      await fetch(`${FHIR_BASE}/baseR4/portal/update-task?actionId=${taskId}&status=${newStatus}`, {
+        method: 'PATCH', headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+      });
+      refreshTaskQueue();
+    } catch {}
+  }
+
+  const filteredTasks = taskQueue.filter(t => t.status === taskFilter);
+  const taskCounts = { pending: taskQueue.filter(t => t.status === 'pending').length, inprocess: taskQueue.filter(t => t.status === 'inprocess').length, completed: taskQueue.filter(t => t.status === 'completed').length };
+  const NOTES_PER_PAGE = 3;
+  const paginatedNotes = clinicNotes.slice((notePage - 1) * NOTES_PER_PAGE, notePage * NOTES_PER_PAGE);
 
   return (
     <div className="pv-page">
@@ -848,20 +941,111 @@ export default function PatientView({ onLogout }) {
           <button className="pv-refill-btn">Request Refill</button>
         </div>
 
-        {/* ── My Care Plan & Tasks ── */}
+        {/* ── My Care Plan & Tasks (DYNAMIC) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
             My Care Plan & Tasks
           </h2>
 
-          <h3 className="pv-section-label">Today's Tasks</h3>
-          <label className="pv-task"><input type="checkbox" /> Take morning medication</label>
-          <label className="pv-task"><input type="checkbox" /> Take evening medication</label>
-          <label className="pv-task"><input type="checkbox" /> Get lab test (fasting glucose)</label>
-          <label className="pv-task"><input type="checkbox" /> Schedule follow-up appointment</label>
+          {/* AI Actions / Task Queue tabs */}
+          <div className="pv-care-tabs">
+            <button className={`pv-care-tab${careTab === 'actions' ? ' active' : ''}`} onClick={() => setCareTab('actions')}>AI Actions</button>
+            <button className={`pv-care-tab${careTab === 'queue' ? ' active' : ''}`} onClick={() => setCareTab('queue')}>Task Queue</button>
+          </div>
 
-          <h3 className="pv-section-label">Lifestyle Goals</h3>
+          <div className="pv-care-scroll">
+            {careTab === 'actions' && (
+              <div className="pv-actions-content">
+                {aiActions.length > 0 ? (
+                  <>
+                    {aiActions.map((a, i) => (
+                      <div className="pv-action-card" key={i}>
+                        <div className="pv-action-top">
+                          {canAct && <input type="checkbox" checked={selectedActions.includes(i)} onChange={() => setSelectedActions(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} />}
+                          <span className="pv-action-title">{a.title}</span>
+                          <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
+                        </div>
+                        <p className="pv-action-desc">{a.description}</p>
+                        <p className="pv-action-meta">{a.timeframe} · {a.rationale}</p>
+                      </div>
+                    ))}
+                    {canAct && selectedActions.length > 0 && (
+                      <button className="pv-approve-btn" onClick={handleApprove}>Approve Selected ({selectedActions.length})</button>
+                    )}
+                  </>
+                ) : (
+                  <p className="pv-empty-text">No AI actions available</p>
+                )}
+              </div>
+            )}
+
+            {careTab === 'queue' && (
+              <div className="pv-queue-content">
+                <div className="pv-queue-filters">
+                  {[['pending', 'Pending'], ['inprocess', 'In Process'], ['completed', 'Completed']].map(([k, l]) => (
+                    <button key={k} className={`pv-queue-filter${taskFilter === k ? ' active' : ''}`} onClick={() => setTaskFilter(k)}>
+                      {l} ({taskCounts[k] || 0})
+                    </button>
+                  ))}
+                </div>
+                {filteredTasks.length > 0 ? (
+                  filteredTasks.map((t, i) => (
+                    <div className="pv-task-card" key={i}>
+                      <div className="pv-task-top">
+                        <span className="pv-task-title">{t.title}</span>
+                        <span className={`pv-pill pv-pri-${t.priority?.includes('High') ? 'high' : t.priority?.includes('Medium') ? 'med' : 'low'}`}>{t.priority}</span>
+                      </div>
+                      <p className="pv-action-desc">{t.description}</p>
+                      {t.dueDate && <p className="pv-action-meta">Due: {t.dueDate}</p>}
+                      {canAct && t.status === 'pending' && (
+                        <div className="pv-task-btns">
+                          <button className="pv-task-start" onClick={() => updateTaskStatus(t.id, 'in-process')}>Start</button>
+                          <button className="pv-task-done" onClick={() => updateTaskStatus(t.id, 'completed')}>Complete</button>
+                        </div>
+                      )}
+                      {canAct && t.status === 'inprocess' && (
+                        <button className="pv-task-done" onClick={() => updateTaskStatus(t.id, 'completed')}>Complete</button>
+                      )}
+                      {t.status === 'completed' && <span className="pv-task-completed-label">✓ Completed</span>}
+                    </div>
+                  ))
+                ) : (
+                  <p className="pv-empty-text">No {taskFilter} tasks</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Clinical Notes */}
+          <h3 className="pv-section-label" style={{ marginTop: '16px' }}>Clinical Notes</h3>
+          {clinicNotes.length > 0 ? (
+            <>
+              {paginatedNotes.map((n, i) => (
+                <div className="pv-note-card" key={i}>
+                  <div className="pv-note-top">
+                    <span className="pv-note-author">{n.author}</span>
+                    <span className="pv-note-date">{formatDateTime(n.date)}</span>
+                  </div>
+                  <p className="pv-note-text">{n.text || n.fullText}</p>
+                </div>
+              ))}
+              {clinicNotes.length > NOTES_PER_PAGE && (
+                <div className="pv-obs-pagination">
+                  <button className="pv-obs-page-btn" disabled={notePage <= 1} onClick={() => setNotePage(notePage - 1)}>Prev</button>
+                  {Array.from({ length: Math.ceil(clinicNotes.length / NOTES_PER_PAGE) }, (_, i) => (
+                    <button key={i} className={`pv-obs-page-btn${notePage === i + 1 ? ' pv-obs-page-active' : ''}`} onClick={() => setNotePage(i + 1)}>{i + 1}</button>
+                  ))}
+                  <button className="pv-obs-page-btn" disabled={notePage >= Math.ceil(clinicNotes.length / NOTES_PER_PAGE)} onClick={() => setNotePage(notePage + 1)}>Next</button>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="pv-empty-text">No clinical notes</p>
+          )}
+
+          {/* Lifestyle Goals */}
+          <h3 className="pv-section-label" style={{ marginTop: '16px' }}>Lifestyle Goals</h3>
           {lifestyleGoals ? (
             <>
               <div className="pv-goal-row">
@@ -871,7 +1055,6 @@ export default function PatientView({ onLogout }) {
               <div className="pv-progress-bar">
                 <div className="pv-progress-fill green" style={{ width: `${Math.min((lifestyleGoals.steps / GOAL_TARGETS.steps) * 100, 100)}%` }}></div>
               </div>
-
               <div className="pv-goal-row">
                 <span className="pv-goal-label">Water Intake ({GOAL_TARGETS.water} glasses)</span>
                 <span className="pv-goal-value">{lifestyleGoals.water} / {GOAL_TARGETS.water}</span>
@@ -879,7 +1062,6 @@ export default function PatientView({ onLogout }) {
               <div className="pv-progress-bar">
                 <div className="pv-progress-fill blue" style={{ width: `${Math.min((lifestyleGoals.water / GOAL_TARGETS.water) * 100, 100)}%` }}></div>
               </div>
-
               <div className="pv-goal-row">
                 <span className="pv-goal-label">Exercise ({GOAL_TARGETS.exercise} min)</span>
                 <span className="pv-goal-value">{lifestyleGoals.exercise} / {GOAL_TARGETS.exercise} min</span>
@@ -887,7 +1069,6 @@ export default function PatientView({ onLogout }) {
               <div className="pv-progress-bar">
                 <div className="pv-progress-fill red" style={{ width: `${Math.min((lifestyleGoals.exercise / GOAL_TARGETS.exercise) * 100, 100)}%` }}></div>
               </div>
-
               <div className="pv-weekly-ring">
                 <svg width="80" height="80" viewBox="0 0 80 80">
                   <circle cx="40" cy="40" r="32" fill="none" stroke="#E2E8F0" strokeWidth="6" />

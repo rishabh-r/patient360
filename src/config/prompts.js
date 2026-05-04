@@ -33,6 +33,15 @@ export const APPT_INSTRUCTIONS_PROMPT = `You are a clinical AI. Based on the app
 Return ONLY a valid JSON array of exactly 3 strings. Each instruction should be actionable and specific.
 Example: ["Monitor blood sugar daily and record readings", "Schedule a follow-up eye exam within 3 months", "Continue taking prescribed medications as directed"]`;
 
+export const AI_ACTIONS_PROMPT = `You are a clinical AI. Based on the patient's conditions, observations, and medications, generate 4 recommended care actions.
+
+Return ONLY a valid JSON array of objects:
+[{"title": "action title", "priority": "High Priority", "timeframe": "Within 24 hours", "description": "what to do", "rationale": "why this matters"}]
+
+Priority: "High Priority", "Medium Priority", or "Low Priority"
+Timeframe: "Within 24 hours", "Within 48 hours", "Within 1 week", or "Within 1 month"
+Keep descriptions actionable and patient-specific.`;
+
 export const TASKS_PROMPT = `You are a health wellness AI. Based on the patient's conditions and medications, generate exactly 2 personalized, actionable health tasks for today.
 
 Return ONLY a valid JSON array of exactly 2 strings. Keep tasks simple, specific, and achievable in one day.
