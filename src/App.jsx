@@ -11,10 +11,20 @@ import './index.css';
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('p360_token'));
 
-  const handleLoginSuccess = (_name, patientId) => {
+  const handleLoginSuccess = () => {
     setIsLoggedIn(true);
-    const id = patientId || localStorage.getItem('p360_patient_id') || '';
-    window.location.href = `/?id=${id}`;
+    const role = localStorage.getItem('p360_role') || '';
+    const refId = localStorage.getItem('p360_ref_id') || '';
+
+    if (role === 'PATIENT') {
+      window.location.href = `/patient-view?id=${refId}`;
+    } else if (role === 'PROVIDER') {
+      window.location.href = `/healthcare-provider?id=${refId}`;
+    } else if (role === 'CARE_MANAGER') {
+      window.location.href = `/care-manager?id=${refId}`;
+    } else {
+      window.location.href = `/?id=${refId}`;
+    }
   };
 
   const handleLogout = () => {

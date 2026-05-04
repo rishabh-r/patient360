@@ -81,7 +81,7 @@ function statusColor(status) {
 export default function PatientView({ onLogout }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const patientId = searchParams.get('id') || localStorage.getItem('p360_patient_id') || '';
+  const patientId = searchParams.get('id') || localStorage.getItem('p360_ref_id') || '';
 
   const [patientName, setPatientName] = useState('');
   const [patientEmail, setPatientEmail] = useState('');

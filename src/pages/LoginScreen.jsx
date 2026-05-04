@@ -17,9 +17,9 @@ export default function LoginScreen({ onLoginSuccess }) {
     setShowOverlay(true);
 
     try {
-      const { name, patientId } = await doLogin(email, password);
+      await doLogin(email, password);
       setShowOverlay(false);
-      onLoginSuccess(name, patientId);
+      onLoginSuccess();
     } catch (err) {
       setShowOverlay(false);
       setError(err.message);

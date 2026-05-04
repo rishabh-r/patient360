@@ -1,5 +1,4 @@
-import { LOGIN_URL, PATIENT_MAP } from '../config/constants';
-import { maybeDecrypt } from './fhir';
+import { LOGIN_URL, USERS_URL } from '../config/constants';
 
 export async function doLogin(email, password) {
   const res = await fetch(LOGIN_URL, {
@@ -13,24 +12,39 @@ export async function doLogin(email, password) {
     throw new Error(`Login failed (${res.status}). Please try again.`);
   }
 
-  const raw = await res.json();
-  const data = await maybeDecrypt(raw);
-  const token = data.idToken || data.token || data.access_token;
+  const data = await res.json();
+  const token = data.token;
   if (!token) throw new Error('Login failed: no token received.');
 
-  const name = data.displayName || data.name || email.split('@')[0];
-  const patientId = PATIENT_MAP[email.toLowerCase()] || '';
+  const role = data.role || '';
+  const userId = data.userId || '';
+  const userEmail = data.email || email;
+  const name = email.split('@')[0];
 
   localStorage.setItem('p360_token', token);
   localStorage.setItem('p360_user', name);
-  localStorage.setItem('p360_email', email);
-  localStorage.setItem('p360_patient_id', patientId);
+  localStorage.setItem('p360_email', userEmail);
+  localStorage.setItem('p360_role', role);
+  localStorage.setItem('p360_user_id', userId);
   localStorage.setItem('p360_login_ts', Date.now().toString());
 
-  return { name, patientId };
+  let refId = '';
+  try {
+    const userRes = await fetch(`${USERS_URL}/${userId}`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    });
+    if (userRes.ok) {
+      const userData = await userRes.json();
+      refId = userData.patientRefId || userData.practitionerRefId || '';
+    }
+  } catch {}
+
+  localStorage.setItem('p360_ref_id', refId);
+
+  return { name, role, refId };
 }
 
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000;
 
 export function isSessionExpired() {
   const ts = localStorage.getItem('p360_login_ts');
@@ -39,9 +53,6 @@ export function isSessionExpired() {
 }
 
 export function clearSession() {
-  localStorage.removeItem('p360_token');
-  localStorage.removeItem('p360_user');
-  localStorage.removeItem('p360_email');
-  localStorage.removeItem('p360_patient_id');
-  localStorage.removeItem('p360_login_ts');
+  const keys = ['p360_token', 'p360_user', 'p360_email', 'p360_role', 'p360_user_id', 'p360_ref_id', 'p360_login_ts'];
+  keys.forEach(k => localStorage.removeItem(k));
 }

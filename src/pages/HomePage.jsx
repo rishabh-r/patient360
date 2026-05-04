@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { callFhirApi, buildUrl } from '../services/fhir';
 import '../styles/home.css';
 
 const DATA_SOURCES = [
@@ -61,12 +60,20 @@ function OutcomeIcon({ type }) {
   );
 }
 
+const ROLE_ALLOWED_ROUTES = {
+  PATIENT: ['/patient-view'],
+  PROVIDER: ['/healthcare-provider'],
+  CARE_MANAGER: ['/care-manager'],
+  ADMIN: ['/patient-view', '/healthcare-provider', '/care-manager'],
+};
+
 export default function HomePage({ onLogout }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const patientId = searchParams.get('id') || localStorage.getItem('p360_patient_id') || '';
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  const refId = searchParams.get('id') || localStorage.getItem('p360_ref_id') || '';
+  const role = localStorage.getItem('p360_role') || '';
+  const userName = localStorage.getItem('p360_user') || 'User';
+  const userEmail = localStorage.getItem('p360_email') || '';
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
 
@@ -78,22 +85,15 @@ export default function HomePage({ onLogout }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  useEffect(() => {
-    if (!patientId) return;
-    callFhirApi(buildUrl('/baseR4/Patient', { _id: patientId, page: 0, size: 1 }))
-      .then(res => {
-        const pt = res?.entry?.[0]?.resource;
-        const given = pt?.name?.[0]?.given?.join(' ') || '';
-        const family = pt?.name?.[0]?.family || '';
-        setUserName(`${given} ${family}`.trim() || 'User');
-        const email = (pt?.telecom || []).find(t => t.system === 'email')?.value || '';
-        setUserEmail(email);
-      })
-      .catch(() => setUserName(localStorage.getItem('p360_user') || 'User'));
-  }, [patientId]);
+  const allowedRoutes = ROLE_ALLOWED_ROUTES[role] || [];
 
   const goToView = (route) => {
-    if (route) navigate(`${route}?id=${patientId}`);
+    if (route && allowedRoutes.includes(route)) navigate(`${route}?id=${refId}`);
+  };
+
+  const isRouteAllowed = (route) => {
+    if (!route) return false;
+    return allowedRoutes.includes(route);
   };
 
   return (
@@ -113,7 +113,7 @@ export default function HomePage({ onLogout }) {
           <div className="home-nav-user">
             <div className="home-nav-user-info">
               <span className="home-nav-user-name">{userName}</span>
-              <span className="home-nav-user-role">PATIENT</span>
+              <span className="home-nav-user-role">{role || 'USER'}</span>
             </div>
             <div className="home-profile-wrap" ref={profileRef}>
               <div className="home-nav-avatar" onClick={() => setShowProfile(!showProfile)} style={{ cursor: 'pointer' }}>
@@ -188,20 +188,27 @@ export default function HomePage({ onLogout }) {
             <p className="home-section-subtitle">Role-based access via secure URLs</p>
           </div>
           <div className="oc-list">
-            {OUTCOMES.map((oc, i) => (
-              <div
-                className={`oc-card${oc.route ? ' oc-clickable' : ''}`}
-                key={i}
-                onClick={() => goToView(oc.route)}
-              >
-                <OutcomeIcon type={oc.icon} />
-                <div className="oc-text">
-                  <span className="oc-label">{oc.label}</span>
-                  <span className="oc-desc">{oc.desc}</span>
+            {OUTCOMES.map((oc, i) => {
+              const allowed = isRouteAllowed(oc.route);
+              return (
+                <div
+                  className={`oc-card${allowed ? ' oc-clickable' : ' oc-disabled'}`}
+                  key={i}
+                  onClick={() => allowed && goToView(oc.route)}
+                >
+                  <OutcomeIcon type={oc.icon} />
+                  <div className="oc-text">
+                    <span className="oc-label">{oc.label}</span>
+                    <span className="oc-desc">{oc.desc}</span>
+                  </div>
+                  {allowed ? (
+                    <svg className="oc-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  )}
                 </div>
-                <svg className="oc-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
