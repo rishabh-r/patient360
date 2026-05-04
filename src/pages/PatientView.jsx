@@ -268,6 +268,7 @@ export default function PatientView({ onLogout }) {
         const r = e.resource;
         const practRef = (r.participant || []).find(p => p.actor?.reference?.startsWith('Practitioner/'));
         const practId = practRef?.actor?.reference?.replace('Practitioner/', '') || '';
+        const practDisplay = practRef?.actor?.display || '';
         if (practId) practIdSet.add(practId);
         return {
           id: r.id,
@@ -279,6 +280,7 @@ export default function PatientView({ onLogout }) {
           status: r.status || '',
           location: (r.extension || []).find(x => x.url === 'Location')?.valueString || '',
           practId,
+          practDisplay,
           practName: '',
         };
       });
@@ -287,13 +289,21 @@ export default function PatientView({ onLogout }) {
         try {
           const pr = await callFhirApi(`${FHIR_BASE}/baseR4/Practitioner?_id=${id}&page=0&size=1`);
           const res = pr?.entry?.[0]?.resource;
-          const prefix = res?.name?.[0]?.prefix?.[0] || 'Dr.';
           const given = res?.name?.[0]?.given?.join(' ') || '';
           const family = res?.name?.[0]?.family || '';
-          practNameMap[id] = `${prefix} ${given} ${family}`.replace(/\s+/g, ' ').trim();
+          if (given || family) {
+            const prefix = res?.name?.[0]?.prefix?.[0] || 'Dr.';
+            practNameMap[id] = `${prefix} ${given} ${family}`.replace(/\s+/g, ' ').trim();
+          }
         } catch {}
       }));
-      rawAppts.forEach(a => { if (a.practId && practNameMap[a.practId]) a.practName = practNameMap[a.practId]; });
+      rawAppts.forEach(a => {
+        if (a.practId && practNameMap[a.practId]) {
+          a.practName = practNameMap[a.practId];
+        } else if (a.practDisplay) {
+          a.practName = `Dr. ${a.practDisplay}`;
+        }
+      });
 
       const upcoming = rawAppts.filter(a => new Date(a.start) > now && a.status === 'booked').sort((a, b) => new Date(a.start) - new Date(b.start));
       setUpcomingAppts(upcoming);
