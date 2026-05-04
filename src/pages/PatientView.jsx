@@ -286,14 +286,12 @@ export default function PatientView({ onLogout }) {
       await Promise.all([...practIdSet].map(async id => {
         try {
           const pr = await callFhirApi(`${FHIR_BASE}/baseR4/Practitioner?_id=${id}&page=0&size=1`);
-          console.log('Practitioner API response for', id, JSON.stringify(pr));
           const res = pr?.entry?.[0]?.resource;
           const prefix = res?.name?.[0]?.prefix?.[0] || 'Dr.';
           const given = res?.name?.[0]?.given?.join(' ') || '';
           const family = res?.name?.[0]?.family || '';
           practNameMap[id] = `${prefix} ${given} ${family}`.replace(/\s+/g, ' ').trim();
-          console.log('Resolved name:', practNameMap[id]);
-        } catch (err) { console.error('Practitioner fetch failed for', id, err); }
+        } catch {}
       }));
       rawAppts.forEach(a => { if (a.practId && practNameMap[a.practId]) a.practName = practNameMap[a.practId]; });
 
