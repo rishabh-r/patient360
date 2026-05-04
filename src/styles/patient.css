@@ -288,6 +288,18 @@
 .pv-doc-title { font-size: 13px; font-weight: 500; color: #1E293B; }
 .pv-doc-sub { font-size: 11px; color: #64748B; margin-top: 1px; }
 .pv-doc-view { font-size: 12px; color: #2563EB; font-weight: 500; flex-shrink: 0; }
+.pv-doc-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.pv-doc-download { display: flex; align-items: center; padding: 4px; border-radius: 4px; transition: background 0.15s; }
+.pv-doc-download:hover { background: #EFF6FF; }
+.pv-doc-download-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px; border-radius: 8px;
+  background: #2563EB; color: #fff;
+  font-size: 13px; font-weight: 600; margin-top: 12px;
+  cursor: pointer; transition: background 0.15s;
+}
+.pv-doc-download-btn:hover { background: #1D4ED8; }
+
 .pv-upload-btn {
   width: 100%; padding: 10px; border-radius: 8px;
   background: #fff; color: #374151;

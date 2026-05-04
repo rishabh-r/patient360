@@ -119,6 +119,9 @@ export default function PatientView({ onLogout }) {
   const [clinicNotes, setClinicNotes] = useState([]);
   const [notePage, setNotePage] = useState(1);
   const [actionsLoading, setActionsLoading] = useState(true);
+  const [documents, setDocuments] = useState([]);
+  const [docPage, setDocPage] = useState(1);
+  const [viewingDoc, setViewingDoc] = useState(null);
   const [lifestyleGoals, setLifestyleGoals] = useState(null);
   const lifestyleDateRef = useRef('');
 
@@ -423,21 +426,29 @@ export default function PatientView({ onLogout }) {
         setTaskQueue([...mapTask(pRes, 'pending'), ...mapTask(ipRes, 'inprocess'), ...mapTask(cRes, 'completed')]);
       } catch { setTaskQueue([]); }
 
-      // Clinical Notes (DocumentReference)
+      // All Documents (DocumentReference)
       try {
-        const notesRes = await callFhirApi(buildUrl('/baseR4/DocumentReference', { patient: patientId, 'type.coding': '11506-3', page: 0, size: 100 }));
-        const notes = (notesRes?.entry || []).map(e => {
+        const docsRes = await callFhirApi(buildUrl('/baseR4/DocumentReference', { patient: patientId, page: 0, size: 100 }));
+        const allDocs = (docsRes?.entry || []).map(e => {
           const r = e.resource;
           return {
+            id: r.id,
+            title: r.content?.[0]?.attachment?.title || r.description || 'Untitled',
+            description: r.description || '',
             author: r.author?.[0]?.display || 'Unknown',
-            text: r.description || '',
-            fullText: r.content?.[0]?.attachment?.data ? atob(r.content[0].attachment.data) : '',
+            specialty: r.author?.[0]?.extension?.find(x => x.url === 'specialty')?.valueString || '',
             date: r.date || '',
-            type: 'Clinical',
+            type: r.type?.coding?.[0]?.display || 'Document',
+            typeCode: r.type?.coding?.[0]?.code || '',
+            contentType: r.content?.[0]?.attachment?.contentType || 'text/plain',
+            data: r.content?.[0]?.attachment?.data || '',
           };
         }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        setClinicNotes(notes);
-      } catch { setClinicNotes([]); }
+        setDocuments(allDocs);
+        setClinicNotes(allDocs.filter(d => d.typeCode === '11506-3').map(d => ({
+          author: d.author, text: d.description, fullText: d.data ? atob(d.data) : '', date: d.date, type: 'Clinical',
+        })));
+      } catch { setDocuments([]); setClinicNotes([]); }
 
     } catch (err) {
       console.error('Error loading data:', err);
@@ -493,6 +504,19 @@ export default function PatientView({ onLogout }) {
   const taskCounts = { pending: taskQueue.filter(t => t.status === 'pending').length, inprocess: taskQueue.filter(t => t.status === 'inprocess').length, completed: taskQueue.filter(t => t.status === 'completed').length };
   const NOTES_PER_PAGE = 3;
   const paginatedNotes = clinicNotes.slice((notePage - 1) * NOTES_PER_PAGE, notePage * NOTES_PER_PAGE);
+  const DOCS_PER_PAGE = 5;
+  const paginatedDocs = documents.slice((docPage - 1) * DOCS_PER_PAGE, docPage * DOCS_PER_PAGE);
+
+  function downloadDoc(doc) {
+    const text = doc.data ? atob(doc.data) : doc.description;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${doc.title.replace(/[^a-zA-Z0-9 -]/g, '')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="pv-page">
@@ -1098,27 +1122,64 @@ export default function PatientView({ onLogout }) {
             Documents
           </h2>
 
-          {[
-            { icon: '#3B82F6', title: 'Visit Summary - Jan 15, 2026', sub: 'Annual Physical Exam' },
-            { icon: '#EF4444', title: 'Prescription - Metformin', sub: 'Issued: Jan 15, 2026' },
-            { icon: '#22C55E', title: 'Discharge Notes - Dec 2025', sub: 'Hospital Stay Summary' },
-            { icon: '#8B5CF6', title: 'Vaccination Records', sub: 'COVID-19, Flu, etc.' },
-            { icon: '#3B82F6', title: 'Education Materials', sub: 'Managing Type 2 Diabetes' },
-            { icon: '#EF4444', title: 'Diet & Nutrition Guide', sub: 'Low-sodium meal plans' },
-          ].map((doc, i) => (
-            <div className="pv-doc-row" key={i}>
-              <div className="pv-doc-icon" style={{ color: doc.icon }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-              </div>
-              <div className="pv-doc-text">
-                <span className="pv-doc-title">{doc.title}</span>
-                <span className="pv-doc-sub">{doc.sub}</span>
-              </div>
-              <a href="#" className="pv-doc-view">View</a>
-            </div>
-          ))}
+          {loading ? (
+            <div className="pv-loading"><div className="pv-spinner"></div><span>Loading...</span></div>
+          ) : documents.length > 0 ? (
+            <>
+              {paginatedDocs.map((doc, i) => (
+                <div className="pv-doc-row" key={doc.id || i}>
+                  <div className="pv-doc-icon" style={{ color: doc.typeCode === '34108-1' ? '#F59E0B' : '#3B82F6' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                  </div>
+                  <div className="pv-doc-text">
+                    <span className="pv-doc-title">{doc.description}</span>
+                    <span className="pv-doc-sub">{doc.author}{doc.specialty ? ` · ${doc.specialty}` : ''} · {formatDateTime(doc.date)}</span>
+                  </div>
+                  <div className="pv-doc-actions">
+                    <a href="#" className="pv-doc-view" onClick={e => { e.preventDefault(); setViewingDoc(doc); }}>View</a>
+                    <a href="#" className="pv-doc-download" onClick={e => { e.preventDefault(); downloadDoc(doc); }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </a>
+                  </div>
+                </div>
+              ))}
+              {documents.length > DOCS_PER_PAGE && (
+                <div className="pv-obs-pagination">
+                  <button className="pv-obs-page-btn" disabled={docPage <= 1} onClick={() => setDocPage(docPage - 1)}>Prev</button>
+                  {Array.from({ length: Math.ceil(documents.length / DOCS_PER_PAGE) }, (_, i) => (
+                    <button key={i} className={`pv-obs-page-btn${docPage === i + 1 ? ' pv-obs-page-active' : ''}`} onClick={() => setDocPage(i + 1)}>{i + 1}</button>
+                  ))}
+                  <button className="pv-obs-page-btn" disabled={docPage >= Math.ceil(documents.length / DOCS_PER_PAGE)} onClick={() => setDocPage(docPage + 1)}>Next</button>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="pv-empty-text">No documents found</p>
+          )}
 
           <button className="pv-upload-btn">Upload Document</button>
+
+          {viewingDoc && (
+            <div className="pv-modal-overlay" onClick={() => setViewingDoc(null)}>
+              <div className="pv-modal" onClick={e => e.stopPropagation()}>
+                <div className="pv-modal-header">
+                  <h3>Document</h3>
+                  <button className="pv-modal-close" onClick={() => setViewingDoc(null)}>×</button>
+                </div>
+                <div className="pv-modal-body">
+                  <p style={{ fontSize: '14px', fontWeight: 600, color: '#1E293B', marginBottom: '4px' }}>{viewingDoc.description}</p>
+                  <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '12px' }}>{viewingDoc.author}{viewingDoc.specialty ? ` · ${viewingDoc.specialty}` : ''} · {formatDateTime(viewingDoc.date)}</p>
+                  <div className="pv-condition-card">
+                    <p>{viewingDoc.data ? atob(viewingDoc.data) : viewingDoc.description}</p>
+                  </div>
+                  <button className="pv-doc-download-btn" onClick={() => downloadDoc(viewingDoc)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
