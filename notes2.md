@@ -2921,3 +2921,146 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 24. `e868187` — Fix lifestyle targets: steps 10000, water 10, exercise 40
 
 ---
+
+
+## Session: May 4, 2026
+
+### Login System Overhaul — User Management on Port 3001
+
+#### New Login Endpoint
+- **Old**: `POST https://fhirassist.rsystems.com:8081/auth/login`
+- **New**: `POST https://fhirassist.rsystems.com:3001/api/v1/users/login`
+- **FHIR_BASE** changed from port 8081 to 3001 (all APIs now on 3001)
+
+#### Login Response
+`{ token, tokenType, expiresInMs: 28800000, userId, email, role, refId }`
+- `role`: PATIENT / PROVIDER / CARE_MANAGER / ADMIN
+- `refId`: patientRefId or practitionerRefId (returned directly in login response)
+- Session timeout: 8 hours (matching `expiresInMs`)
+
+#### localStorage Keys (updated)
+- `p360_token`, `p360_user`, `p360_email`, `p360_role`, `p360_user_id`, `p360_ref_id`, `p360_login_ts`
+- Removed: `p360_patient_id` (replaced by `p360_ref_id`)
+- Removed: `PATIENT_MAP` (no longer hardcoded)
+
+#### Role-Based Routing
+- PATIENT -> auto-redirect to `/patient-view?id={refId}`
+- PROVIDER -> auto-redirect to `/healthcare-provider?id={refId}`
+- CARE_MANAGER -> auto-redirect to `/care-manager?id={refId}`
+- ADMIN -> `/` (Home Page, no ID in URL)
+- If refId is empty for non-admin, stays on Home Page
+
+#### Home Page Role-Based Views
+- Only allowed views are clickable per role (others show lock icon, dimmed, cursor not-allowed)
+- ADMIN sees all views enabled + "Manage Users" button in navbar
+- Role displayed in navbar (ADMIN/PATIENT/etc.)
+
+### Admin Panel (Slide-in from Right)
+
+#### Files Created
+- `src/pages/AdminPanel.jsx` — slide-in panel with user management
+- `src/pages/UserSelectModal.jsx` — modal for selecting users by role
+- `src/styles/admin.css` — all admin panel and modal styles
+
+#### Admin Panel Features
+- **"Manage Users" button** in admin navbar -> opens slide-in panel
+- **All Users tab**: fetches `GET /api/v1/users`, filterable by role (All/Patient/Provider/Care Mgr/Admin), shows email, role pill, active/inactive status
+- **Onboard User tab**: form with email, password, role dropdown, Patient Ref ID (disabled for non-PATIENT), Practitioner/Manager Ref ID (disabled for PATIENT) -> `POST /api/v1/users`
+- **User Detail**: click View -> shows full details (email, role, status, IDs, dates) -> **Deactivate button** with confirmation -> `DELETE /api/v1/users/{id}`
+
+#### User Selection Modal (Admin View Navigation)
+- When admin clicks Patient View/Provider View/Care Manager View -> modal shows users of that role
+- Searchable by email
+- Click user -> navigates to view with their refId in URL
+- Non-admin users go directly to their view (no modal)
+
+#### User Management APIs (Port 3001)
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/v1/users/login` | Login |
+| GET | `/api/v1/users` | List all users (admin) |
+| POST | `/api/v1/users` | Create user (admin) |
+| GET | `/api/v1/users/{id}` | Get one user |
+| DELETE | `/api/v1/users/{id}` | Deactivate user (admin) |
+| PUT | `/api/v1/users/{id}` | Update user |
+
+### Practitioner API Issue
+- Practitioner API on port 3001 returns **500 Internal Server Error** (backend issue)
+- Appointment doctor names show serviceType as fallback until backend fixes it
+- Code is correct and will auto-resolve when API is fixed
+
+### 4th Container — My Medications (DYNAMIC)
+
+| Section | Source | Details |
+|---------|--------|---------|
+| Active Medications | MedicationRequest API (status=active) | 2 per page with pagination. Shows name, purpose (reasonCode), dose (dosage), prescribed date |
+| Missed Medications | MedicationRequest API (status=stopped/cancelled) | Renamed from "Missed Dose Alert". Lists all stopped meds |
+| Mark as Taken | Static | Unchanged |
+| Request Refill | Static | Unchanged |
+
+### 5th Container — My Care Plan & Tasks (DYNAMIC)
+
+#### Structure (top to bottom)
+1. **Tabs: AI Actions | Task Queue**
+2. **Clinical Notes**
+3. **Lifestyle Goals** (already done)
+
+#### AI Recommended Actions Tab
+- AI generates 4 actions with priority, timeframe, description, rationale via `AI_ACTIONS_PROMPT`
+- Loading spinner "Generating AI recommendations..." while loading
+- Checkboxes + "Approve Selected" button visible only for CARE_MANAGER/PROVIDER
+- PATIENT/ADMIN see actions **read-only** (no checkboxes, no approve button)
+- Approved actions -> `POST /baseR4/portal/create-recommendations` -> appear in Task Queue
+
+#### Task Queue Tab
+- Pending/In Process/Completed filter buttons with counts
+- Task cards with Start/Complete buttons (only for CARE_MANAGER/PROVIDER)
+- Uses `GET /baseR4/portal/task-queue`, `PATCH /baseR4/portal/update-task`
+- Scrollable container (max-height 280px)
+
+#### Clinical Notes
+- From DocumentReference API (type.coding=11506-3), paginated 3 per page
+- Shows author, date, description text
+
+#### New Prompt
+- `AI_ACTIONS_PROMPT` — Returns JSON array of 4 actions with title, priority, timeframe, description, rationale
+
+### 6th Container — Documents (DYNAMIC)
+
+| Feature | Details |
+|---------|---------|
+| Document list | From DocumentReference API (all types), shows description, author + specialty, date |
+| Color coding | Blue icon for Clinical Notes (11506-3), amber for Admin Notes (34108-1) |
+| View | Click "View" -> modal with decoded base64 content in purple-border card |
+| Download | Click download icon -> creates `.txt` file from decoded base64 content, triggers browser download. Also in view modal |
+| Pagination | 5 per page with Prev/Next |
+| Upload | Button stays static (no backend API yet) |
+
+### All 6 Patient View Containers — Status
+
+| # | Container | Status |
+|---|-----------|--------|
+| 1 | My Health | DONE — AI health status, conditions, last med, test results, things to do |
+| 2 | My Health Summary | DONE — AI health overview, allergies, care team, clinical trends |
+| 3 | Appointments & Visits | DONE — upcoming/past from API, AI summary, AI instructions |
+| 4 | My Medications | DONE — active meds, missed meds from API |
+| 5 | My Care Plan & Tasks | DONE — AI Actions + Task Queue tabs, Clinical Notes, Lifestyle Goals |
+| 6 | Documents | DONE — view/download from DocumentReference API |
+
+### Git Commits (May 4 session, chronological)
+
+25. `1ba7857` — New login system: port 3001 user management API, role-based routing
+26. `f53719b` — Admin panel: slide-in user management, user selection modal
+27. `3c73929` — Disable irrelevant ref ID field by role, fix URL routing
+28. `91558e1` — Read refId directly from login response
+29. `247a78f` — Switch FHIR_BASE from port 8081 to 3001
+30. `cb4becf` — Fix practitioner names fallback
+31. `18d8a57` — Revert practitioner name code to original
+32. `57c34d3` — Debug: console logging for practitioner API
+33. `4331c16` — Remove debug logs (practitioner API 500 is backend issue)
+34. `b295f0b` — Dynamic 4th container: active medications, missed medications
+35. `c612c9a` — Dynamic 5th container: AI Actions + Task Queue tabs, Clinical Notes
+36. `176fb63` — Add loading spinner for AI recommendations
+37. `8dcd797` — Dynamic 6th container: documents with view/download
+
+---
