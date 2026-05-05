@@ -95,7 +95,8 @@ export default function AdminPanel({ isOpen, onClose }) {
     setDeleteConfirm(false);
   }
 
-  const filteredUsers = roleFilter === 'ALL' ? users : users.filter(u => u.role === roleFilter);
+  const activeUsers = users.filter(u => u.isActive && u.role !== 'ADMIN');
+  const filteredUsers = roleFilter === 'ALL' ? activeUsers : activeUsers.filter(u => u.role === roleFilter);
 
   if (!isOpen) return null;
 
@@ -115,7 +116,7 @@ export default function AdminPanel({ isOpen, onClose }) {
         {tab === 'users' && !selectedUser && (
           <>
             <div className="ap-role-filters">
-              {['ALL', ...ROLE_OPTIONS, 'ADMIN'].map(r => (
+              {['ALL', ...ROLE_OPTIONS].map(r => (
                 <button key={r} className={`ap-role-btn${roleFilter === r ? ' active' : ''}`} onClick={() => setRoleFilter(r)}>
                   {r === 'CARE_MANAGER' ? 'Care Mgr' : r.charAt(0) + r.slice(1).toLowerCase()}
                 </button>
