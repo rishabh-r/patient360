@@ -16,6 +16,12 @@ const NOTIFICATIONS = [
   { text: 'Upcoming appointment reminder', time: '1 day ago' },
 ];
 
+function nameFromEmail(email) {
+  if (!email) return '';
+  const local = email.split('@')[0];
+  return local.split(/[._-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
 function formatDateTime(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -548,7 +554,7 @@ export default function PatientView({ onLogout }) {
             )}
           </div>
           <div className="pv-nav-user">
-            <span className="pv-nav-user-name">{role === 'ADMIN' ? (localStorage.getItem('p360_user') || 'Admin') : (patientName || 'Loading...')}</span>
+            <span className="pv-nav-user-name">{role === 'ADMIN' ? (localStorage.getItem('p360_user') || 'Admin') : nameFromEmail(localStorage.getItem('p360_email'))}</span>
             <span className="pv-nav-user-role">{role || 'PATIENT'}</span>
           </div>
           <div className="pv-profile-wrap" ref={profileRef}>
@@ -558,8 +564,8 @@ export default function PatientView({ onLogout }) {
             {showProfile && (
               <div className="pv-profile-dropdown">
                 <div className="pv-profile-info">
-                  <span className="pv-profile-name">{role === 'ADMIN' ? (localStorage.getItem('p360_user') || 'Admin') : patientName}</span>
-                  <span className="pv-profile-email">{role === 'ADMIN' ? (localStorage.getItem('p360_email') || '') : patientEmail}</span>
+                  <span className="pv-profile-name">{role === 'ADMIN' ? (localStorage.getItem('p360_user') || 'Admin') : nameFromEmail(localStorage.getItem('p360_email'))}</span>
+                  <span className="pv-profile-email">{localStorage.getItem('p360_email') || ''}</span>
                 </div>
                 <div className="pv-profile-signout" onClick={onLogout}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
