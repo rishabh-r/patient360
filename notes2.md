@@ -3064,3 +3064,43 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 37. `8dcd797` — Dynamic 6th container: documents with view/download
 
 ---
+
+
+## Session: May 5, 2026
+
+### Navbar Name — Extract from Login Email
+- For non-admin roles (PATIENT/PROVIDER/CARE_MANAGER), display name is extracted from login email
+- `nameFromEmail()` helper: splits email local part by dots, dashes, underscores and capitalizes each word
+- Example: `rishabh.raj@gmail.com` -> `Rishabh Raj`, `james.mitchell@gmail.com` -> `James Mitchell`
+- Profile dropdown shows extracted name + login email
+- Admin unchanged — shows admin's stored name from login response
+
+### Admin Panel — Hide Deactivated Users + Remove Admin Tab
+- Deactivated users (`isActive: false`) filtered out from All Users list
+- Admin role removed from role filter tabs (only All / Patient / Provider / Care Mgr)
+- `activeUsers` computed: `users.filter(u => u.isActive && u.role !== 'ADMIN')`
+
+### Task Queue Tab — Hidden for PATIENT Role
+- When patient logs in, only "AI Actions" tab shows in 5th container
+- Task Queue tab hidden with `{role !== 'PATIENT' && (...)}`
+- ADMIN/PROVIDER/CARE_MANAGER still see both tabs
+
+### Documents + Clinical Notes — Load Immediately (Fix)
+- **Problem**: Documents and Clinical Notes showed "No data" while AI was generating because they were fetched sequentially after AI calls
+- **Fix**: Moved Documents + Task Queue fetch to fire-and-forget (non-blocking) right after FHIR data loads, before AI calls
+- Documents and Clinical Notes now appear immediately alongside other FHIR data
+- AI calls run independently without blocking the data sections
+
+### Test Results Trend
+- Shows **all observations** with data points, not just deteriorating ones
+- No care gap filter applied (unlike Time Traveler which had deteriorating trends filter)
+- Sorted by data density (most data points first)
+
+### Git Commits (May 5 session)
+
+38. `cbfaee0` — Show admin name/email in navbar when admin views patient
+39. `7e4f1d3` — Hide deactivated users and admin role from All Users list
+40. `c12a330` — Extract display name from login email for non-admin roles
+41. `40c08fe` — Fix: documents and clinical notes load immediately, hide Task Queue for PATIENT
+
+---
