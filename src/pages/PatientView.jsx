@@ -327,6 +327,36 @@ export default function PatientView({ onLogout }) {
 
       setLoading(false);
 
+      // Documents + Task Queue (fire-and-forget, don't block AI calls)
+      callFhirApi(buildUrl('/baseR4/DocumentReference', { patient: patientId, page: 0, size: 100 }))
+        .then(docsRes => {
+          const allDocs = (docsRes?.entry || []).map(e => {
+            const r = e.resource;
+            return {
+              id: r.id, title: r.content?.[0]?.attachment?.title || r.description || 'Untitled',
+              description: r.description || '', author: r.author?.[0]?.display || 'Unknown',
+              specialty: r.author?.[0]?.extension?.find(x => x.url === 'specialty')?.valueString || '',
+              date: r.date || '', type: r.type?.coding?.[0]?.display || 'Document',
+              typeCode: r.type?.coding?.[0]?.code || '',
+              contentType: r.content?.[0]?.attachment?.contentType || 'text/plain',
+              data: r.content?.[0]?.attachment?.data || '',
+            };
+          }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          setDocuments(allDocs);
+          setClinicNotes(allDocs.filter(d => d.typeCode === '11506-3').map(d => ({
+            author: d.author, text: d.description, fullText: d.data ? atob(d.data) : '', date: d.date, type: 'Clinical',
+          })));
+        }).catch(() => { setDocuments([]); setClinicNotes([]); });
+
+      Promise.all([
+        callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'pending' })).catch(() => []),
+        callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'in-process' })).catch(() => []),
+        callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'completed' })).catch(() => []),
+      ]).then(([pRes, ipRes, cRes]) => {
+        const mt = (arr, s) => (Array.isArray(arr) ? arr : []).map(t => ({ id: t.actionId || t.id || '', title: t.action || t.title || '', priority: t.priority || '', status: s, description: t.description || '', notes: t.aiRationale || t.notes || '', dueDate: t.dueDate || '' }));
+        setTaskQueue([...mt(pRes, 'pending'), ...mt(ipRes, 'inprocess'), ...mt(cRes, 'completed')]);
+      }).catch(() => setTaskQueue([]));
+
       const condSummary = condData.map(c => `${c.display} (${c.clinicalStatus})`).join(', ');
       const obsSummary = latestObs.map(o => `${o.display}: ${o.value} ${o.unit}`).join(', ');
       const medSummary = meds.map(m => `${m.name} (${m.status})`).join(', ');
@@ -416,45 +446,6 @@ export default function PatientView({ onLogout }) {
         setAiActions(Array.isArray(parsed) ? parsed.slice(0, 4) : []);
       } catch { setAiActions([]); }
       setActionsLoading(false);
-
-      // Task Queue
-      try {
-        const [pRes, ipRes, cRes] = await Promise.all([
-          callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'pending' })).catch(() => []),
-          callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'in-process' })).catch(() => []),
-          callFhirApi(buildUrl('/baseR4/portal/task-queue', { patientId, status: 'completed' })).catch(() => []),
-        ]);
-        const mapTask = (arr, s) => (Array.isArray(arr) ? arr : []).map(t => ({
-          id: t.actionId || t.id || '', title: t.action || t.title || '', priority: t.priority || '',
-          status: s, description: t.description || '', notes: t.aiRationale || t.notes || '',
-          dueDate: t.dueDate || '',
-        }));
-        setTaskQueue([...mapTask(pRes, 'pending'), ...mapTask(ipRes, 'inprocess'), ...mapTask(cRes, 'completed')]);
-      } catch { setTaskQueue([]); }
-
-      // All Documents (DocumentReference)
-      try {
-        const docsRes = await callFhirApi(buildUrl('/baseR4/DocumentReference', { patient: patientId, page: 0, size: 100 }));
-        const allDocs = (docsRes?.entry || []).map(e => {
-          const r = e.resource;
-          return {
-            id: r.id,
-            title: r.content?.[0]?.attachment?.title || r.description || 'Untitled',
-            description: r.description || '',
-            author: r.author?.[0]?.display || 'Unknown',
-            specialty: r.author?.[0]?.extension?.find(x => x.url === 'specialty')?.valueString || '',
-            date: r.date || '',
-            type: r.type?.coding?.[0]?.display || 'Document',
-            typeCode: r.type?.coding?.[0]?.code || '',
-            contentType: r.content?.[0]?.attachment?.contentType || 'text/plain',
-            data: r.content?.[0]?.attachment?.data || '',
-          };
-        }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        setDocuments(allDocs);
-        setClinicNotes(allDocs.filter(d => d.typeCode === '11506-3').map(d => ({
-          author: d.author, text: d.description, fullText: d.data ? atob(d.data) : '', date: d.date, type: 'Clinical',
-        })));
-      } catch { setDocuments([]); setClinicNotes([]); }
 
     } catch (err) {
       console.error('Error loading data:', err);
@@ -983,7 +974,9 @@ export default function PatientView({ onLogout }) {
           {/* AI Actions / Task Queue tabs */}
           <div className="pv-care-tabs">
             <button className={`pv-care-tab${careTab === 'actions' ? ' active' : ''}`} onClick={() => setCareTab('actions')}>AI Actions</button>
-            <button className={`pv-care-tab${careTab === 'queue' ? ' active' : ''}`} onClick={() => setCareTab('queue')}>Task Queue</button>
+            {role !== 'PATIENT' && (
+              <button className={`pv-care-tab${careTab === 'queue' ? ' active' : ''}`} onClick={() => setCareTab('queue')}>Task Queue</button>
+            )}
           </div>
 
           <div className="pv-care-scroll">
