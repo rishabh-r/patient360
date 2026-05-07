@@ -430,7 +430,18 @@
   background: #EEF2FF; border: 1px solid #E0E7FF;
   padding: 1px 7px; border-radius: 10px;
   margin-left: 6px; vertical-align: middle;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.3px; cursor: default;
+  position: relative;
+}
+.pv-ai-badge:hover::after {
+  content: 'AI generated information';
+  position: absolute; bottom: 100%; left: 50%;
+  transform: translateX(-50%); margin-bottom: 6px;
+  background: #1E293B; color: #fff;
+  font-size: 11px; font-weight: 500; letter-spacing: 0;
+  padding: 5px 10px; border-radius: 6px;
+  white-space: nowrap; z-index: 100;
+  pointer-events: none;
 }
 
 /* ── Care Plan Tabs ── */
