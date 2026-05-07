@@ -923,9 +923,9 @@ export default function PatientView({ onLogout }) {
                             </button>
                           )}
                         </div>
-                      ) : apptInstructions.length === 0 ? (
-                        <p className="pv-empty-text">No instructions available</p>
-                      ) : null}
+                      ) : (
+                        <p className="pv-empty-text">All instructions have been approved. No more recommendations at this time.</p>
+                      )}
                     </>
                   )}
                 </>
