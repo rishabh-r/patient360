@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { callFhirApi } from '../services/fhir';
+import { FHIR_BASE } from '../config/constants';
 import AdminPanel from './AdminPanel';
 import UserSelectModal from './UserSelectModal';
 import '../styles/home.css';
@@ -64,7 +66,7 @@ function OutcomeIcon({ type }) {
 
 const ROLE_ALLOWED_ROUTES = {
   PATIENT: ['/patient-view'],
-  PROVIDER: ['/healthcare-provider'],
+  PROVIDER: ['/patient-view', '/healthcare-provider'],
   CARE_MANAGER: ['/care-manager'],
   ADMIN: ['/patient-view', '/healthcare-provider', '/care-manager'],
 };
@@ -79,6 +81,7 @@ export default function HomePage({ onLogout }) {
   const [showProfile, setShowProfile] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [selectModal, setSelectModal] = useState(null);
+  const [providerPatients, setProviderPatients] = useState(null);
   const profileRef = useRef(null);
 
   useEffect(() => {
@@ -97,15 +100,37 @@ export default function HomePage({ onLogout }) {
     if (!route || !allowedRoutes.includes(route)) return;
     if (role === 'ADMIN') {
       setSelectModal({ route, selectRole: ROUTE_TO_ROLE[route] || 'PATIENT' });
+    } else if (role === 'PROVIDER' && route === '/patient-view') {
+      fetchProviderPatients();
+    } else if (role === 'PROVIDER' && route === '/healthcare-provider') {
+      navigate(`${route}?id=${refId}`);
     } else {
       navigate(`${route}?id=${refId}`);
     }
   };
 
+  async function fetchProviderPatients() {
+    try {
+      const res = await callFhirApi(`${FHIR_BASE}/baseR4/Practitioner/fetch-patients-by-practitioner?id=${refId}`);
+      const patients = (res?.entry || []).map(e => {
+        const r = e.resource;
+        const given = r.name?.[0]?.given?.join(' ') || '';
+        const family = r.name?.[0]?.family || '';
+        return { id: r.id, name: `${given} ${family}`.trim(), email: (r.telecom || []).find(t => t.system === 'email')?.value || '' };
+      });
+      setProviderPatients(patients);
+    } catch { setProviderPatients([]); }
+  }
+
   const handleUserSelect = (user) => {
     const id = user.patientRefId || user.practitionerRefId || '';
     setSelectModal(null);
     navigate(`${selectModal.route}?id=${id}`);
+  };
+
+  const handleProviderPatientSelect = (patient) => {
+    setProviderPatients(null);
+    navigate(`/patient-view?id=${patient.id}`);
   };
 
   const isRouteAllowed = (route) => {
@@ -244,6 +269,33 @@ export default function HomePage({ onLogout }) {
           onSelect={handleUserSelect}
           onClose={() => setSelectModal(null)}
         />
+      )}
+
+      {providerPatients !== null && (
+        <div className="usm-overlay" onClick={() => setProviderPatients(null)}>
+          <div className="usm-modal" onClick={e => e.stopPropagation()}>
+            <div className="usm-header">
+              <h3>Select a Patient</h3>
+              <button className="usm-close" onClick={() => setProviderPatients(null)}>×</button>
+            </div>
+            <div className="usm-list">
+              {providerPatients.length > 0 ? (
+                providerPatients.map(p => (
+                  <div className="usm-item" key={p.id} onClick={() => handleProviderPatientSelect(p)}>
+                    <div className="usm-avatar">{p.name ? p.name[0].toUpperCase() : '?'}</div>
+                    <div className="usm-info">
+                      <span className="usm-email">{p.name}</span>
+                      <span className="usm-ref">{p.email}</span>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                  </div>
+                ))
+              ) : (
+                <div className="usm-empty">No patients found for this provider</div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

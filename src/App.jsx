@@ -24,7 +24,7 @@ function App() {
     if (role === 'PATIENT') {
       window.location.href = `/patient-view?id=${refId}`;
     } else if (role === 'PROVIDER') {
-      window.location.href = `/healthcare-provider?id=${refId}`;
+      window.location.href = `/?id=${refId}`;
     } else if (role === 'CARE_MANAGER') {
       window.location.href = `/care-manager?id=${refId}`;
     } else {
