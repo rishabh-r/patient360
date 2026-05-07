@@ -3104,3 +3104,45 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 41. `40c08fe` — Fix: documents and clinical notes load immediately, hide Task Queue for PATIENT
 
 ---
+
+
+## Session: May 7, 2026
+
+### Dashboard — Data Sources Disabled
+- All data source cards except **Clinical** are disabled (dimmed, grey icons, `opacity: 0.5`, `cursor: not-allowed`)
+- Clinical card has green background (`#F0FDF4`) with green border (`#86EFAC`)
+- Applies to all users/roles
+
+### Patient View — Buttons Removed
+- **Start Tele-Visit** button removed from 3rd container (Appointments)
+- **Request Refill** button removed from 4th container (Medications)
+- **Upload Document** button removed from 6th container (Documents)
+
+### Task Queue Tab — Removed Entirely
+- Task Queue tab removed for all roles (was previously hidden only for PATIENT)
+- Only "AI Recommended Actions" section remains (no tabs, direct section with header)
+- Approve/checkbox functionality also removed (will be reimplemented in Provider View later)
+
+### AI Generated Badges
+- Purple star icon with "AI" or "AI Generated" text added to all AI-powered sections:
+  - Health Status
+  - My Conditions
+  - Health Overview
+  - Things to Do Today
+  - AI Recommended Actions
+  - AI Recommended Instructions
+- **Hover tooltip**: "AI generated information" appears above the badge on hover
+- CSS: `.pv-ai-badge` with `::after` pseudo-element for tooltip
+
+### Planned: AI Actions + Instructions Workflow (Backend API Pending)
+- **AI Recommended Actions** and **AI Recommended Instructions** will be managed from **Healthcare Provider View**
+- Provider logs in -> views a patient -> sees AI-generated actions/instructions -> can **approve or disapprove**
+- Patient logs in -> sees only **approved** actions/instructions (no AI generation, no approve buttons)
+- **Waiting for backend team** to create the approve/disapprove APIs before implementation
+
+### Git Commits (May 7 session)
+
+42. `5387e99` — Disable non-clinical data sources, remove tele-visit/refill/upload buttons, remove task queue tab, add AI Generated badges
+43. `fa3cfec` — Add hover tooltip 'AI generated information' on AI badges
+
+---
