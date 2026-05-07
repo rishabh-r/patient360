@@ -3146,3 +3146,73 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 43. `fa3cfec` — Add hover tooltip 'AI generated information' on AI badges
 
 ---
+
+
+## Session: May 7, 2026 (continued)
+
+### Provider Role — Dashboard + Patient Selection
+
+#### Provider Login Flow
+- Provider logs in -> redirects to `/?id={practitionerRefId}` (dashboard with provider's ID)
+- Dashboard navbar shows provider's name (from email) + PROVIDER role badge
+- **Enabled views**: Patient View + Healthcare Provider View
+- **Disabled**: Care Manager View
+
+#### Provider Patient Selection (New API)
+- When provider clicks Patient View -> calls `GET /baseR4/Practitioner/fetch-patients-by-practitioner?id={practitionerRefId}`
+- Returns Bundle of Patient resources that the practitioner has performed on
+- Shows modal with actual patient names (given + family from FHIR response)
+- Provider selects patient -> navigates to `/patient-view?id={patientId}`
+- Provider's name and email stay in navbar (not the patient's)
+- When clicking Healthcare Provider View -> goes directly to `/healthcare-provider?id={refId}`
+
+#### Role Allowed Routes Updated
+- PATIENT: `['/patient-view']`
+- PROVIDER: `['/patient-view', '/healthcare-provider']`
+- CARE_MANAGER: `['/care-manager']`
+- ADMIN: `['/patient-view', '/healthcare-provider', '/care-manager']`
+
+### AI Recommended Instructions — Approve/Disapprove Workflow
+
+#### APIs
+- **POST** `/baseR4/Practitioner/ai-recommendation` — Save approved instructions
+  - Body: `{ patientId, practitionerId, payloads: ["instruction1", ...] }`
+  - Response: 201 Created with Communication resource
+- **GET** `/baseR4/Patient/ai-recommendation?patientId={id}` — Get all instructions
+  - Response: Bundle of Communication resources
+  - `status: "preparation"` = unapproved (pending)
+  - `status: "completed"` = approved (has verified-by and verified-at extensions)
+
+#### Provider View (when viewing a patient)
+- AI generates instructions (same as before)
+- Checkboxes beside each instruction for provider to select
+- "Approve Selected" button -> POSTs selected instructions to API
+- **After approval**: Green toast "Instructions approved" for 2 seconds, approved instructions disappear from view
+- **Semantic dedup**: AI compares new instructions against approved ones by meaning (not exact text match)
+  - Uses `DEDUP_INSTRUCTIONS_PROMPT` — AI filters out instructions with similar meaning
+  - Prevents re-showing approved instructions even if worded differently
+- When all instructions approved + no new unique ones: "All instructions have been approved. No more recommendations at this time."
+
+#### Patient View
+- Section title: "Approved Instructions" (no AI badge)
+- Shows only `status: "completed"` instructions from GET API
+- No checkboxes, no approve button, no AI generation
+
+#### New Prompt
+- `DEDUP_INSTRUCTIONS_PROMPT` — Compares new AI instructions against approved ones semantically, returns only genuinely unique new ones
+
+#### State Variables Added
+- `approvedInstructions` — approved instruction texts from GET API
+- `selectedInstr` — selected checkbox indices for approval
+- `instrApproving` — loading state during POST
+- `instrToast` — toast visibility (2 seconds)
+- `dedupedInstructions` — AI-filtered unique instructions after semantic dedup
+
+### Git Commits (May 7 continued)
+
+44. `e1a7e4e` — Provider role: dashboard with ID, care manager disabled, patient selection via practitioner API
+45. `cd0d07d` — AI Instructions: provider approves via checkboxes + POST API, patient sees approved only from GET API
+46. `92492fe` — Show 'All instructions approved' when no unapproved remain
+47. `99f98f0` — Semantic dedup for instructions via AI, approved ones disappear, toast on approve
+
+---
