@@ -595,7 +595,7 @@ export default function PatientView({ onLogout }) {
           ) : (
             <>
               <div className="pv-health-status">
-                Health Status:{' '}
+                Health Status: <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span>{' '}
                 {aiLoading ? (
                   <span className="pv-pill pv-status-loading">Analyzing...</span>
                 ) : healthStatus ? (
@@ -605,7 +605,7 @@ export default function PatientView({ onLogout }) {
                 )}
               </div>
 
-              <h3 className="pv-section-label">My Conditions</h3>
+              <h3 className="pv-section-label">My Conditions <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
               {aiLoading ? (
                 <p className="pv-loading-text">Evaluating conditions...</p>
               ) : conditions.length > 0 ? (
@@ -668,7 +668,7 @@ export default function PatientView({ onLogout }) {
                 <p className="pv-empty-text">No test results found</p>
               )}
 
-              <h3 className="pv-section-label">Things to Do Today</h3>
+              <h3 className="pv-section-label">Things to Do Today <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
               {aiLoading ? (
                 <p className="pv-loading-text">Generating tasks...</p>
               ) : tasks.length > 0 ? (
@@ -698,7 +698,7 @@ export default function PatientView({ onLogout }) {
             <div className="pv-loading"><div className="pv-spinner"></div><span>Loading...</span></div>
           ) : (
             <>
-              <h3 className="pv-section-label">Health Overview</h3>
+              <h3 className="pv-section-label">Health Overview <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
               {aiLoading ? (
                 <p className="pv-loading-text">Generating summary...</p>
               ) : healthSummary.length > 0 ? (
@@ -834,11 +834,6 @@ export default function PatientView({ onLogout }) {
                 <p className="pv-empty-text">No upcoming appointments</p>
               )}
 
-              <button className="pv-televisit-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                Start Tele-Visit
-              </button>
-
               <h3 className="pv-section-label">Past Appointments</h3>
               {lastPastAppt ? (
                 <>
@@ -855,7 +850,7 @@ export default function PatientView({ onLogout }) {
                 <p className="pv-empty-text">No past appointments</p>
               )}
 
-              <h3 className="pv-section-label">AI Recommended Instructions</h3>
+              <h3 className="pv-section-label">AI Recommended Instructions <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
               {apptAiLoading ? (
                 <p className="pv-loading-text">Generating instructions...</p>
               ) : apptInstructions.length > 0 ? (
@@ -961,7 +956,6 @@ export default function PatientView({ onLogout }) {
             </div>
           )}
 
-          <button className="pv-refill-btn">Request Refill</button>
         </div>
 
         {/* ── My Care Plan & Tasks (DYNAMIC) ── */}
@@ -972,75 +966,29 @@ export default function PatientView({ onLogout }) {
           </h2>
 
           {/* AI Actions / Task Queue tabs */}
-          <div className="pv-care-tabs">
-            <button className={`pv-care-tab${careTab === 'actions' ? ' active' : ''}`} onClick={() => setCareTab('actions')}>AI Actions</button>
-            {role !== 'PATIENT' && (
-              <button className={`pv-care-tab${careTab === 'queue' ? ' active' : ''}`} onClick={() => setCareTab('queue')}>Task Queue</button>
-            )}
-          </div>
+          <h3 className="pv-section-label">
+            AI Recommended Actions
+            <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI Generated</span>
+          </h3>
 
           <div className="pv-care-scroll">
-            {careTab === 'actions' && (
-              <div className="pv-actions-content">
-                {actionsLoading ? (
-                  <div className="pv-loading"><div className="pv-spinner"></div><span>Generating AI recommendations...</span></div>
-                ) : aiActions.length > 0 ? (
-                  <>
-                    {aiActions.map((a, i) => (
-                      <div className="pv-action-card" key={i}>
-                        <div className="pv-action-top">
-                          {canAct && <input type="checkbox" checked={selectedActions.includes(i)} onChange={() => setSelectedActions(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} />}
-                          <span className="pv-action-title">{a.title}</span>
-                          <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
-                        </div>
-                        <p className="pv-action-desc">{a.description}</p>
-                        <p className="pv-action-meta">{a.timeframe} · {a.rationale}</p>
-                      </div>
-                    ))}
-                    {canAct && selectedActions.length > 0 && (
-                      <button className="pv-approve-btn" onClick={handleApprove}>Approve Selected ({selectedActions.length})</button>
-                    )}
-                  </>
-                ) : (
-                  <p className="pv-empty-text">No AI actions available</p>
-                )}
-              </div>
-            )}
-
-            {careTab === 'queue' && (
-              <div className="pv-queue-content">
-                <div className="pv-queue-filters">
-                  {[['pending', 'Pending'], ['inprocess', 'In Process'], ['completed', 'Completed']].map(([k, l]) => (
-                    <button key={k} className={`pv-queue-filter${taskFilter === k ? ' active' : ''}`} onClick={() => setTaskFilter(k)}>
-                      {l} ({taskCounts[k] || 0})
-                    </button>
-                  ))}
-                </div>
-                {filteredTasks.length > 0 ? (
-                  filteredTasks.map((t, i) => (
-                    <div className="pv-task-card" key={i}>
-                      <div className="pv-task-top">
-                        <span className="pv-task-title">{t.title}</span>
-                        <span className={`pv-pill pv-pri-${t.priority?.includes('High') ? 'high' : t.priority?.includes('Medium') ? 'med' : 'low'}`}>{t.priority}</span>
-                      </div>
-                      <p className="pv-action-desc">{t.description}</p>
-                      {t.dueDate && <p className="pv-action-meta">Due: {t.dueDate}</p>}
-                      {canAct && t.status === 'pending' && (
-                        <div className="pv-task-btns">
-                          <button className="pv-task-start" onClick={() => updateTaskStatus(t.id, 'in-process')}>Start</button>
-                          <button className="pv-task-done" onClick={() => updateTaskStatus(t.id, 'completed')}>Complete</button>
-                        </div>
-                      )}
-                      {canAct && t.status === 'inprocess' && (
-                        <button className="pv-task-done" onClick={() => updateTaskStatus(t.id, 'completed')}>Complete</button>
-                      )}
-                      {t.status === 'completed' && <span className="pv-task-completed-label">✓ Completed</span>}
+            {actionsLoading ? (
+              <div className="pv-loading"><div className="pv-spinner"></div><span>Generating AI recommendations...</span></div>
+            ) : aiActions.length > 0 ? (
+              <>
+                {aiActions.map((a, i) => (
+                  <div className="pv-action-card" key={i}>
+                    <div className="pv-action-top">
+                      <span className="pv-action-title">{a.title}</span>
+                      <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
                     </div>
-                  ))
-                ) : (
-                  <p className="pv-empty-text">No {taskFilter} tasks</p>
-                )}
-              </div>
+                    <p className="pv-action-desc">{a.description}</p>
+                    <p className="pv-action-meta">{a.timeframe} · {a.rationale}</p>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <p className="pv-empty-text">No AI actions available</p>
             )}
           </div>
 
@@ -1155,8 +1103,6 @@ export default function PatientView({ onLogout }) {
           ) : (
             <p className="pv-empty-text">No documents found</p>
           )}
-
-          <button className="pv-upload-btn">Upload Document</button>
 
           {viewingDoc && (
             <div className="pv-modal-overlay" onClick={() => setViewingDoc(null)}>

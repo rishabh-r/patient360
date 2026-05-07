@@ -5,15 +5,15 @@ import UserSelectModal from './UserSelectModal';
 import '../styles/home.css';
 
 const DATA_SOURCES = [
-  { icon: 'clinical', label: 'Clinical', desc: 'EHR, EMR, clinical notes', color: '#3B82F6' },
-  { icon: 'claims', label: 'Claims', desc: 'Medical, pharmacy, billing claims', color: '#22C55E' },
-  { icon: 'membership', label: 'Membership & Eligibility', desc: 'Member, plan, and eligibility data', color: '#6366F1' },
-  { icon: 'pharmacy', label: 'Pharmacy', desc: 'Prescriptions, dispensing, adherence', color: '#94A3B8' },
-  { icon: 'labs', label: 'Labs', desc: 'Lab results and orders', color: '#EF4444' },
-  { icon: 'sdoh', label: 'SDOH & Assessment', desc: 'Social determinants and assessments', color: '#94A3B8' },
-  { icon: 'productivity', label: 'Productivity', desc: 'Operational and productivity metrics', color: '#6366F1' },
-  { icon: 'billing', label: 'Patient Accounting / Billing', desc: 'Billing, payments, balances', color: '#14B8A6' },
-  { icon: 'iot', label: 'IoT', desc: 'Devices, vitals, real-time data', color: '#3B82F6' },
+  { icon: 'clinical', label: 'Clinical', desc: 'EHR, EMR, clinical notes', color: '#22C55E', active: true },
+  { icon: 'claims', label: 'Claims', desc: 'Medical, pharmacy, billing claims', color: '#22C55E', active: false },
+  { icon: 'membership', label: 'Membership & Eligibility', desc: 'Member, plan, and eligibility data', color: '#6366F1', active: false },
+  { icon: 'pharmacy', label: 'Pharmacy', desc: 'Prescriptions, dispensing, adherence', color: '#94A3B8', active: false },
+  { icon: 'labs', label: 'Labs', desc: 'Lab results and orders', color: '#EF4444', active: false },
+  { icon: 'sdoh', label: 'SDOH & Assessment', desc: 'Social determinants and assessments', color: '#94A3B8', active: false },
+  { icon: 'productivity', label: 'Productivity', desc: 'Operational and productivity metrics', color: '#6366F1', active: false },
+  { icon: 'billing', label: 'Patient Accounting / Billing', desc: 'Billing, payments, balances', color: '#14B8A6', active: false },
+  { icon: 'iot', label: 'IoT', desc: 'Devices, vitals, real-time data', color: '#3B82F6', active: false },
 ];
 
 const OUTCOMES = [
@@ -167,8 +167,8 @@ export default function HomePage({ onLogout }) {
           </div>
           <div className="ds-list">
             {DATA_SOURCES.map((ds, i) => (
-              <div className="ds-card" key={i}>
-                <DataSourceIcon type={ds.icon} color={ds.color} />
+              <div className={`ds-card${ds.active ? ' ds-active' : ' ds-disabled'}`} key={i}>
+                <DataSourceIcon type={ds.icon} color={ds.active ? ds.color : '#CBD5E1'} />
                 <div className="ds-text">
                   <span className="ds-label">{ds.label}</span>
                   <span className="ds-desc">{ds.desc}</span>
