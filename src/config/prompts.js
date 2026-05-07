@@ -42,6 +42,12 @@ Priority: "High Priority", "Medium Priority", or "Low Priority"
 Timeframe: "Within 24 hours", "Within 48 hours", "Within 1 week", or "Within 1 month"
 Keep descriptions actionable and patient-specific.`;
 
+export const DEDUP_INSTRUCTIONS_PROMPT = `You are a clinical AI. Compare new AI-generated instructions against already-approved instructions. Return ONLY the new instructions that are genuinely different in meaning from all approved ones.
+
+If a new instruction has similar meaning, intent, or covers the same action as any approved instruction, exclude it.
+
+Return ONLY a valid JSON array of strings containing only the truly unique new instructions. If all are duplicates, return an empty array [].`;
+
 export const TASKS_PROMPT = `You are a health wellness AI. Based on the patient's conditions and medications, generate exactly 2 personalized, actionable health tasks for today.
 
 Return ONLY a valid JSON array of exactly 2 strings. Keep tasks simple, specific, and achievable in one day.

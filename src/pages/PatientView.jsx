@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
-import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT, APPT_SUMMARY_PROMPT, APPT_INSTRUCTIONS_PROMPT, AI_ACTIONS_PROMPT } from '../config/prompts';
+import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT, APPT_SUMMARY_PROMPT, APPT_INSTRUCTIONS_PROMPT, AI_ACTIONS_PROMPT, DEDUP_INSTRUCTIONS_PROMPT } from '../config/prompts';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import '../styles/patient.css';
@@ -128,6 +128,8 @@ export default function PatientView({ onLogout }) {
   const [approvedInstructions, setApprovedInstructions] = useState([]);
   const [selectedInstr, setSelectedInstr] = useState([]);
   const [instrApproving, setInstrApproving] = useState(false);
+  const [instrToast, setInstrToast] = useState(false);
+  const [dedupedInstructions, setDedupedInstructions] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [docPage, setDocPage] = useState(1);
   const [viewingDoc, setViewingDoc] = useState(null);
@@ -146,6 +148,19 @@ export default function PatientView({ onLogout }) {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  useEffect(() => {
+    if (apptInstructions.length === 0 || approvedInstructions.length === 0) {
+      setDedupedInstructions(apptInstructions);
+      return;
+    }
+    callAI(DEDUP_INSTRUCTIONS_PROMPT, `Approved instructions:\n${approvedInstructions.map((a, i) => `${i + 1}. ${a}`).join('\n')}\n\nNew AI-generated instructions:\n${apptInstructions.map((a, i) => `${i + 1}. ${a}`).join('\n')}`)
+      .then(res => {
+        try { const p = JSON.parse(res); setDedupedInstructions(Array.isArray(p) ? p : []); }
+        catch { setDedupedInstructions([]); }
+      })
+      .catch(() => setDedupedInstructions(apptInstructions));
+  }, [apptInstructions, approvedInstructions]);
 
   useEffect(() => {
     if (!patientId) return;
@@ -512,7 +527,7 @@ export default function PatientView({ onLogout }) {
 
   const filteredTasks = taskQueue.filter(t => t.status === taskFilter);
   const taskCounts = { pending: taskQueue.filter(t => t.status === 'pending').length, inprocess: taskQueue.filter(t => t.status === 'inprocess').length, completed: taskQueue.filter(t => t.status === 'completed').length };
-  const unapprovedInstructions = apptInstructions.filter(inst => !approvedInstructions.includes(inst));
+  const unapprovedInstructions = dedupedInstructions !== null ? dedupedInstructions : apptInstructions;
 
   async function handleApproveInstructions() {
     const selected = unapprovedInstructions.filter((_, i) => selectedInstr.includes(i));
@@ -525,7 +540,10 @@ export default function PatientView({ onLogout }) {
         body: JSON.stringify({ patientId, practitionerId: localStorage.getItem('p360_ref_id') || '', payloads: selected }),
       });
       setApprovedInstructions(prev => [...prev, ...selected]);
+      setDedupedInstructions(prev => (prev || []).filter(inst => !selected.includes(inst)));
       setSelectedInstr([]);
+      setInstrToast(true);
+      setTimeout(() => setInstrToast(false), 2000);
     } catch {}
     setInstrApproving(false);
   }
@@ -899,16 +917,7 @@ export default function PatientView({ onLogout }) {
                     <p className="pv-loading-text">Generating instructions...</p>
                   ) : (
                     <>
-                      {approvedInstructions.length > 0 && (
-                        <div className="pv-followup-card" style={{ marginBottom: '8px', opacity: 0.7 }}>
-                          {approvedInstructions.map((inst, i) => (
-                            <label key={`a${i}`} className="pv-instr-item">
-                              <input type="checkbox" checked disabled />
-                              <span>{inst}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
+                      {instrToast && <div className="pv-instr-toast">Instructions approved</div>}
                       {unapprovedInstructions.length > 0 ? (
                         <div className="pv-followup-card">
                           {unapprovedInstructions.map((inst, i) => (
