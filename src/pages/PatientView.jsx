@@ -125,6 +125,9 @@ export default function PatientView({ onLogout }) {
   const [clinicNotes, setClinicNotes] = useState([]);
   const [notePage, setNotePage] = useState(1);
   const [actionsLoading, setActionsLoading] = useState(true);
+  const [approvedInstructions, setApprovedInstructions] = useState([]);
+  const [selectedInstr, setSelectedInstr] = useState([]);
+  const [instrApproving, setInstrApproving] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [docPage, setDocPage] = useState(1);
   const [viewingDoc, setViewingDoc] = useState(null);
@@ -327,7 +330,17 @@ export default function PatientView({ onLogout }) {
 
       setLoading(false);
 
-      // Documents + Task Queue (fire-and-forget, don't block AI calls)
+      // Approved Instructions (fire-and-forget)
+      callFhirApi(buildUrl('/baseR4/Patient/ai-recommendation', { patientId }))
+        .then(res => {
+          const completed = (res?.entry || [])
+            .filter(e => e.resource?.status === 'completed')
+            .flatMap(e => (e.resource?.payload || []).map(p => p.contentString))
+            .filter(Boolean);
+          setApprovedInstructions([...new Set(completed)]);
+        }).catch(() => {});
+
+      // Documents (fire-and-forget, don't block AI calls)
       callFhirApi(buildUrl('/baseR4/DocumentReference', { patient: patientId, page: 0, size: 100 }))
         .then(docsRes => {
           const allDocs = (docsRes?.entry || []).map(e => {
@@ -499,6 +512,24 @@ export default function PatientView({ onLogout }) {
 
   const filteredTasks = taskQueue.filter(t => t.status === taskFilter);
   const taskCounts = { pending: taskQueue.filter(t => t.status === 'pending').length, inprocess: taskQueue.filter(t => t.status === 'inprocess').length, completed: taskQueue.filter(t => t.status === 'completed').length };
+  const unapprovedInstructions = apptInstructions.filter(inst => !approvedInstructions.includes(inst));
+
+  async function handleApproveInstructions() {
+    const selected = unapprovedInstructions.filter((_, i) => selectedInstr.includes(i));
+    if (!selected.length) return;
+    setInstrApproving(true);
+    try {
+      await fetch(`${FHIR_BASE}/baseR4/Practitioner/ai-recommendation`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patientId, practitionerId: localStorage.getItem('p360_ref_id') || '', payloads: selected }),
+      });
+      setApprovedInstructions(prev => [...prev, ...selected]);
+      setSelectedInstr([]);
+    } catch {}
+    setInstrApproving(false);
+  }
+
   const NOTES_PER_PAGE = 3;
   const paginatedNotes = clinicNotes.slice((notePage - 1) * NOTES_PER_PAGE, notePage * NOTES_PER_PAGE);
   const DOCS_PER_PAGE = 5;
@@ -850,15 +881,54 @@ export default function PatientView({ onLogout }) {
                 <p className="pv-empty-text">No past appointments</p>
               )}
 
-              <h3 className="pv-section-label">AI Recommended Instructions <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
-              {apptAiLoading ? (
-                <p className="pv-loading-text">Generating instructions...</p>
-              ) : apptInstructions.length > 0 ? (
-                <div className="pv-followup-card">
-                  {apptInstructions.map((inst, i) => <p key={i}>• {inst}</p>)}
-                </div>
+              {role === 'PATIENT' ? (
+                <>
+                  <h3 className="pv-section-label">Approved Instructions</h3>
+                  {approvedInstructions.length > 0 ? (
+                    <div className="pv-followup-card">
+                      {approvedInstructions.map((inst, i) => <p key={i}>• {inst}</p>)}
+                    </div>
+                  ) : (
+                    <p className="pv-empty-text">No approved instructions yet</p>
+                  )}
+                </>
               ) : (
-                <p className="pv-empty-text">No instructions available</p>
+                <>
+                  <h3 className="pv-section-label">AI Recommended Instructions <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
+                  {apptAiLoading ? (
+                    <p className="pv-loading-text">Generating instructions...</p>
+                  ) : (
+                    <>
+                      {approvedInstructions.length > 0 && (
+                        <div className="pv-followup-card" style={{ marginBottom: '8px', opacity: 0.7 }}>
+                          {approvedInstructions.map((inst, i) => (
+                            <label key={`a${i}`} className="pv-instr-item">
+                              <input type="checkbox" checked disabled />
+                              <span>{inst}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      {unapprovedInstructions.length > 0 ? (
+                        <div className="pv-followup-card">
+                          {unapprovedInstructions.map((inst, i) => (
+                            <label key={i} className="pv-instr-item">
+                              <input type="checkbox" checked={selectedInstr.includes(i)} onChange={() => setSelectedInstr(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} />
+                              <span>{inst}</span>
+                            </label>
+                          ))}
+                          {selectedInstr.length > 0 && (
+                            <button className="pv-approve-btn" onClick={handleApproveInstructions} disabled={instrApproving}>
+                              {instrApproving ? 'Approving...' : `Approve Selected (${selectedInstr.length})`}
+                            </button>
+                          )}
+                        </div>
+                      ) : apptInstructions.length === 0 ? (
+                        <p className="pv-empty-text">No instructions available</p>
+                      ) : null}
+                    </>
+                  )}
+                </>
               )}
 
               <h3 className="pv-section-label">Authorizations</h3>
