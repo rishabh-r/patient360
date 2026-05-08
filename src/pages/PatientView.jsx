@@ -768,6 +768,27 @@ export default function PatientView({ onLogout }) {
                 <p className="pv-empty-text">No test results found</p>
               )}
 
+              <h3 className="pv-section-label">Care Team</h3>
+              <div className="pv-care-team">
+                {careTeam.length > 0 ? (
+                  careTeam.map((m, i) => (
+                    <div className="pv-team-card" key={i}>
+                      <div className="pv-team-avatar">{m.initials}</div>
+                      <div className="pv-team-info">
+                        <span className="pv-team-name">{m.name}</span>
+                        <span className="pv-team-program">{m.program}</span>
+                      </div>
+                      {m.email && (
+                        <a href={`mailto:${m.email}`} className="pv-team-email" title={m.email}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>
+                        </a>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="pv-empty-text">No care coordinators found</p>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -807,28 +828,6 @@ export default function PatientView({ onLogout }) {
                   ))
                 ) : (
                   <p className="pv-allergy-item">No known allergies</p>
-                )}
-              </div>
-
-              <h3 className="pv-section-label">Care Team</h3>
-              <div className="pv-care-team">
-                {careTeam.length > 0 ? (
-                  careTeam.map((m, i) => (
-                    <div className="pv-team-card" key={i}>
-                      <div className="pv-team-avatar">{m.initials}</div>
-                      <div className="pv-team-info">
-                        <span className="pv-team-name">{m.name}</span>
-                        <span className="pv-team-program">{m.program}</span>
-                      </div>
-                      {m.email && (
-                        <a href={`mailto:${m.email}`} className="pv-team-email" title={m.email}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>
-                        </a>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="pv-empty-text">No care coordinators found</p>
                 )}
               </div>
 
