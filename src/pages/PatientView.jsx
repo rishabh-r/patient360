@@ -348,7 +348,7 @@ export default function PatientView({ onLogout }) {
       setLoading(false);
 
       // Approved Instructions (fire-and-forget)
-      callFhirApi(buildUrl('/baseR4/Patient/ai-recommendation', { patientId }))
+      callFhirApi(buildUrl('/baseR4/Patient/ai-recommendation-instructions', { patientId }))
         .then(res => {
           const completed = (res?.entry || [])
             .filter(e => e.resource?.status === 'completed')
@@ -525,7 +525,7 @@ export default function PatientView({ onLogout }) {
     if (!selected.length) return;
     setInstrApproving(true);
     try {
-      await fetch(`${FHIR_BASE}/baseR4/Practitioner/ai-recommendation`, {
+      await fetch(`${FHIR_BASE}/baseR4/Practitioner/ai-recommendation-instructions`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ patientId, practitionerId: localStorage.getItem('p360_ref_id') || '', payloads: selected }),
