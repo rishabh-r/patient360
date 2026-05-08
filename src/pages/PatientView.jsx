@@ -130,6 +130,11 @@ export default function PatientView({ onLogout }) {
   const [instrApproving, setInstrApproving] = useState(false);
   const [instrToast, setInstrToast] = useState(false);
   const [dedupedInstructions, setDedupedInstructions] = useState(null);
+  const [approvedActions, setApprovedActions] = useState([]);
+  const [selectedActIdx, setSelectedActIdx] = useState([]);
+  const [actApproving, setActApproving] = useState(false);
+  const [actToast, setActToast] = useState(false);
+  const [dedupedActions, setDedupedActions] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [docPage, setDocPage] = useState(1);
   const [viewingDoc, setViewingDoc] = useState(null);
@@ -161,6 +166,23 @@ export default function PatientView({ onLogout }) {
       })
       .catch(() => setDedupedInstructions(apptInstructions));
   }, [apptInstructions, approvedInstructions]);
+
+  useEffect(() => {
+    if (aiActions.length === 0 || approvedActions.length === 0) {
+      setDedupedActions(aiActions);
+      return;
+    }
+    const approvedTitles = approvedActions.map(a => a.title).join('\n');
+    const newTitles = aiActions.map(a => a.title).join('\n');
+    callAI(DEDUP_INSTRUCTIONS_PROMPT, `Approved items:\n${approvedTitles}\n\nNew AI-generated items:\n${newTitles}`)
+      .then(res => {
+        try {
+          const kept = JSON.parse(res);
+          setDedupedActions(aiActions.filter(a => (Array.isArray(kept) ? kept : []).some(k => a.title.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(a.title.toLowerCase()))));
+        } catch { setDedupedActions([]); }
+      })
+      .catch(() => setDedupedActions(aiActions));
+  }, [aiActions, approvedActions]);
 
   useEffect(() => {
     if (!patientId) return;
@@ -347,6 +369,23 @@ export default function PatientView({ onLogout }) {
 
       setLoading(false);
 
+      // Approved Actions (fire-and-forget)
+      callFhirApi(buildUrl('/baseR4/Patient/ai-recommended-actions', { patientId }))
+        .then(res => {
+          const completed = (res?.entry || [])
+            .filter(e => e.resource?.status === 'completed')
+            .map(e => {
+              const ext = e.resource?.extension || [];
+              return {
+                title: ext.find(x => x.url?.includes('action-title'))?.valueString || '',
+                description: (e.resource?.payload || []).map(p => p.contentString).filter(Boolean).join(' '),
+                priority: ext.find(x => x.url?.includes('action-priority'))?.valueString || '',
+                timeframe: ext.find(x => x.url?.includes('action-urgency-note'))?.valueString || '',
+              };
+            });
+          setApprovedActions(completed);
+        }).catch(() => {});
+
       // Approved Instructions (fire-and-forget)
       callFhirApi(buildUrl('/baseR4/Patient/ai-recommendation-instructions', { patientId }))
         .then(res => {
@@ -519,6 +558,29 @@ export default function PatientView({ onLogout }) {
   const filteredTasks = taskQueue.filter(t => t.status === taskFilter);
   const taskCounts = { pending: taskQueue.filter(t => t.status === 'pending').length, inprocess: taskQueue.filter(t => t.status === 'inprocess').length, completed: taskQueue.filter(t => t.status === 'completed').length };
   const unapprovedInstructions = dedupedInstructions !== null ? dedupedInstructions : apptInstructions;
+
+  const displayActions = dedupedActions !== null ? dedupedActions : aiActions;
+
+  async function handleApproveActions() {
+    const selected = displayActions.filter((_, i) => selectedActIdx.includes(i));
+    if (!selected.length) return;
+    setActApproving(true);
+    try {
+      for (const a of selected) {
+        await fetch(`${FHIR_BASE}/baseR4/Practitioner/ai-recommended-action`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patientId, practitionerId: localStorage.getItem('p360_ref_id') || '', title: a.title, description: a.description, priority: a.priority, urgencyNote: a.timeframe }),
+        });
+      }
+      setApprovedActions(prev => [...prev, ...selected]);
+      setDedupedActions(prev => (prev || []).filter(a => !selected.some(s => s.title === a.title)));
+      setSelectedActIdx([]);
+      setActToast(true);
+      setTimeout(() => setActToast(false), 2000);
+    } catch {}
+    setActApproving(false);
+  }
 
   async function handleApproveInstructions() {
     const selected = unapprovedInstructions.filter((_, i) => selectedInstr.includes(i));
@@ -1009,32 +1071,65 @@ export default function PatientView({ onLogout }) {
             My Care Plan & Tasks
           </h2>
 
-          {/* AI Actions / Task Queue tabs */}
-          <h3 className="pv-section-label">
-            AI Recommended Actions
-            <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI Generated</span>
-          </h3>
-
-          <div className="pv-care-scroll">
-            {actionsLoading ? (
-              <div className="pv-loading"><div className="pv-spinner"></div><span>Generating AI recommendations...</span></div>
-            ) : aiActions.length > 0 ? (
-              <>
-                {aiActions.map((a, i) => (
-                  <div className="pv-action-card" key={i}>
-                    <div className="pv-action-top">
-                      <span className="pv-action-title">{a.title}</span>
-                      <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
+          {role === 'PATIENT' ? (
+            <>
+              <h3 className="pv-section-label">Approved Actions</h3>
+              <div className="pv-care-scroll">
+                {approvedActions.length > 0 ? (
+                  approvedActions.map((a, i) => (
+                    <div className="pv-action-card" key={i}>
+                      <div className="pv-action-top">
+                        <span className="pv-action-title">{a.title}</span>
+                        <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
+                      </div>
+                      <p className="pv-action-desc">{a.description}</p>
+                      {a.timeframe && <p className="pv-action-meta">{a.timeframe}</p>}
                     </div>
-                    <p className="pv-action-desc">{a.description}</p>
-                    <p className="pv-action-meta">{a.timeframe} · {a.rationale}</p>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <p className="pv-empty-text">No AI actions available</p>
-            )}
-          </div>
+                  ))
+                ) : (
+                  <p className="pv-empty-text">No approved actions yet</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="pv-section-label">
+                AI Recommended Actions
+                <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI Generated</span>
+              </h3>
+              <div className="pv-care-scroll">
+                {actionsLoading ? (
+                  <div className="pv-loading"><div className="pv-spinner"></div><span>Generating AI recommendations...</span></div>
+                ) : (
+                  <>
+                    {actToast && <div className="pv-instr-toast">Actions approved</div>}
+                    {displayActions.length > 0 ? (
+                      <>
+                        {displayActions.map((a, i) => (
+                          <div className="pv-action-card" key={i}>
+                            <div className="pv-action-top">
+                              <input type="checkbox" checked={selectedActIdx.includes(i)} onChange={() => setSelectedActIdx(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} style={{ width: 16, height: 16, accentColor: '#2563EB', cursor: 'pointer', flexShrink: 0 }} />
+                              <span className="pv-action-title">{a.title}</span>
+                              <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
+                            </div>
+                            <p className="pv-action-desc">{a.description}</p>
+                            <p className="pv-action-meta">{a.timeframe} · {a.rationale}</p>
+                          </div>
+                        ))}
+                        {selectedActIdx.length > 0 && (
+                          <button className="pv-approve-btn" onClick={handleApproveActions} disabled={actApproving}>
+                            {actApproving ? 'Approving...' : `Approve Selected (${selectedActIdx.length})`}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <p className="pv-empty-text">All actions have been approved. No more recommendations at this time.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Clinical Notes */}
           <h3 className="pv-section-label" style={{ marginTop: '16px' }}>Clinical Notes</h3>
