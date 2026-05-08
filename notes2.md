@@ -3216,3 +3216,69 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 47. `99f98f0` — Semantic dedup for instructions via AI, approved ones disappear, toast on approve
 
 ---
+
+
+## Session: May 8, 2026
+
+### Patient API Changed
+- **Old**: `GET /baseR4/Patient?_id={id}&page=0&size=1` (Bundle response)
+- **New**: `GET /baseR4/Patient/find?id={id}` (single Patient resource response)
+- Parsing updated: checks `resourceType === 'Patient'` for direct resource, falls back to Bundle entry
+- Disease extracted from `extension` where `url === 'disease'` -> `valueString`
+
+### Container Renames
+| Container | Old Name | New Name |
+|-----------|----------|----------|
+| 1st | My Health | Health |
+| 2nd | My Health Summary | Health Summary |
+| 2nd | My Care Team | Care Team (moved to 1st container) |
+| 3rd | Approved Instructions | Approved Instructions based on the last appointment |
+| 4th | My Medications | Medications |
+| 5th | My Care Plan & Tasks | Care Plan & Tasks |
+
+### Condition — From API Extension (No AI)
+- Changed from AI-generated conditions to API-provided disease
+- "My Conditions" -> "Condition" (singular)
+- Disease comes from Patient API `extension[url=disease].valueString` (e.g., "Type II Diabetes")
+- `CONDITIONS_PROMPT` AI call removed entirely (one less AI call)
+- AI badge removed from Condition section
+
+### Clinical Notes — Moved to 3rd Container
+- Moved from 5th container (Care Plan & Tasks) to 3rd container (Appointments & Visits)
+- Placed between Upcoming Appointments and Past Appointments
+- Renamed to "Clinical Notes based on Encounters"
+
+### Care Team — Moved to 1st Container
+- Moved from 2nd container (Health Summary) to bottom of 1st container (Health)
+
+### AI Recommended Actions — Approve Workflow (New)
+- Same pattern as AI Recommended Instructions
+- **POST** `/baseR4/Practitioner/ai-recommended-action` — Approve actions one by one
+  - Body: `{ patientId, practitionerId, title, description, priority, urgencyNote }`
+- **GET** `/baseR4/Patient/ai-recommended-actions?patientId={id}` — Get all actions
+  - `status: "completed"` = approved (with verified-by, verified-at extensions)
+  - Extensions: action-title, action-priority, action-urgency-note
+  - Payload contains description
+- **Provider view**: AI generates actions -> checkboxes -> "Approve Selected" -> POST per action -> green toast "Actions approved" -> approved ones disappear -> semantic dedup
+- **Patient view**: Section title "Approved Actions" -> shows only completed actions from GET API
+
+### AI Recommended Instructions — URL Fix
+- **GET**: `/baseR4/Patient/ai-recommendation-instructions?patientId=`
+- **POST**: `/baseR4/Practitioner/ai-recommendation-instructions`
+- Previously was `ai-recommendation` (missing `-instructions` suffix)
+
+### Removed Sections
+- Authorizations (from 3rd container)
+- Things to Do Today (from 1st container)
+
+### Git Commits (May 8 session)
+
+48. `b772405` — Remove Authorizations and Things to Do Today
+49. `5e09b18` — Use Patient/find API, show disease from extension as Condition
+50. `4a6539b` — Rename My Condition to Condition
+51. `b18a551` — Fix API URLs: ai-recommendation -> ai-recommendation-instructions
+52. `8cc170e` — AI Recommended Actions: approve workflow with POST/GET API, semantic dedup, toast
+53. `7be93a3` — Rename containers, move clinical notes to 3rd container
+54. `25e09fd` — Move Care Team from 2nd container to 1st container
+
+---
