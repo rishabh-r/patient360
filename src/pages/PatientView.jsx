@@ -645,7 +645,7 @@ export default function PatientView({ onLogout }) {
                 )}
               </div>
 
-              <h3 className="pv-section-label">My Condition</h3>
+              <h3 className="pv-section-label">Condition</h3>
               {conditions.length > 0 ? (
                 <ul className="pv-condition-list">
                   {conditions.map((c, i) => (
