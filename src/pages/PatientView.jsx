@@ -682,11 +682,11 @@ export default function PatientView({ onLogout }) {
       {/* ── Top Row ── */}
       <div className="pv-grid pv-grid-top">
 
-        {/* ── My Health (DYNAMIC) ── */}
+        {/* ── Health (DYNAMIC) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#EF4444" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-            My Health
+            Health
           </h2>
 
           {loading ? (
@@ -772,11 +772,11 @@ export default function PatientView({ onLogout }) {
           )}
         </div>
 
-        {/* ── My Health Summary (DYNAMIC) ── */}
+        {/* ── Health Summary (DYNAMIC) ── */}
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-            My Health Summary
+            Health Summary
           </h2>
 
           {loading ? (
@@ -810,7 +810,7 @@ export default function PatientView({ onLogout }) {
                 )}
               </div>
 
-              <h3 className="pv-section-label">My Care Team</h3>
+              <h3 className="pv-section-label">Care Team</h3>
               <div className="pv-care-team">
                 {careTeam.length > 0 ? (
                   careTeam.map((m, i) => (
@@ -919,6 +919,32 @@ export default function PatientView({ onLogout }) {
                 <p className="pv-empty-text">No upcoming appointments</p>
               )}
 
+              <h3 className="pv-section-label">Clinical Notes based on Encounters</h3>
+              {clinicNotes.length > 0 ? (
+                <>
+                  {paginatedNotes.map((n, i) => (
+                    <div className="pv-note-card" key={i}>
+                      <div className="pv-note-top">
+                        <span className="pv-note-author">{n.author}</span>
+                        <span className="pv-note-date">{formatDateTime(n.date)}</span>
+                      </div>
+                      <p className="pv-note-text">{n.text || n.fullText}</p>
+                    </div>
+                  ))}
+                  {clinicNotes.length > NOTES_PER_PAGE && (
+                    <div className="pv-obs-pagination">
+                      <button className="pv-obs-page-btn" disabled={notePage <= 1} onClick={() => setNotePage(notePage - 1)}>Prev</button>
+                      {Array.from({ length: Math.ceil(clinicNotes.length / NOTES_PER_PAGE) }, (_, i) => (
+                        <button key={i} className={`pv-obs-page-btn${notePage === i + 1 ? ' pv-obs-page-active' : ''}`} onClick={() => setNotePage(i + 1)}>{i + 1}</button>
+                      ))}
+                      <button className="pv-obs-page-btn" disabled={notePage >= Math.ceil(clinicNotes.length / NOTES_PER_PAGE)} onClick={() => setNotePage(notePage + 1)}>Next</button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="pv-empty-text">No clinical notes</p>
+              )}
+
               <h3 className="pv-section-label">Past Appointments</h3>
               {lastPastAppt ? (
                 <>
@@ -937,7 +963,7 @@ export default function PatientView({ onLogout }) {
 
               {role === 'PATIENT' ? (
                 <>
-                  <h3 className="pv-section-label">Approved Instructions</h3>
+                  <h3 className="pv-section-label">Approved Instructions based on the last appointment</h3>
                   {approvedInstructions.length > 0 ? (
                     <div className="pv-followup-card">
                       {approvedInstructions.map((inst, i) => <p key={i}>• {inst}</p>)}
@@ -1010,7 +1036,7 @@ export default function PatientView({ onLogout }) {
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3"/></svg>
-            My Medications
+            Medications
           </h2>
 
           {loading ? (
@@ -1068,7 +1094,7 @@ export default function PatientView({ onLogout }) {
         <div className="pv-card">
           <h2 className="pv-card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
-            My Care Plan & Tasks
+            Care Plan & Tasks
           </h2>
 
           {role === 'PATIENT' ? (
@@ -1131,32 +1157,6 @@ export default function PatientView({ onLogout }) {
             </>
           )}
 
-          {/* Clinical Notes */}
-          <h3 className="pv-section-label" style={{ marginTop: '16px' }}>Clinical Notes</h3>
-          {clinicNotes.length > 0 ? (
-            <>
-              {paginatedNotes.map((n, i) => (
-                <div className="pv-note-card" key={i}>
-                  <div className="pv-note-top">
-                    <span className="pv-note-author">{n.author}</span>
-                    <span className="pv-note-date">{formatDateTime(n.date)}</span>
-                  </div>
-                  <p className="pv-note-text">{n.text || n.fullText}</p>
-                </div>
-              ))}
-              {clinicNotes.length > NOTES_PER_PAGE && (
-                <div className="pv-obs-pagination">
-                  <button className="pv-obs-page-btn" disabled={notePage <= 1} onClick={() => setNotePage(notePage - 1)}>Prev</button>
-                  {Array.from({ length: Math.ceil(clinicNotes.length / NOTES_PER_PAGE) }, (_, i) => (
-                    <button key={i} className={`pv-obs-page-btn${notePage === i + 1 ? ' pv-obs-page-active' : ''}`} onClick={() => setNotePage(i + 1)}>{i + 1}</button>
-                  ))}
-                  <button className="pv-obs-page-btn" disabled={notePage >= Math.ceil(clinicNotes.length / NOTES_PER_PAGE)} onClick={() => setNotePage(notePage + 1)}>Next</button>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="pv-empty-text">No clinical notes</p>
-          )}
 
           {/* Lifestyle Goals */}
           <h3 className="pv-section-label" style={{ marginTop: '16px' }}>Lifestyle Goals</h3>
