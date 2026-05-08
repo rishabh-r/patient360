@@ -717,21 +717,6 @@ export default function PatientView({ onLogout }) {
                 <p className="pv-empty-text">No test results found</p>
               )}
 
-              <h3 className="pv-section-label">Things to Do Today <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
-              {aiLoading ? (
-                <p className="pv-loading-text">Generating tasks...</p>
-              ) : tasks.length > 0 ? (
-                <ul className="pv-todo-list">
-                  {tasks.map((t, i) => (
-                    <li key={i}>
-                      <span className="pv-todo-dot"></span>
-                      {t}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="pv-empty-text">No tasks for today</p>
-              )}
             </>
           )}
         </div>
@@ -940,15 +925,6 @@ export default function PatientView({ onLogout }) {
                 </>
               )}
 
-              <h3 className="pv-section-label">Authorizations</h3>
-              <div className="pv-auth-row">
-                <span>HbA1c Lab Panel</span>
-                <span className="pv-pill pv-pill-green">Approved</span>
-              </div>
-              <div className="pv-auth-row" style={{ marginTop: '6px' }}>
-                <span>Diabetic Retinopathy Screening</span>
-                <span className="pv-pill pv-pill-green">Approved</span>
-              </div>
             </>
           )}
         </div>
