@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
-import { HEALTH_STATUS_PROMPT, CONDITIONS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT, APPT_SUMMARY_PROMPT, APPT_INSTRUCTIONS_PROMPT, AI_ACTIONS_PROMPT, DEDUP_INSTRUCTIONS_PROMPT } from '../config/prompts';
+import { HEALTH_STATUS_PROMPT, TASKS_PROMPT, HEALTH_SUMMARY_PROMPT, APPT_SUMMARY_PROMPT, APPT_INSTRUCTIONS_PROMPT, AI_ACTIONS_PROMPT, DEDUP_INSTRUCTIONS_PROMPT } from '../config/prompts';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import '../styles/patient.css';
@@ -206,7 +206,7 @@ export default function PatientView({ onLogout }) {
   async function loadData() {
     try {
       const [patientRes, condRes, medRes, obsRes, allergyRes, eocRes, apptRes] = await Promise.all([
-        callFhirApi(buildUrl('/baseR4/Patient', { _id: patientId, page: 0, size: 1 })),
+        callFhirApi(buildUrl('/baseR4/Patient/find', { id: patientId })),
         callFhirApi(buildUrl('/baseR4/Condition', { patient: patientId, page: 0, size: 100 })),
         callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: patientId, page: 0, size: 100 })),
         callFhirApi(buildUrl('/baseR4/Observation/search', { patient: patientId, page: 0, size: 100 })),
@@ -215,13 +215,15 @@ export default function PatientView({ onLogout }) {
         callFhirApi(buildUrl('/baseR4/Appointment', { patient: patientId, page: 0, size: 100 })),
       ]);
 
-      const pt = patientRes?.entry?.[0]?.resource;
+      const pt = patientRes?.resourceType === 'Patient' ? patientRes : patientRes?.entry?.[0]?.resource;
       const given = pt?.name?.[0]?.given?.join(' ') || '';
       const family = pt?.name?.[0]?.family || '';
       const fullName = `${given} ${family}`.trim();
       setPatientName(fullName || 'Patient');
       const email = (pt?.telecom || []).find(t => t.system === 'email')?.value || '';
       setPatientEmail(email);
+      const disease = (pt?.extension || []).find(e => e.url === 'disease')?.valueString || '';
+      if (disease) setConditions([disease]);
 
       const condEntries = condRes?.entry || [];
       const condData = condEntries.map(e => {
@@ -400,9 +402,8 @@ export default function PatientView({ onLogout }) {
         tasksPromise = callAI(TASKS_PROMPT, patientContext).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' }));
       }
 
-      const [statusResult, condResult, tasksResult, summaryResult] = await Promise.all([
+      const [statusResult, tasksResult, summaryResult] = await Promise.all([
         callAI(HEALTH_STATUS_PROMPT, patientContext).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' })),
-        callAI(CONDITIONS_PROMPT, `Condition data: ${JSON.stringify(condData)}`).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' })),
         tasksPromise,
         callAI(HEALTH_SUMMARY_PROMPT, patientContext).then(v => ({ status: 'fulfilled', value: v })).catch(() => ({ status: 'rejected' })),
       ]);
@@ -414,16 +415,6 @@ export default function PatientView({ onLogout }) {
         setHealthStatus({ status: 'Fair', reason: 'Unable to assess' });
       }
 
-      if (condResult.status === 'fulfilled') {
-        try {
-          const parsed = JSON.parse(condResult.value);
-          setConditions(Array.isArray(parsed) ? parsed.slice(0, 2) : []);
-        } catch {
-          setConditions(condData.map(c => c.display).filter(Boolean).slice(0, 2));
-        }
-      } else {
-        setConditions(condData.map(c => c.display).filter(Boolean).slice(0, 2));
-      }
 
       if (tasksResult.status === 'cached') {
         try { setTasks(JSON.parse(tasksResult.value)); }
@@ -654,10 +645,8 @@ export default function PatientView({ onLogout }) {
                 )}
               </div>
 
-              <h3 className="pv-section-label">My Conditions <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
-              {aiLoading ? (
-                <p className="pv-loading-text">Evaluating conditions...</p>
-              ) : conditions.length > 0 ? (
+              <h3 className="pv-section-label">My Condition</h3>
+              {conditions.length > 0 ? (
                 <ul className="pv-condition-list">
                   {conditions.map((c, i) => (
                     <li key={i}><span className="pv-check green">✓</span> {c}</li>
