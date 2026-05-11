@@ -960,7 +960,7 @@ export default function PatientView({ onLogout }) {
                 <p className="pv-empty-text">No past appointments</p>
               )}
 
-              {role === 'PATIENT' ? (
+              {(role === 'PATIENT' || role === 'ADMIN') ? (
                 <>
                   <h3 className="pv-section-label">Approved Instructions based on the last appointment</h3>
                   {approvedInstructions.length > 0 ? (
@@ -1096,7 +1096,7 @@ export default function PatientView({ onLogout }) {
             Care Plan & Tasks
           </h2>
 
-          {role === 'PATIENT' ? (
+          {(role === 'PATIENT' || role === 'ADMIN') ? (
             <>
               <h3 className="pv-section-label">Approved Actions</h3>
               <div className="pv-care-scroll">
