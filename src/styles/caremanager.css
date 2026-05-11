@@ -195,6 +195,27 @@
 }
 .cm-view-btn:hover { background: #EFF6FF; border-color: #BFDBFE; }
 
+/* ── Profile Dropdown ── */
+.cm-profile-wrap { position: relative; }
+.cm-profile-dropdown {
+  position: absolute; top: 42px; right: 0; z-index: 200;
+  width: 220px; background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+.cm-profile-info {
+  display: flex; flex-direction: column;
+  padding: 14px 16px; border-bottom: 1px solid #F1F5F9;
+}
+.cm-profile-name { font-size: 14px; font-weight: 600; color: #1E293B; }
+.cm-profile-email { font-size: 12px; color: #64748B; margin-top: 2px; }
+.cm-profile-signout {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; font-size: 13px; font-weight: 500;
+  color: #DC2626; cursor: pointer; transition: background 0.15s;
+}
+.cm-profile-signout:hover { background: #FEF2F2; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .cm-content { grid-template-columns: 1fr; padding: 16px; }

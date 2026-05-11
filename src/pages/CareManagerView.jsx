@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/caremanager.css';
 
 const ORGANIZATIONS = [
@@ -40,10 +40,29 @@ function getRiskClass(risk) {
   return 'cm-risk-low';
 }
 
+function nameFromEmail(email) {
+  if (!email) return '';
+  const local = email.split('@')[0];
+  return local.split(/[._-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
 export default function CareManagerView({ onLogout }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const cmId = searchParams.get('id') || localStorage.getItem('p360_ref_id') || '';
+  const role = localStorage.getItem('p360_role') || '';
   const [search, setSearch] = useState('');
   const [selectedOrg, setSelectedOrg] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfile(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const filtered = ORGANIZATIONS.filter(o =>
     o.name.toLowerCase().includes(search.toLowerCase())
@@ -65,11 +84,25 @@ export default function CareManagerView({ onLogout }) {
             <span className="cm-nav-badge">6</span>
           </div>
           <div className="cm-nav-user">
-            <span className="cm-nav-user-name">Dr. Amanda Foster</span>
-            <span className="cm-nav-user-role">CARE MANAGER</span>
+            <span className="cm-nav-user-name">{role === 'ADMIN' ? (localStorage.getItem('p360_user') || 'Admin') : nameFromEmail(localStorage.getItem('p360_email'))}</span>
+            <span className="cm-nav-user-role">{role || 'CARE_MANAGER'}</span>
           </div>
-          <div className="cm-nav-avatar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <div className="cm-profile-wrap" ref={profileRef}>
+            <div className="cm-nav-avatar" onClick={() => setShowProfile(!showProfile)} style={{ cursor: 'pointer' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            {showProfile && (
+              <div className="cm-profile-dropdown">
+                <div className="cm-profile-info">
+                  <span className="cm-profile-name">{role === 'ADMIN' ? (localStorage.getItem('p360_user') || 'Admin') : nameFromEmail(localStorage.getItem('p360_email'))}</span>
+                  <span className="cm-profile-email">{localStorage.getItem('p360_email') || ''}</span>
+                </div>
+                <div className="cm-profile-signout" onClick={onLogout}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Sign Out
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </nav>
