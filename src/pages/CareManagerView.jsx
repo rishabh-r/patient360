@@ -1,44 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { callFhirApi, buildUrl } from '../services/fhir';
+import { FHIR_BASE } from '../config/constants';
 import '../styles/caremanager.css';
-
-const ORGANIZATIONS = [
-  { name: 'City Medical Center', type: 'Hospital', patients: 245 },
-  { name: 'Community Health Clinic', type: 'Clinic', patients: 182 },
-  { name: 'Senior Care Partners', type: 'Long-term Care', patients: 156 },
-  { name: 'Metro Hospital Network', type: 'Hospital', patients: 398 },
-  { name: 'Family Practice Associates', type: 'Clinic', patients: 127 },
-  { name: 'Regional Medical Group', type: 'Hospital', patients: 209 },
-  { name: 'Sunrise Rehabilitation Center', type: 'Long-term Care', patients: 94 },
-  { name: 'Downtown Urgent Care', type: 'Clinic', patients: 163 },
-];
-
-const MOCK_PATIENTS = {
-  'City Medical Center': [
-    { name: 'James Mitchell', age: 47, condition: 'Type 2 Diabetes', risk: 'High' },
-    { name: 'Sarah Cooper', age: 71, condition: 'CHF', risk: 'High' },
-    { name: 'Robert Wilson', age: 63, condition: 'COPD', risk: 'Medium' },
-    { name: 'Linda Garcia', age: 55, condition: 'Hypertension', risk: 'Low' },
-    { name: 'Michael Brown', age: 68, condition: 'CKD Stage 3', risk: 'High' },
-  ],
-  'Community Health Clinic': [
-    { name: 'Patricia Johnson', age: 42, condition: 'Asthma', risk: 'Low' },
-    { name: 'David Lee', age: 59, condition: 'Type 2 Diabetes', risk: 'Medium' },
-    { name: 'Maria Rodriguez', age: 36, condition: 'Hypertension', risk: 'Low' },
-  ],
-  'Senior Care Partners': [
-    { name: 'Dorothy Williams', age: 82, condition: 'Alzheimer\'s', risk: 'High' },
-    { name: 'Frank Thompson', age: 78, condition: 'CHF', risk: 'High' },
-    { name: 'Helen Davis', age: 85, condition: 'Osteoporosis', risk: 'Medium' },
-    { name: 'George Martin', age: 76, condition: 'Parkinson\'s', risk: 'Medium' },
-  ],
-};
-
-function getRiskClass(risk) {
-  if (risk === 'High') return 'cm-risk-high';
-  if (risk === 'Medium') return 'cm-risk-med';
-  return 'cm-risk-low';
-}
 
 function nameFromEmail(email) {
   if (!email) return '';
@@ -56,6 +20,10 @@ export default function CareManagerView({ onLogout }) {
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
 
+  const [orgs, setOrgs] = useState([]);
+  const [orgPatients, setOrgPatients] = useState({});
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     function handleClick(e) {
       if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfile(false);
@@ -64,15 +32,71 @@ export default function CareManagerView({ onLogout }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const filtered = ORGANIZATIONS.filter(o =>
+  useEffect(() => {
+    if (!cmId) return;
+    loadData();
+  }, [cmId]);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const orgRes = await callFhirApi(`${FHIR_BASE}/baseR4/Organization/by-care-manager?_id=${cmId}`);
+      const orgList = (orgRes?.entry || []).map(e => {
+        const r = e.resource;
+        return {
+          id: r.id,
+          name: r.name || 'Unknown Organization',
+          type: r.type?.[0]?.coding?.[0]?.display || '',
+          city: r.address?.[0]?.city || '',
+          state: r.address?.[0]?.state || '',
+        };
+      });
+      const uniqueOrgs = orgList.filter((o, i, arr) => arr.findIndex(x => x.id === o.id) === i);
+      setOrgs(uniqueOrgs);
+
+      const eocRes = await callFhirApi(`${FHIR_BASE}/baseR4/EpisodeOfCare?care-manager=${cmId}&page=0&size=100`);
+      const patientIds = new Set();
+      (eocRes?.entry || []).forEach(e => {
+        const patRef = e.resource?.patient?.reference?.replace('Patient/', '');
+        if (patRef) patientIds.add(patRef);
+      });
+
+      const patientMap = {};
+      await Promise.all([...patientIds].map(async pid => {
+        try {
+          const pt = await callFhirApi(buildUrl('/baseR4/Patient/find', { id: pid }));
+          const res = pt?.resourceType === 'Patient' ? pt : pt?.entry?.[0]?.resource;
+          if (!res) return;
+          const given = res.name?.[0]?.given?.join(' ') || '';
+          const family = res.name?.[0]?.family || '';
+          const disease = (res.extension || []).find(x => x.url === 'disease')?.valueString || '';
+          const birthDate = res.birthDate || '';
+          const age = birthDate ? Math.floor((Date.now() - new Date(birthDate)) / 31557600000) : '';
+          const orgRef = res.managingOrganization?.reference?.replace('Organization/', '') || '';
+          patientMap[pid] = { id: pid, name: `${given} ${family}`.trim(), age, condition: disease, orgId: orgRef };
+        } catch {}
+      }));
+
+      const grouped = {};
+      for (const p of Object.values(patientMap)) {
+        if (!p.orgId) continue;
+        if (!grouped[p.orgId]) grouped[p.orgId] = [];
+        grouped[p.orgId].push(p);
+      }
+      setOrgPatients(grouped);
+    } catch {}
+    setLoading(false);
+  }
+
+  const filtered = orgs.filter(o =>
     o.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const patients = selectedOrg ? (MOCK_PATIENTS[selectedOrg] || []) : [];
+  const selectedOrgData = orgs.find(o => o.id === selectedOrg);
+  const patients = selectedOrg ? (orgPatients[selectedOrg] || []) : [];
 
   return (
     <div className="cm-page">
-      {/* Navbar */}
       <nav className="cm-nav">
         <div className="cm-nav-left">
           <img src="/images/R_Systems_White.png" alt="R Systems" className="cm-nav-logo" />
@@ -107,7 +131,6 @@ export default function CareManagerView({ onLogout }) {
         </div>
       </nav>
 
-      {/* Sub-header */}
       <div className="cm-subheader">
         <h1 className="cm-page-title">Care Manager Dashboard</h1>
         <button className="cm-back" onClick={() => navigate('/')}>
@@ -116,9 +139,7 @@ export default function CareManagerView({ onLogout }) {
         </button>
       </div>
 
-      {/* Main Content */}
       <div className="cm-content">
-        {/* Left — Organizations */}
         <div className="cm-orgs-panel">
           <h2 className="cm-orgs-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg>
@@ -127,39 +148,38 @@ export default function CareManagerView({ onLogout }) {
 
           <div className="cm-search-box">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input
-              type="text"
-              placeholder="Search organizations..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="cm-search-input"
-            />
+            <input type="text" placeholder="Search organizations..." value={search} onChange={e => setSearch(e.target.value)} className="cm-search-input" />
           </div>
 
           <div className="cm-org-list">
-            {filtered.map((org, i) => (
-              <div
-                className={`cm-org-card${selectedOrg === org.name ? ' cm-org-active' : ''}`}
-                key={i}
-                onClick={() => setSelectedOrg(org.name)}
-              >
-                <div className="cm-org-info">
-                  <div className="cm-org-name">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg>
-                    {org.name}
+            {loading ? (
+              <div className="cm-empty-state"><p className="cm-empty-sub">Loading organizations...</p></div>
+            ) : filtered.length > 0 ? (
+              filtered.map((org) => (
+                <div
+                  className={`cm-org-card${selectedOrg === org.id ? ' cm-org-active' : ''}`}
+                  key={org.id}
+                  onClick={() => setSelectedOrg(org.id)}
+                >
+                  <div className="cm-org-info">
+                    <div className="cm-org-name">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg>
+                      {org.name}
+                    </div>
+                    <span className="cm-org-type">{org.type}</span>
                   </div>
-                  <span className="cm-org-type">{org.type}</span>
+                  <div className="cm-org-count">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    {(orgPatients[org.id] || []).length} patients
+                  </div>
                 </div>
-                <div className="cm-org-count">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  {org.patients} patients
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="cm-empty-state"><p className="cm-empty-sub">No organizations found</p></div>
+            )}
           </div>
         </div>
 
-        {/* Right — Patients or Empty State */}
         <div className="cm-patients-panel">
           {!selectedOrg ? (
             <div className="cm-empty-state">
@@ -170,33 +190,26 @@ export default function CareManagerView({ onLogout }) {
           ) : (
             <>
               <div className="cm-patients-header">
-                <h2 className="cm-patients-title">{selectedOrg}</h2>
+                <h2 className="cm-patients-title">{selectedOrgData?.name || 'Organization'}</h2>
                 <span className="cm-patients-count">{patients.length} Patients</span>
               </div>
               {patients.length === 0 ? (
                 <div className="cm-empty-state">
-                  <p className="cm-empty-sub">No patient data available for this organization</p>
+                  <p className="cm-empty-sub">No patients found for this organization</p>
                 </div>
               ) : (
                 <div className="cm-patient-list">
-                  {patients.map((p, i) => (
-                    <div className="cm-patient-card" key={i}>
+                  {patients.map((p) => (
+                    <div className="cm-patient-card" key={p.id}>
                       <div className="cm-patient-avatar">
-                        {p.name.split(' ').map(n => n[0]).join('')}
+                        {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </div>
                       <div className="cm-patient-info">
                         <span className="cm-patient-name">{p.name}</span>
-                        <span className="cm-patient-details">Age {p.age} · {p.condition}</span>
+                        <span className="cm-patient-details">{p.age ? `Age ${p.age}` : ''}{p.condition ? ` · ${p.condition}` : ''}</span>
                       </div>
-                      <span className={`cm-risk-pill ${getRiskClass(p.risk)}`}>{p.risk}</span>
                       <div className="cm-patient-actions">
-                        <button className="cm-action-btn" title="Call">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                        </button>
-                        <button className="cm-action-btn" title="Email">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>
-                        </button>
-                        <button className="cm-action-btn cm-view-btn">View</button>
+                        <button className="cm-action-btn cm-view-btn" onClick={() => navigate(`/patient-view?id=${p.id}`)}>View</button>
                       </div>
                     </div>
                   ))}
