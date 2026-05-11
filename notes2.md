@@ -3282,3 +3282,61 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 54. `25e09fd` — Move Care Team from 2nd container to 1st container
 
 ---
+
+
+## Session: May 11, 2026
+
+### Approval Permissions — Only PROVIDER Can Approve
+- AI Recommended Actions + Instructions: only PROVIDER role can approve
+- PATIENT, ADMIN, CARE_MANAGER all see approved-only view
+- Logic: `role !== 'PROVIDER'` shows approved-only sections
+
+### Care Manager View — Profile + ID Fixes
+- Dynamic name from email, role badge, profile dropdown with sign out
+- `refId` fallback: `data.refId || userId || ''` in auth.js (care managers initially had no refId)
+- Backend later added `refId` to care manager login response
+
+### Care Manager View — Dynamic Organizations + Patients (Approach A)
+
+#### APIs Used
+- `GET /baseR4/Organization/by-care-manager?_id={careManagerRefId}` — organizations for this care manager
+- `GET /baseR4/Organization/patients?orgId={orgId}` — patients in an organization
+
+#### Flow
+1. Fetch organizations using care manager's refId
+2. Show 5 orgs per page with pagination + search filter
+3. For each visible org, call patients API (lazy load — only for the 5 orgs on current page)
+4. Patient count shown per org from API response
+5. Click org → shows patient table on the right panel
+
+#### Patient Table (right panel)
+- Columns: Patient Name (with initials avatar), MRN, Age, Condition (blue pill), Contact (phone), Actions
+- Search patients filter within selected org
+- "View Details" button → navigates to `/patient-view?id={patientId}`
+
+#### Pagination
+- Orgs: 5 per page with Prev/Next
+- When page changes, API calls fire for the new batch of orgs
+- Previously fetched org patients are cached (not re-fetched)
+
+#### Approach B (EpisodeOfCare) — Tried and Replaced
+- Initially tried fetching patients via EpisodeOfCare `care-manager` search param
+- Backend didn't support this search → returned 0 results
+- Replaced with Approach A (Organization/patients API)
+
+### Known Backend Issues
+- `Organization/by-care-manager?_id={id}` returns 500 for some care managers (Thomas Lee) — backend team investigating
+- Practitioner API on port 3001 returns 500 — still pending fix
+
+### Git Commits (May 11 session)
+
+55. `565f49f` — Admin sees only approved actions and instructions
+56. `6a007ee` — Only PROVIDER can approve, all other roles see approved only
+57. `042eb59` — Care Manager view: dynamic name, profile dropdown, sign out
+58. `d6f7dc5` — Use userId as fallback when refId empty
+59. `58c148f` — Dynamic Care Manager: orgs from API, patients from EpisodeOfCare (Approach B)
+60. `ed4ce4e` — Dynamic Care Manager: orgs with pagination, patients table from Organization/patients API (Approach A)
+61. `c57476a` — Fix org API param _id to id (incorrect)
+62. `018c108` — Revert org API param back to _id (correct)
+
+---
