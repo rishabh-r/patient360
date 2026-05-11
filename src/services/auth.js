@@ -20,7 +20,7 @@ export async function doLogin(email, password) {
   const userId = data.userId || '';
   const userEmail = data.email || email;
   const name = email.split('@')[0];
-  const refId = data.refId || '';
+  const refId = data.refId || userId || '';
 
   localStorage.setItem('p360_token', token);
   localStorage.setItem('p360_user', name);
