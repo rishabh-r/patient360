@@ -43,7 +43,7 @@ export default function CareManagerView({ onLogout }) {
   async function loadOrgs() {
     setLoading(true);
     try {
-      const orgRes = await callFhirApi(`${FHIR_BASE}/baseR4/Organization/by-care-manager?_id=${cmId}`);
+      const orgRes = await callFhirApi(`${FHIR_BASE}/baseR4/Organization/by-care-manager?id=${cmId}`);
       const orgList = (orgRes?.entry || []).map(e => {
         const r = e.resource;
         return { id: r.id, name: r.name || 'Unknown', type: r.type?.[0]?.coding?.[0]?.display || '', city: r.address?.[0]?.city || '', state: r.address?.[0]?.state || '' };
