@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { callFhirApi, buildUrl } from '../services/fhir';
+import { callFhirApi } from '../services/fhir';
 import { FHIR_BASE } from '../config/constants';
 import '../styles/caremanager.css';
 
@@ -9,6 +9,8 @@ function nameFromEmail(email) {
   const local = email.split('@')[0];
   return local.split(/[._-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
+
+const ORGS_PER_PAGE = 5;
 
 export default function CareManagerView({ onLogout }) {
   const navigate = useNavigate();
@@ -19,10 +21,11 @@ export default function CareManagerView({ onLogout }) {
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
-
   const [orgs, setOrgs] = useState([]);
   const [orgPatients, setOrgPatients] = useState({});
   const [loading, setLoading] = useState(true);
+  const [orgPage, setOrgPage] = useState(1);
+  const [patientSearch, setPatientSearch] = useState('');
 
   useEffect(() => {
     function handleClick(e) {
@@ -34,66 +37,53 @@ export default function CareManagerView({ onLogout }) {
 
   useEffect(() => {
     if (!cmId) return;
-    loadData();
+    loadOrgs();
   }, [cmId]);
 
-  async function loadData() {
+  async function loadOrgs() {
     setLoading(true);
     try {
       const orgRes = await callFhirApi(`${FHIR_BASE}/baseR4/Organization/by-care-manager?_id=${cmId}`);
       const orgList = (orgRes?.entry || []).map(e => {
         const r = e.resource;
-        return {
-          id: r.id,
-          name: r.name || 'Unknown Organization',
-          type: r.type?.[0]?.coding?.[0]?.display || '',
-          city: r.address?.[0]?.city || '',
-          state: r.address?.[0]?.state || '',
-        };
+        return { id: r.id, name: r.name || 'Unknown', type: r.type?.[0]?.coding?.[0]?.display || '', city: r.address?.[0]?.city || '', state: r.address?.[0]?.state || '' };
       });
       const uniqueOrgs = orgList.filter((o, i, arr) => arr.findIndex(x => x.id === o.id) === i);
       setOrgs(uniqueOrgs);
-
-      const eocRes = await callFhirApi(`${FHIR_BASE}/baseR4/EpisodeOfCare?care-manager=${cmId}&page=0&size=100`);
-      const patientIds = new Set();
-      (eocRes?.entry || []).forEach(e => {
-        const patRef = e.resource?.patient?.reference?.replace('Patient/', '');
-        if (patRef) patientIds.add(patRef);
-      });
-
-      const patientMap = {};
-      await Promise.all([...patientIds].map(async pid => {
-        try {
-          const pt = await callFhirApi(buildUrl('/baseR4/Patient/find', { id: pid }));
-          const res = pt?.resourceType === 'Patient' ? pt : pt?.entry?.[0]?.resource;
-          if (!res) return;
-          const given = res.name?.[0]?.given?.join(' ') || '';
-          const family = res.name?.[0]?.family || '';
-          const disease = (res.extension || []).find(x => x.url === 'disease')?.valueString || '';
-          const birthDate = res.birthDate || '';
-          const age = birthDate ? Math.floor((Date.now() - new Date(birthDate)) / 31557600000) : '';
-          const orgRef = res.managingOrganization?.reference?.replace('Organization/', '') || '';
-          patientMap[pid] = { id: pid, name: `${given} ${family}`.trim(), age, condition: disease, orgId: orgRef };
-        } catch {}
-      }));
-
-      const grouped = {};
-      for (const p of Object.values(patientMap)) {
-        if (!p.orgId) continue;
-        if (!grouped[p.orgId]) grouped[p.orgId] = [];
-        grouped[p.orgId].push(p);
-      }
-      setOrgPatients(grouped);
     } catch {}
     setLoading(false);
   }
 
-  const filtered = orgs.filter(o =>
-    o.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = orgs.filter(o => o.name.toLowerCase().includes(search.toLowerCase()));
+  const totalOrgPages = Math.ceil(filtered.length / ORGS_PER_PAGE);
+  const visibleOrgs = filtered.slice((orgPage - 1) * ORGS_PER_PAGE, orgPage * ORGS_PER_PAGE);
+
+  useEffect(() => {
+    if (!visibleOrgs.length) return;
+    visibleOrgs.forEach(org => {
+      if (orgPatients[org.id] !== undefined) return;
+      callFhirApi(`${FHIR_BASE}/baseR4/Organization/patients?orgId=${org.id}`)
+        .then(res => {
+          const pts = (res?.entry || []).map(e => {
+            const r = e.resource;
+            const given = r.name?.[0]?.given?.join(' ') || '';
+            const family = r.name?.[0]?.family || '';
+            const mrn = (r.identifier || []).find(id => id.type?.coding?.[0]?.code === 'MR')?.value || '';
+            const disease = (r.extension || []).find(x => x.url === 'disease')?.valueString || '';
+            const birthDate = r.birthDate || '';
+            const age = birthDate ? Math.floor((Date.now() - new Date(birthDate)) / 31557600000) : '';
+            const phone = (r.telecom || []).find(t => t.system === 'phone')?.value || '';
+            return { id: r.id, name: `${given} ${family}`.trim(), mrn, age, condition: disease, phone };
+          });
+          setOrgPatients(prev => ({ ...prev, [org.id]: pts }));
+        })
+        .catch(() => setOrgPatients(prev => ({ ...prev, [org.id]: [] })));
+    });
+  }, [visibleOrgs.map(o => o.id).join(','), orgPage]);
 
   const selectedOrgData = orgs.find(o => o.id === selectedOrg);
   const patients = selectedOrg ? (orgPatients[selectedOrg] || []) : [];
+  const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(patientSearch.toLowerCase()));
 
   return (
     <div className="cm-page">
@@ -148,19 +138,15 @@ export default function CareManagerView({ onLogout }) {
 
           <div className="cm-search-box">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" placeholder="Search organizations..." value={search} onChange={e => setSearch(e.target.value)} className="cm-search-input" />
+            <input type="text" placeholder="Search organizations..." value={search} onChange={e => { setSearch(e.target.value); setOrgPage(1); }} className="cm-search-input" />
           </div>
 
           <div className="cm-org-list">
             {loading ? (
               <div className="cm-empty-state"><p className="cm-empty-sub">Loading organizations...</p></div>
-            ) : filtered.length > 0 ? (
-              filtered.map((org) => (
-                <div
-                  className={`cm-org-card${selectedOrg === org.id ? ' cm-org-active' : ''}`}
-                  key={org.id}
-                  onClick={() => setSelectedOrg(org.id)}
-                >
+            ) : visibleOrgs.length > 0 ? (
+              visibleOrgs.map(org => (
+                <div className={`cm-org-card${selectedOrg === org.id ? ' cm-org-active' : ''}`} key={org.id} onClick={() => { setSelectedOrg(org.id); setPatientSearch(''); }}>
                   <div className="cm-org-info">
                     <div className="cm-org-name">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg>
@@ -170,7 +156,7 @@ export default function CareManagerView({ onLogout }) {
                   </div>
                   <div className="cm-org-count">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    {(orgPatients[org.id] || []).length} patients
+                    {orgPatients[org.id] !== undefined ? `${orgPatients[org.id].length} patients` : '...'}
                   </div>
                 </div>
               ))
@@ -178,6 +164,16 @@ export default function CareManagerView({ onLogout }) {
               <div className="cm-empty-state"><p className="cm-empty-sub">No organizations found</p></div>
             )}
           </div>
+
+          {totalOrgPages > 1 && (
+            <div className="cm-org-pagination">
+              <button className="cm-page-btn" disabled={orgPage <= 1} onClick={() => setOrgPage(orgPage - 1)}>Prev</button>
+              {Array.from({ length: totalOrgPages }, (_, i) => (
+                <button key={i} className={`cm-page-btn${orgPage === i + 1 ? ' cm-page-active' : ''}`} onClick={() => setOrgPage(i + 1)}>{i + 1}</button>
+              ))}
+              <button className="cm-page-btn" disabled={orgPage >= totalOrgPages} onClick={() => setOrgPage(orgPage + 1)}>Next</button>
+            </div>
+          )}
         </div>
 
         <div className="cm-patients-panel">
@@ -190,29 +186,54 @@ export default function CareManagerView({ onLogout }) {
           ) : (
             <>
               <div className="cm-patients-header">
-                <h2 className="cm-patients-title">{selectedOrgData?.name || 'Organization'}</h2>
-                <span className="cm-patients-count">{patients.length} Patients</span>
-              </div>
-              {patients.length === 0 ? (
-                <div className="cm-empty-state">
-                  <p className="cm-empty-sub">No patients found for this organization</p>
+                <div>
+                  <h2 className="cm-patients-title">{selectedOrgData?.name || 'Organization'}</h2>
+                  <span className="cm-patients-subtitle">{filteredPatients.length} total</span>
                 </div>
+                <div className="cm-patient-search">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" placeholder="Search patients..." value={patientSearch} onChange={e => setPatientSearch(e.target.value)} />
+                </div>
+              </div>
+
+              {!orgPatients[selectedOrg] ? (
+                <div className="cm-empty-state"><p className="cm-empty-sub">Loading patients...</p></div>
+              ) : filteredPatients.length === 0 ? (
+                <div className="cm-empty-state"><p className="cm-empty-sub">No patients found</p></div>
               ) : (
-                <div className="cm-patient-list">
-                  {patients.map((p) => (
-                    <div className="cm-patient-card" key={p.id}>
-                      <div className="cm-patient-avatar">
-                        {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                      </div>
-                      <div className="cm-patient-info">
-                        <span className="cm-patient-name">{p.name}</span>
-                        <span className="cm-patient-details">{p.age ? `Age ${p.age}` : ''}{p.condition ? ` · ${p.condition}` : ''}</span>
-                      </div>
-                      <div className="cm-patient-actions">
-                        <button className="cm-action-btn cm-view-btn" onClick={() => navigate(`/patient-view?id=${p.id}`)}>View</button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="cm-table-wrap">
+                  <table className="cm-table">
+                    <thead>
+                      <tr>
+                        <th>Patient Name</th>
+                        <th>MRN</th>
+                        <th>Age</th>
+                        <th>Condition</th>
+                        <th>Contact</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPatients.map(p => (
+                        <tr key={p.id}>
+                          <td className="cm-td-name">
+                            <div className="cm-patient-avatar">{p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
+                            {p.name}
+                          </td>
+                          <td>{p.mrn}</td>
+                          <td>{p.age}</td>
+                          <td>{p.condition ? <span className="cm-condition-pill">{p.condition}</span> : '—'}</td>
+                          <td className="cm-td-contact">{p.phone && (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                              {p.phone}
+                            </>
+                          )}</td>
+                          <td><button className="cm-view-details" onClick={() => navigate(`/patient-view?id=${p.id}`)}>View Details</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </>

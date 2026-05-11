@@ -195,6 +195,71 @@
 }
 .cm-view-btn:hover { background: #EFF6FF; border-color: #BFDBFE; }
 
+/* ── Org Pagination ── */
+.cm-org-pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px; padding: 12px 0;
+}
+.cm-page-btn {
+  padding: 4px 10px; font-size: 12px; font-weight: 500;
+  border: 1px solid #E2E8F0; border-radius: 6px;
+  color: #475569; background: #fff; cursor: pointer;
+  transition: background 0.15s;
+}
+.cm-page-btn:hover:not(:disabled) { background: #F1F5F9; }
+.cm-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cm-page-active { background: #2563EB; color: #fff; border-color: #2563EB; }
+
+/* ── Patient Table ── */
+.cm-patients-subtitle { font-size: 13px; color: #64748B; margin-top: 2px; }
+.cm-patient-search {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  padding: 8px 12px; min-width: 200px;
+}
+.cm-patient-search:focus-within { border-color: #3B82F6; }
+.cm-patient-search input {
+  border: none; outline: none; flex: 1;
+  font-size: 13px; color: #1E293B; background: transparent;
+}
+.cm-patient-search input::placeholder { color: #94A3B8; }
+
+.cm-table-wrap { overflow-x: auto; }
+.cm-table {
+  width: 100%; border-collapse: collapse;
+}
+.cm-table th {
+  text-align: left; font-size: 12px; font-weight: 600; color: #64748B;
+  padding: 10px 14px; border-bottom: 1px solid #E2E8F0; white-space: nowrap;
+}
+.cm-table td {
+  font-size: 13px; color: #374151; padding: 12px 14px;
+  border-bottom: 1px solid #F1F5F9; white-space: nowrap;
+}
+.cm-td-name {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 600; color: #1E293B;
+}
+.cm-td-contact {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #64748B;
+}
+.cm-condition-pill {
+  font-size: 11px; font-weight: 500; padding: 2px 10px;
+  border-radius: 12px; background: #DBEAFE; color: #2563EB;
+}
+.cm-view-details {
+  font-size: 12px; font-weight: 500; color: #2563EB;
+  cursor: pointer; transition: text-decoration 0.15s;
+}
+.cm-view-details:hover { text-decoration: underline; }
+
+.cm-patients-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 16px; padding-bottom: 12px;
+  border-bottom: 1px solid #F1F5F9;
+}
+
 /* ── Profile Dropdown ── */
 .cm-profile-wrap { position: relative; }
 .cm-profile-dropdown {
