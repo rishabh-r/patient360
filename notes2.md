@@ -3406,3 +3406,45 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 74. `8137f8a` — Remove Non-Adherent from Population View
 
 ---
+
+
+## Session: May 14, 2026 (continued)
+
+### Analytics — ER Visits Removed + Layout Fixes
+- ER Visits KPI removed from analytics
+- KPI row 1 changed from 3-column to 2-column (Recent Admissions + Discharges)
+- Population View changed from 4-column to 3-column (Total Patients + High Risk + Care Gaps)
+- Non-Adherent stat removed from Population View
+
+### Preventive & Clinical Care Gaps — Dynamic
+- For each patient in org, fetches:
+  - `GET /baseR4/MedicationRequest?patient={id}` — filters `status=stopped` for missed medications
+  - `GET /baseR4/Appointment?patient={id}` — filters `status=noshow/cancelled` for missed appointments
+- Shows patient name + latest missed medication + latest missed follow-up appointment
+- Priority determined by: High (if in risk-assigned patients), Medium (multiple gaps), Low (single gap)
+- Care Gaps count in Population View uses actual `careGaps.length`
+
+### HEDIS Measures — AI Generated
+- AI calculates Diabetes Care, Hypertension Control, Preventive Care percentages
+- Based on care gap data from the organization's patients
+- Purple AI badge with hover tooltip "AI generated information"
+- Fallback to static values if AI fails
+
+### MIPS Performance — AI Generated
+- AI calculates score (0-100) and status text
+- Dynamic donut chart ring based on actual score
+- AI badge
+- Fallback to score 85 / "Above Target" if AI fails
+
+### AI Badges in Care Manager Analytics
+- Same style as Patient View: purple star + "AI" text
+- Hover tooltip "AI generated information"
+- Added to HEDIS Measures and MIPS Performance titles
+
+### Git Commits (May 14 continued)
+
+75. `8137f8a` — Remove Non-Adherent from Population View
+76. `b8c23f4` — Remove ER Visits, equal spacing for KPIs and Population View
+77. `507a72c` — Dynamic care gaps, AI-generated HEDIS + MIPS, AI badges
+
+---
