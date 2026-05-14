@@ -100,8 +100,10 @@ export default function HomePage({ onLogout }) {
     if (!route || !allowedRoutes.includes(route)) return;
     if (role === 'ADMIN') {
       setSelectModal({ route, selectRole: ROUTE_TO_ROLE[route] || 'PATIENT' });
-    } else if ((role === 'PROVIDER' || role === 'CARE_MANAGER') && route === '/patient-view') {
+    } else if (role === 'PROVIDER' && route === '/patient-view') {
       fetchProviderPatients();
+    } else if (role === 'CARE_MANAGER' && route === '/patient-view') {
+      fetchCareManagerPatients();
     } else if (role === 'PROVIDER' && route === '/healthcare-provider') {
       navigate(`${route}?id=${refId}`);
     } else {
@@ -112,6 +114,19 @@ export default function HomePage({ onLogout }) {
   async function fetchProviderPatients() {
     try {
       const res = await callFhirApi(`${FHIR_BASE}/baseR4/Practitioner/fetch-patients-by-practitioner?id=${refId}`);
+      const patients = (res?.entry || []).map(e => {
+        const r = e.resource;
+        const given = r.name?.[0]?.given?.join(' ') || '';
+        const family = r.name?.[0]?.family || '';
+        return { id: r.id, name: `${given} ${family}`.trim(), email: (r.telecom || []).find(t => t.system === 'email')?.value || '' };
+      });
+      setProviderPatients(patients);
+    } catch { setProviderPatients([]); }
+  }
+
+  async function fetchCareManagerPatients() {
+    try {
+      const res = await callFhirApi(`${FHIR_BASE}/baseR4/CareCoordinationNote/fetch-patients-by-care-manager?id=${refId}`);
       const patients = (res?.entry || []).map(e => {
         const r = e.resource;
         const given = r.name?.[0]?.given?.join(' ') || '';
