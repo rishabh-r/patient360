@@ -33,6 +33,8 @@ export default function CareManagerView({ onLogout }) {
   const [careGaps, setCareGaps] = useState([]);
   const [hedisData, setHedisData] = useState(null);
   const [mipsScore, setMipsScore] = useState(null);
+  const [admissions, setAdmissions] = useState({ count: 0, pctChange: 0 });
+  const [discharges, setDischarges] = useState({ count: 0, pctChange: 0 });
 
   useEffect(() => {
     function handleClick(e) {
@@ -92,7 +94,39 @@ export default function CareManagerView({ onLogout }) {
     if (!selectedOrg || mainTab !== 'analytics') return;
     const pts = orgPatients[selectedOrg] || [];
     if (!pts.length) { setRiskPatients([]); return; }
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()).toISOString().split('T')[0];
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()).toISOString().split('T')[0];
+
+    async function fetchEncounterCount(orgId, status, dateGt, dateLt) {
+      const url = new URL(`${FHIR_BASE}/baseR4/Encounter/$count`);
+      url.searchParams.append('organization', orgId);
+      if (status) url.searchParams.append('status', status);
+      url.searchParams.append('date', `gt${dateGt}`);
+      url.searchParams.append('date', `lt${dateLt}`);
+      const res = await callFhirApi(url.toString());
+      const param = res?.entry?.[0]?.resource?.parameter?.find(p => p.name === 'encounter-count');
+      return param?.valueInteger || 0;
+    }
+
+    (async () => {
+      try {
+        const [currAdm, prevAdm] = await Promise.all([
+          fetchEncounterCount(selectedOrg, null, threeMonthsAgo, today),
+          fetchEncounterCount(selectedOrg, null, sixMonthsAgo, threeMonthsAgo),
+        ]);
+        const admPct = prevAdm > 0 ? Math.round(((currAdm - prevAdm) / prevAdm) * 100) : 0;
+        setAdmissions({ count: currAdm, pctChange: admPct });
+
+        const [currDis, prevDis] = await Promise.all([
+          fetchEncounterCount(selectedOrg, 'finished', threeMonthsAgo, today),
+          fetchEncounterCount(selectedOrg, 'finished', sixMonthsAgo, threeMonthsAgo),
+        ]);
+        const disPct = prevDis > 0 ? Math.round(((currDis - prevDis) / prevDis) * 100) : 0;
+        setDischarges({ count: currDis, pctChange: disPct });
+      } catch {}
+    })();
     Promise.all(pts.map(p =>
       callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`)
         .then(res => {
@@ -305,8 +339,16 @@ export default function CareManagerView({ onLogout }) {
                     )) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No risk-assigned patients in this organization</p>}
 
                     <div className="cm-an-kpi-row">
-                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">Recent Admissions</span><span className="cm-an-kpi-val">12</span><span className="cm-an-kpi-change down">↘ 8% from last week</span></div>
-                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">Discharges</span><span className="cm-an-kpi-val">15</span><span className="cm-an-kpi-change up">↗ 15% from last week</span></div>
+                      <div className="cm-an-kpi">
+                        <span className="cm-an-kpi-label">Recent Admissions</span>
+                        <span className="cm-an-kpi-val">{admissions.count}</span>
+                        <span className={`cm-an-kpi-change ${admissions.pctChange <= 0 ? 'down' : 'up'}`}>{admissions.pctChange <= 0 ? '↘' : '↗'} {Math.abs(admissions.pctChange)}% from last 3 months</span>
+                      </div>
+                      <div className="cm-an-kpi">
+                        <span className="cm-an-kpi-label">Discharges</span>
+                        <span className="cm-an-kpi-val">{discharges.count}</span>
+                        <span className={`cm-an-kpi-change ${discharges.pctChange <= 0 ? 'down' : 'up'}`}>{discharges.pctChange <= 0 ? '↘' : '↗'} {Math.abs(discharges.pctChange)}% from last 3 months</span>
+                      </div>
                     </div>
 
                     <h3 className="cm-an-section-title">Preventive & Clinical Care Gaps</h3>
