@@ -3340,3 +3340,69 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 62. `018c108` — Revert org API param back to _id (correct)
 
 ---
+
+
+## Session: May 14, 2026
+
+### AI Risk Score in Patient View
+- Added `riskScore` (0-100) to `HEALTH_STATUS_PROMPT` — AI returns both status and risk score in one call
+- Displayed beside Health Status as "Risk Score: XX/100" with color-coded text (green/amber/orange/red)
+- Progress bar removed — shows only label + value
+
+### Care Manager — Patient View Access via Dedicated API
+- `GET /baseR4/CareCoordinationNote/fetch-patients-by-care-manager?id={cmRefId}` — separate API for care manager patient list
+- Care Manager clicks Patient View on Home Page -> patient selection modal using this API
+- Patient View disabled for care manager on home page (reverted for now)
+
+### "Move to Analytics" Button (Patient View → Analytics)
+- Small blue button beside Risk Score, visible only for CARE_MANAGER role
+- On click: `POST /baseR4/CareCoordinationNote/risk-assignment` with `{ riskScore, patientId, organizationId }`
+- `organizationId` extracted from patient's `managingOrganization` reference
+- Green toast "Moved to Analytics" for 2 seconds
+- "Back to Dashboard" button added for care manager (navigates to care-manager view)
+
+### Analytics Tab — Full UI (Care Manager View)
+
+#### Section Order (top to bottom)
+1. High-Risk & Deteriorating Patients (dynamic from GET risk-assignment API)
+2. KPI Row 1: Recent Admissions, ER Visits, Discharges (static)
+3. Preventive & Clinical Care Gaps (from org patients)
+4. HEDIS Measures + MIPS Performance (static)
+5. ALOS + Readmission Rate + No Show Rate (static, with icons + mini bar charts)
+6. Population View (dynamic: Total Patients, High Risk, Care Gaps)
+7. Today's Schedule (dynamic from Appointment API)
+
+#### High-Risk & Deteriorating Patients (Dynamic)
+- `GET /baseR4/CareCoordinationNote/risk-assignment?patientId={id}&orgId={orgId}` per patient
+- Shows only patients that were "Moved to Analytics" via the button
+- Sorted by risk score (highest first)
+- Pluralization: "1 Patient" vs "3 Patients"
+
+#### Today's Schedule (Dynamic)
+- For each patient in org, calls `GET /baseR4/Appointment?patient={id}`
+- Finds booked appointments matching today's date
+- Shows: Patient Name, Time, Visit Type, View button
+- "No appointments scheduled for today" when empty
+
+#### Population View (Dynamic)
+- Total Patients = actual count from Organization/patients API
+- High Risk = count of risk-assigned patients
+- Care Gaps = count from Preventive & Clinical Care Gaps section
+- Non-Adherent removed
+
+### Git Commits (May 14 session)
+
+63. `a7cabae` — Add AI-generated risk score below health status
+64. `9113980` — Enable Patient View for Care Manager with patient selection
+65. `3c9acc7` — Remove risk score progress bar
+66. `2cad7b4` — Use CareCoordinationNote/fetch-patients-by-care-manager API
+67. `a00f949` — Disable Patient View for Care Manager role
+68. `efcd1b9` — Add Analytics tab to Care Manager View
+69. `aa9c8df` — Rename to Move to Analytics, Back to Dashboard button, pluralization fix
+70. `c34c006` — Move to Analytics: POST risk-assignment, GET in analytics
+71. `3c734bc` — Add icons + mini bar charts to ALOS KPIs, Today's Schedule
+72. `d2da106` — Reorder analytics, Population View title, dynamic Today's Schedule
+73. `d7d31eb` — Dynamic Population View counts
+74. `8137f8a` — Remove Non-Adherent from Population View
+
+---
