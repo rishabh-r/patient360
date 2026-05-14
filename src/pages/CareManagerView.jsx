@@ -268,9 +268,21 @@ export default function CareManagerView({ onLogout }) {
                     ))}
 
                     <div className="cm-an-kpi-row">
-                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">ALOS</span><span className="cm-an-kpi-val">4.2 days</span><span className="cm-an-kpi-change down">↓ 5% vs last month</span></div>
-                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">Readmission Rate</span><span className="cm-an-kpi-val">8.5%</span><span className="cm-an-kpi-change up">↑ 2% vs last month</span></div>
-                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">No Show Rate</span><span className="cm-an-kpi-val">12.3%</span><span className="cm-an-kpi-change down">↓ 8% vs last month</span></div>
+                      <div className="cm-an-kpi">
+                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">ALOS</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+                        <span className="cm-an-kpi-val">4.2 days</span><span className="cm-an-kpi-change down">↓ 5% vs last month</span>
+                        <div className="cm-an-mini-bars">{[18,22,15,25,20,30,18,24,16,28].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#99F6E4'}}/>)}</div>
+                      </div>
+                      <div className="cm-an-kpi">
+                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">Readmission Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></div>
+                        <span className="cm-an-kpi-val">8.5%</span><span className="cm-an-kpi-change up">↑ 2% vs last month</span>
+                        <div className="cm-an-mini-bars">{[20,18,25,22,28,15,30,20,24,18].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#FDE68A'}}/>)}</div>
+                      </div>
+                      <div className="cm-an-kpi">
+                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">No Show Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                        <span className="cm-an-kpi-val">12.3%</span><span className="cm-an-kpi-change down">↓ 8% vs last month</span>
+                        <div className="cm-an-mini-bars">{[25,20,22,18,15,28,20,24,16,22].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#DDD6FE'}}/>)}</div>
+                      </div>
                     </div>
 
                     <div className="cm-an-hedis-row">
@@ -298,6 +310,30 @@ export default function CareManagerView({ onLogout }) {
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#EF4444' }}><span className="cm-an-pop-num">{Math.round(patients.length * 0.25)}</span><span className="cm-an-pop-label">High Risk</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#F59E0B' }}><span className="cm-an-pop-num">{Math.round(patients.length * 0.45)}</span><span className="cm-an-pop-label">Care Gaps</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#8B5CF6' }}><span className="cm-an-pop-num">{Math.round(patients.length * 0.13)}</span><span className="cm-an-pop-label">Non-Adherent</span></div>
+                    </div>
+
+                    <h3 className="cm-an-section-title">Today's Schedule</h3>
+                    <div className="cm-table-wrap">
+                      <table className="cm-table">
+                        <thead><tr><th>Patient Name</th><th>Time</th><th>Visit Type</th><th>Risk Level</th><th>Actions</th></tr></thead>
+                        <tbody>
+                          {[
+                            { name: 'Robert Wilson', time: '9:00 AM', type: 'Follow-up', risk: 'High' },
+                            { name: 'Maria Garcia', time: '10:30 AM', type: 'Routine Check', risk: 'Low' },
+                            { name: 'James Taylor', time: '1:00 PM', type: 'Care Plan Review', risk: 'Medium' },
+                            { name: 'Patricia Brown', time: '2:30 PM', type: 'Urgent Consult', risk: 'High' },
+                            { name: 'John Davis', time: '4:00 PM', type: 'Telehealth', risk: 'Low' },
+                          ].map((s, i) => (
+                            <tr key={i}>
+                              <td className="cm-td-name" style={{ fontWeight: 600 }}>{s.name}</td>
+                              <td>{s.time}</td>
+                              <td>{s.type}</td>
+                              <td><span className={`cm-an-pri-pill ${s.risk === 'High' ? 'high' : s.risk === 'Medium' ? 'med' : 'low'}`}>{s.risk}</span></td>
+                              <td><button className="cm-view-details">View</button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
