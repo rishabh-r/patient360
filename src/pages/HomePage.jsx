@@ -67,7 +67,7 @@ function OutcomeIcon({ type }) {
 const ROLE_ALLOWED_ROUTES = {
   PATIENT: ['/patient-view'],
   PROVIDER: ['/patient-view', '/healthcare-provider'],
-  CARE_MANAGER: ['/care-manager'],
+  CARE_MANAGER: ['/patient-view', '/care-manager'],
   ADMIN: ['/patient-view', '/healthcare-provider', '/care-manager'],
 };
 
@@ -100,7 +100,7 @@ export default function HomePage({ onLogout }) {
     if (!route || !allowedRoutes.includes(route)) return;
     if (role === 'ADMIN') {
       setSelectModal({ route, selectRole: ROUTE_TO_ROLE[route] || 'PATIENT' });
-    } else if (role === 'PROVIDER' && route === '/patient-view') {
+    } else if ((role === 'PROVIDER' || role === 'CARE_MANAGER') && route === '/patient-view') {
       fetchProviderPatients();
     } else if (role === 'PROVIDER' && route === '/healthcare-provider') {
       navigate(`${route}?id=${refId}`);
