@@ -243,7 +243,7 @@ export default function CareManagerView({ onLogout }) {
               {mainTab === 'analytics' && (
                 <div className="cm-analytics">
                   <div className="cm-analytics-scroll">
-                    <h3 className="cm-an-section-title">High-Risk & Deteriorating Patients <span className="cm-an-count">{riskPatients.length} Patients</span></h3>
+                    <h3 className="cm-an-section-title">High-Risk & Deteriorating Patients <span className="cm-an-count">{riskPatients.length} {riskPatients.length === 1 ? 'Patient' : 'Patients'}</span></h3>
                     {riskPatients.length > 0 ? riskPatients.map((p, i) => (
                       <div className="cm-an-risk-card" key={i}>
                         <div className="cm-an-risk-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
