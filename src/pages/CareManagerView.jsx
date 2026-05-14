@@ -96,8 +96,8 @@ export default function CareManagerView({ onLogout }) {
     if (!pts.length) { setRiskPatients([]); return; }
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()).toISOString().split('T')[0];
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()).toISOString().split('T')[0];
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().split('T')[0];
+    const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate()).toISOString().split('T')[0];
 
     async function fetchEncounterCount(orgId, status, dateGt, dateLt) {
       const url = new URL(`${FHIR_BASE}/baseR4/Encounter/$count`);
@@ -113,15 +113,15 @@ export default function CareManagerView({ onLogout }) {
     (async () => {
       try {
         const [currAdm, prevAdm] = await Promise.all([
-          fetchEncounterCount(selectedOrg, null, threeMonthsAgo, today),
-          fetchEncounterCount(selectedOrg, null, sixMonthsAgo, threeMonthsAgo),
+          fetchEncounterCount(selectedOrg, null, oneYearAgo, today),
+          fetchEncounterCount(selectedOrg, null, twoYearsAgo, oneYearAgo),
         ]);
         const admPct = prevAdm > 0 ? Math.round(((currAdm - prevAdm) / prevAdm) * 100) : 0;
         setAdmissions({ count: currAdm, pctChange: admPct });
 
         const [currDis, prevDis] = await Promise.all([
-          fetchEncounterCount(selectedOrg, 'finished', threeMonthsAgo, today),
-          fetchEncounterCount(selectedOrg, 'finished', sixMonthsAgo, threeMonthsAgo),
+          fetchEncounterCount(selectedOrg, 'finished', oneYearAgo, today),
+          fetchEncounterCount(selectedOrg, 'finished', twoYearsAgo, oneYearAgo),
         ]);
         const disPct = prevDis > 0 ? Math.round(((currDis - prevDis) / prevDis) * 100) : 0;
         setDischarges({ count: currDis, pctChange: disPct });
@@ -342,12 +342,12 @@ export default function CareManagerView({ onLogout }) {
                       <div className="cm-an-kpi">
                         <span className="cm-an-kpi-label">Recent Admissions</span>
                         <span className="cm-an-kpi-val">{admissions.count}</span>
-                        <span className={`cm-an-kpi-change ${admissions.pctChange <= 0 ? 'down' : 'up'}`}>{admissions.pctChange <= 0 ? '↘' : '↗'} {Math.abs(admissions.pctChange)}% from last 3 months</span>
+                        <span className={`cm-an-kpi-change ${admissions.pctChange <= 0 ? 'down' : 'up'}`}>{admissions.pctChange <= 0 ? '↘' : '↗'} {Math.abs(admissions.pctChange)}% from last year</span>
                       </div>
                       <div className="cm-an-kpi">
                         <span className="cm-an-kpi-label">Discharges</span>
                         <span className="cm-an-kpi-val">{discharges.count}</span>
-                        <span className={`cm-an-kpi-change ${discharges.pctChange <= 0 ? 'down' : 'up'}`}>{discharges.pctChange <= 0 ? '↘' : '↗'} {Math.abs(discharges.pctChange)}% from last 3 months</span>
+                        <span className={`cm-an-kpi-change ${discharges.pctChange <= 0 ? 'down' : 'up'}`}>{discharges.pctChange <= 0 ? '↘' : '↗'} {Math.abs(discharges.pctChange)}% from last year</span>
                       </div>
                     </div>
 
