@@ -223,7 +223,7 @@
 .cm-an-score-label { font-size: 10px; color: #64748B; }
 .cm-an-score-val { font-size: 20px; font-weight: 700; color: #DC2626; }
 
-.cm-an-kpi-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+.cm-an-kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
 .cm-an-kpi { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px; }
 .cm-an-kpi-label { font-size: 12px; color: #64748B; display: block; }
 .cm-an-kpi-val { font-size: 24px; font-weight: 700; color: #1E293B; display: block; margin: 4px 0; }
@@ -261,7 +261,7 @@
 .cm-an-mips-label { font-size: 11px; color: #64748B; }
 .cm-an-mips-status { font-size: 12px; font-weight: 600; color: #14B8A6; }
 
-.cm-an-pop-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+.cm-an-pop-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
 .cm-an-pop-stat { padding: 14px; border-radius: 8px; border-left: 4px solid; background: #F8FAFC; }
 .cm-an-pop-num { display: block; font-size: 22px; font-weight: 700; color: #1E293B; }
 .cm-an-pop-label { display: block; font-size: 11px; color: #64748B; margin-top: 2px; }

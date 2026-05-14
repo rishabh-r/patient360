@@ -267,7 +267,6 @@ export default function CareManagerView({ onLogout }) {
 
                     <div className="cm-an-kpi-row">
                       <div className="cm-an-kpi"><span className="cm-an-kpi-label">Recent Admissions</span><span className="cm-an-kpi-val">12</span><span className="cm-an-kpi-change down">↘ 8% from last week</span></div>
-                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">ER Visits</span><span className="cm-an-kpi-val">8</span><span className="cm-an-kpi-change up">↗ 12% from last week</span></div>
                       <div className="cm-an-kpi"><span className="cm-an-kpi-label">Discharges</span><span className="cm-an-kpi-val">15</span><span className="cm-an-kpi-change up">↗ 15% from last week</span></div>
                     </div>
 
