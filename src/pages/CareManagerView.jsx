@@ -92,12 +92,6 @@ export default function CareManagerView({ onLogout }) {
     if (!selectedOrg || mainTab !== 'analytics') return;
     const pts = orgPatients[selectedOrg] || [];
     if (!pts.length) { setRiskPatients([]); return; }
-    Promise.all(pts.map(p =>
-      callFhirApi(`${FHIR_BASE}/baseR4/CareCoordinationNote/risk-assignment?patientId=${p.id}&orgId=${selectedOrg}`)
-        .then(res => res?.riskScore ? { ...p, riskScore: res.riskScore } : null)
-        .catch(() => null)
-    )).then(results => setRiskPatients(results.filter(Boolean).sort((a, b) => b.riskScore - a.riskScore)));
-
     const today = new Date().toISOString().split('T')[0];
     Promise.all(pts.map(p =>
       callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`)
@@ -110,21 +104,31 @@ export default function CareManagerView({ onLogout }) {
         }).catch(() => null)
     )).then(results => setTodaySchedule(results.filter(Boolean).sort((a, b) => a.time.localeCompare(b.time))));
 
-    Promise.all(pts.map(async p => {
-      try {
-        const [medRes, apptRes] = await Promise.all([
-          callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 100 })).catch(() => null),
-          callFhirApi(buildUrl('/baseR4/Appointment', { patient: p.id, page: 0, size: 100 })).catch(() => null),
-        ]);
-        const stoppedMeds = (medRes?.entry || []).filter(e => e.resource?.status === 'stopped').map(e => e.resource?.medicationCodeableConcept?.coding?.[0]?.display || e.resource?.medicationCodeableConcept?.text || '');
-        const missedAppts = (apptRes?.entry || []).filter(e => e.resource?.status === 'noshow' || e.resource?.status === 'cancelled').map(e => e.resource?.description || e.resource?.serviceType?.[0]?.text || 'Appointment');
-        if (!stoppedMeds.length && !missedAppts.length) return null;
-        const issues = [];
-        if (stoppedMeds.length) issues.push(`Missed medication: ${stoppedMeds[stoppedMeds.length - 1]}`);
-        if (missedAppts.length) issues.push(`Missed follow-up: ${missedAppts[missedAppts.length - 1]}`);
-        return { ...p, issues, gapCount: stoppedMeds.length + missedAppts.length };
-      } catch { return null; }
-    })).then(results => {
+    Promise.all(pts.map(p =>
+      callFhirApi(`${FHIR_BASE}/baseR4/CareCoordinationNote/risk-assignment?patientId=${p.id}&orgId=${selectedOrg}`)
+        .then(res => res?.riskScore ? { ...p, riskScore: res.riskScore } : null)
+        .catch(() => null)
+    )).then(riskResults => {
+      const riskPts = riskResults.filter(Boolean).sort((a, b) => b.riskScore - a.riskScore);
+      setRiskPatients(riskPts);
+
+      return Promise.all(riskPts.map(async p => {
+        try {
+          const [medRes, apptRes] = await Promise.all([
+            callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 100 })).catch(() => null),
+            callFhirApi(buildUrl('/baseR4/Appointment', { patient: p.id, page: 0, size: 100 })).catch(() => null),
+          ]);
+          const stoppedMeds = (medRes?.entry || []).filter(e => e.resource?.status === 'stopped').map(e => e.resource?.medicationCodeableConcept?.coding?.[0]?.display || e.resource?.medicationCodeableConcept?.text || '');
+          const missedAppts = (apptRes?.entry || []).filter(e => e.resource?.status === 'noshow' || e.resource?.status === 'cancelled').map(e => e.resource?.description || e.resource?.serviceType?.[0]?.text || 'Appointment');
+          if (!stoppedMeds.length && !missedAppts.length) return null;
+          const issues = [];
+          if (stoppedMeds.length) issues.push(`Missed medication: ${stoppedMeds[stoppedMeds.length - 1]}`);
+          if (missedAppts.length) issues.push(`Missed follow-up: ${missedAppts[missedAppts.length - 1]}`);
+          return { ...p, issues, gapCount: stoppedMeds.length + missedAppts.length };
+        } catch { return null; }
+      }));
+    }).then(results => {
+      if (!results) return;
       const gaps = results.filter(Boolean).sort((a, b) => b.gapCount - a.gapCount);
       setCareGaps(gaps);
 
