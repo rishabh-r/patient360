@@ -323,7 +323,6 @@ export default function CareManagerView({ onLogout }) {
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#3B82F6' }}><span className="cm-an-pop-num">{patients.length}</span><span className="cm-an-pop-label">Total Patients</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#EF4444' }}><span className="cm-an-pop-num">{riskPatients.length}</span><span className="cm-an-pop-label">High Risk</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#F59E0B' }}><span className="cm-an-pop-num">{Math.min(patients.length, 4)}</span><span className="cm-an-pop-label">Care Gaps</span></div>
-                      <div className="cm-an-pop-stat" style={{ borderLeftColor: '#8B5CF6' }}><span className="cm-an-pop-num">{Math.round(patients.length * 0.13)}</span><span className="cm-an-pop-label">Non-Adherent</span></div>
                     </div>
 
                     <h3 className="cm-an-section-title">Today's Schedule</h3>
