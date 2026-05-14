@@ -26,6 +26,7 @@ export default function CareManagerView({ onLogout }) {
   const [loading, setLoading] = useState(true);
   const [orgPage, setOrgPage] = useState(1);
   const [patientSearch, setPatientSearch] = useState('');
+  const [mainTab, setMainTab] = useState('patients');
 
   useEffect(() => {
     function handleClick(e) {
@@ -185,55 +186,108 @@ export default function CareManagerView({ onLogout }) {
             </div>
           ) : (
             <>
-              <div className="cm-patients-header">
-                <div>
-                  <h2 className="cm-patients-title">{selectedOrgData?.name || 'Organization'}</h2>
-                  <span className="cm-patients-subtitle">{filteredPatients.length} total</span>
-                </div>
-                <div className="cm-patient-search">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" placeholder="Search patients..." value={patientSearch} onChange={e => setPatientSearch(e.target.value)} />
-                </div>
+              <div className="cm-main-tabs">
+                <button className={`cm-main-tab${mainTab === 'patients' ? ' active' : ''}`} onClick={() => setMainTab('patients')}>Patients</button>
+                <button className={`cm-main-tab${mainTab === 'analytics' ? ' active' : ''}`} onClick={() => setMainTab('analytics')}>Analytics</button>
               </div>
 
-              {!orgPatients[selectedOrg] ? (
-                <div className="cm-empty-state"><p className="cm-empty-sub">Loading patients...</p></div>
-              ) : filteredPatients.length === 0 ? (
-                <div className="cm-empty-state"><p className="cm-empty-sub">No patients found</p></div>
-              ) : (
-                <div className="cm-table-wrap">
-                  <table className="cm-table">
-                    <thead>
-                      <tr>
-                        <th>Patient Name</th>
-                        <th>MRN</th>
-                        <th>Age</th>
-                        <th>Condition</th>
-                        <th>Contact</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredPatients.map(p => (
-                        <tr key={p.id}>
-                          <td className="cm-td-name">
-                            <div className="cm-patient-avatar">{p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
-                            {p.name}
-                          </td>
-                          <td>{p.mrn}</td>
-                          <td>{p.age}</td>
-                          <td>{p.condition ? <span className="cm-condition-pill">{p.condition}</span> : '—'}</td>
-                          <td className="cm-td-contact">{p.phone && (
-                            <>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                              {p.phone}
-                            </>
-                          )}</td>
-                          <td><button className="cm-view-details" onClick={() => navigate(`/patient-view?id=${p.id}`)}>View Details</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {mainTab === 'patients' && (
+                <>
+                  <div className="cm-patients-header">
+                    <div>
+                      <h2 className="cm-patients-title">{selectedOrgData?.name || 'Organization'}</h2>
+                      <span className="cm-patients-subtitle">{filteredPatients.length} total</span>
+                    </div>
+                    <div className="cm-patient-search">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <input type="text" placeholder="Search patients..." value={patientSearch} onChange={e => setPatientSearch(e.target.value)} />
+                    </div>
+                  </div>
+                  {!orgPatients[selectedOrg] ? (
+                    <div className="cm-empty-state"><p className="cm-empty-sub">Loading patients...</p></div>
+                  ) : filteredPatients.length === 0 ? (
+                    <div className="cm-empty-state"><p className="cm-empty-sub">No patients found</p></div>
+                  ) : (
+                    <div className="cm-table-wrap">
+                      <table className="cm-table">
+                        <thead><tr><th>Patient Name</th><th>MRN</th><th>Age</th><th>Condition</th><th>Contact</th><th>Actions</th></tr></thead>
+                        <tbody>
+                          {filteredPatients.map(p => (
+                            <tr key={p.id}>
+                              <td className="cm-td-name"><div className="cm-patient-avatar">{p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</div>{p.name}</td>
+                              <td>{p.mrn}</td><td>{p.age}</td>
+                              <td>{p.condition ? <span className="cm-condition-pill">{p.condition}</span> : '—'}</td>
+                              <td className="cm-td-contact">{p.phone && (<><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>{p.phone}</>)}</td>
+                              <td><button className="cm-view-details" onClick={() => navigate(`/patient-view?id=${p.id}`)}>View Details</button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {mainTab === 'analytics' && (
+                <div className="cm-analytics">
+                  <div className="cm-analytics-scroll">
+                    <h3 className="cm-an-section-title">High-Risk & Deteriorating Patients <span className="cm-an-count">{patients.filter(p => p.condition).length} Patients</span></h3>
+                    {patients.slice(0, 3).map((p, i) => (
+                      <div className="cm-an-risk-card" key={i}>
+                        <div className="cm-an-risk-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                        <div className="cm-an-risk-info"><span className="cm-an-risk-name">{p.name}</span><span className="cm-an-risk-issue">{p.condition || 'Under monitoring'}</span></div>
+                        <div className="cm-an-risk-score"><span className="cm-an-score-label">Risk Score</span><span className="cm-an-score-val">{90 - i * 4}</span></div>
+                      </div>
+                    ))}
+
+                    <div className="cm-an-kpi-row">
+                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">Recent Admissions</span><span className="cm-an-kpi-val">12</span><span className="cm-an-kpi-change down">↘ 8% from last week</span></div>
+                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">ER Visits</span><span className="cm-an-kpi-val">8</span><span className="cm-an-kpi-change up">↗ 12% from last week</span></div>
+                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">Discharges</span><span className="cm-an-kpi-val">15</span><span className="cm-an-kpi-change up">↗ 15% from last week</span></div>
+                    </div>
+
+                    <h3 className="cm-an-section-title">Preventive & Clinical Care Gaps</h3>
+                    {patients.slice(0, 4).map((p, i) => (
+                      <div className="cm-an-gap-row" key={i}>
+                        <div className="cm-an-gap-info"><span className="cm-an-gap-name">{p.name}</span><span className="cm-an-gap-issue">{p.condition ? `${p.condition} screening overdue` : 'Follow-up needed'}</span></div>
+                        <span className={`cm-an-pri-pill ${i < 2 ? 'high' : i === 2 ? 'med' : 'low'}`}>{i < 2 ? 'High' : i === 2 ? 'Medium' : 'Low'} Priority</span>
+                        <button className="cm-an-schedule-btn">Schedule</button>
+                      </div>
+                    ))}
+
+                    <div className="cm-an-kpi-row">
+                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">ALOS</span><span className="cm-an-kpi-val">4.2 days</span><span className="cm-an-kpi-change down">↓ 5% vs last month</span></div>
+                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">Readmission Rate</span><span className="cm-an-kpi-val">8.5%</span><span className="cm-an-kpi-change up">↑ 2% vs last month</span></div>
+                      <div className="cm-an-kpi"><span className="cm-an-kpi-label">No Show Rate</span><span className="cm-an-kpi-val">12.3%</span><span className="cm-an-kpi-change down">↓ 8% vs last month</span></div>
+                    </div>
+
+                    <div className="cm-an-hedis-row">
+                      <div className="cm-an-hedis">
+                        <h3 className="cm-an-section-title">HEDIS Measures</h3>
+                        {[{ label: 'Diabetes Care', pct: 87, color: '#3B82F6' }, { label: 'Hypertension Control', pct: 92, color: '#22C55E' }, { label: 'Preventive Care', pct: 78, color: '#F59E0B' }].map((m, i) => (
+                          <div className="cm-an-hedis-item" key={i}>
+                            <div className="cm-an-hedis-meta"><span>{m.label}</span><span className="cm-an-hedis-pct">{m.pct}%</span></div>
+                            <div className="cm-an-hedis-bar"><div style={{ width: `${m.pct}%`, background: m.color, height: '100%', borderRadius: 5 }} /></div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="cm-an-mips">
+                        <h3 className="cm-an-section-title">MIPS Performance</h3>
+                        <div className="cm-an-mips-donut">
+                          <svg width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="46" fill="none" stroke="#E2E8F0" strokeWidth="10" /><circle cx="60" cy="60" r="46" fill="none" stroke="#14B8A6" strokeWidth="10" strokeDasharray={`${0.85 * 2 * Math.PI * 46} ${2 * Math.PI * 46}`} strokeLinecap="round" transform="rotate(-90 60 60)" /></svg>
+                          <div className="cm-an-mips-text"><span className="cm-an-mips-score">85</span><span className="cm-an-mips-label">Score</span></div>
+                        </div>
+                        <p className="cm-an-mips-status">Above Target</p>
+                      </div>
+                    </div>
+
+                    <div className="cm-an-pop-row">
+                      <div className="cm-an-pop-stat" style={{ borderLeftColor: '#3B82F6' }}><span className="cm-an-pop-num">{patients.length}</span><span className="cm-an-pop-label">Total Patients</span></div>
+                      <div className="cm-an-pop-stat" style={{ borderLeftColor: '#EF4444' }}><span className="cm-an-pop-num">{Math.round(patients.length * 0.25)}</span><span className="cm-an-pop-label">High Risk</span></div>
+                      <div className="cm-an-pop-stat" style={{ borderLeftColor: '#F59E0B' }}><span className="cm-an-pop-num">{Math.round(patients.length * 0.45)}</span><span className="cm-an-pop-label">Care Gaps</span></div>
+                      <div className="cm-an-pop-stat" style={{ borderLeftColor: '#8B5CF6' }}><span className="cm-an-pop-num">{Math.round(patients.length * 0.13)}</span><span className="cm-an-pop-label">Non-Adherent</span></div>
+                    </div>
+                  </div>
                 </div>
               )}
             </>

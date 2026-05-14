@@ -673,10 +673,18 @@ export default function PatientView({ onLogout }) {
       {/* Sub-header */}
       <div className="pv-subheader">
         <h1 className="pv-page-title">My Health Dashboard</h1>
-        <button className="pv-back" onClick={() => navigate('/')}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-          Back to Home
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {role === 'CARE_MANAGER' && (
+            <button className="pv-analytics-btn" onClick={() => navigate(`/care-manager?id=${localStorage.getItem('p360_ref_id') || ''}`)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+              Move to Analytics
+            </button>
+          )}
+          <button className="pv-back" onClick={() => navigate('/')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            Back to Home
+          </button>
+        </div>
       </div>
 
       {/* ── Top Row ── */}
