@@ -28,6 +28,7 @@ export default function CareManagerView({ onLogout }) {
   const [patientSearch, setPatientSearch] = useState('');
   const [mainTab, setMainTab] = useState('patients');
   const [riskPatients, setRiskPatients] = useState([]);
+  const [todaySchedule, setTodaySchedule] = useState([]);
 
   useEffect(() => {
     function handleClick(e) {
@@ -92,6 +93,18 @@ export default function CareManagerView({ onLogout }) {
         .then(res => res?.riskScore ? { ...p, riskScore: res.riskScore } : null)
         .catch(() => null)
     )).then(results => setRiskPatients(results.filter(Boolean).sort((a, b) => b.riskScore - a.riskScore)));
+
+    const today = new Date().toISOString().split('T')[0];
+    Promise.all(pts.map(p =>
+      callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`)
+        .then(res => {
+          const appts = (res?.entry || []).map(e => e.resource).filter(r => r.status === 'booked' && r.start);
+          const todayAppt = appts.find(a => a.start.startsWith(today));
+          if (!todayAppt) return null;
+          const time = new Date(todayAppt.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+          return { name: p.name, time, type: todayAppt.description || todayAppt.serviceType?.[0]?.text || 'Appointment', patientId: p.id };
+        }).catch(() => null)
+    )).then(results => setTodaySchedule(results.filter(Boolean).sort((a, b) => a.time.localeCompare(b.time))));
   }, [selectedOrg, mainTab, orgPatients[selectedOrg]?.length]);
 
   const selectedOrgData = orgs.find(o => o.id === selectedOrg);
@@ -267,24 +280,6 @@ export default function CareManagerView({ onLogout }) {
                       </div>
                     ))}
 
-                    <div className="cm-an-kpi-row">
-                      <div className="cm-an-kpi">
-                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">ALOS</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
-                        <span className="cm-an-kpi-val">4.2 days</span><span className="cm-an-kpi-change down">↓ 5% vs last month</span>
-                        <div className="cm-an-mini-bars">{[18,22,15,25,20,30,18,24,16,28].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#99F6E4'}}/>)}</div>
-                      </div>
-                      <div className="cm-an-kpi">
-                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">Readmission Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></div>
-                        <span className="cm-an-kpi-val">8.5%</span><span className="cm-an-kpi-change up">↑ 2% vs last month</span>
-                        <div className="cm-an-mini-bars">{[20,18,25,22,28,15,30,20,24,18].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#FDE68A'}}/>)}</div>
-                      </div>
-                      <div className="cm-an-kpi">
-                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">No Show Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-                        <span className="cm-an-kpi-val">12.3%</span><span className="cm-an-kpi-change down">↓ 8% vs last month</span>
-                        <div className="cm-an-mini-bars">{[25,20,22,18,15,28,20,24,16,22].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#DDD6FE'}}/>)}</div>
-                      </div>
-                    </div>
-
                     <div className="cm-an-hedis-row">
                       <div className="cm-an-hedis">
                         <h3 className="cm-an-section-title">HEDIS Measures</h3>
@@ -305,6 +300,25 @@ export default function CareManagerView({ onLogout }) {
                       </div>
                     </div>
 
+                    <div className="cm-an-kpi-row">
+                      <div className="cm-an-kpi">
+                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">ALOS</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+                        <span className="cm-an-kpi-val">4.2 days</span><span className="cm-an-kpi-change down">↓ 5% vs last month</span>
+                        <div className="cm-an-mini-bars">{[18,22,15,25,20,30,18,24,16,28].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#99F6E4'}}/>)}</div>
+                      </div>
+                      <div className="cm-an-kpi">
+                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">Readmission Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></div>
+                        <span className="cm-an-kpi-val">8.5%</span><span className="cm-an-kpi-change up">↑ 2% vs last month</span>
+                        <div className="cm-an-mini-bars">{[20,18,25,22,28,15,30,20,24,18].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#FDE68A'}}/>)}</div>
+                      </div>
+                      <div className="cm-an-kpi">
+                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">No Show Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                        <span className="cm-an-kpi-val">12.3%</span><span className="cm-an-kpi-change down">↓ 8% vs last month</span>
+                        <div className="cm-an-mini-bars">{[25,20,22,18,15,28,20,24,16,22].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#DDD6FE'}}/>)}</div>
+                      </div>
+                    </div>
+
+                    <h3 className="cm-an-section-title">Population View</h3>
                     <div className="cm-an-pop-row">
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#3B82F6' }}><span className="cm-an-pop-num">{patients.length}</span><span className="cm-an-pop-label">Total Patients</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#EF4444' }}><span className="cm-an-pop-num">{Math.round(patients.length * 0.25)}</span><span className="cm-an-pop-label">High Risk</span></div>
@@ -313,28 +327,25 @@ export default function CareManagerView({ onLogout }) {
                     </div>
 
                     <h3 className="cm-an-section-title">Today's Schedule</h3>
-                    <div className="cm-table-wrap">
-                      <table className="cm-table">
-                        <thead><tr><th>Patient Name</th><th>Time</th><th>Visit Type</th><th>Risk Level</th><th>Actions</th></tr></thead>
-                        <tbody>
-                          {[
-                            { name: 'Robert Wilson', time: '9:00 AM', type: 'Follow-up', risk: 'High' },
-                            { name: 'Maria Garcia', time: '10:30 AM', type: 'Routine Check', risk: 'Low' },
-                            { name: 'James Taylor', time: '1:00 PM', type: 'Care Plan Review', risk: 'Medium' },
-                            { name: 'Patricia Brown', time: '2:30 PM', type: 'Urgent Consult', risk: 'High' },
-                            { name: 'John Davis', time: '4:00 PM', type: 'Telehealth', risk: 'Low' },
-                          ].map((s, i) => (
-                            <tr key={i}>
-                              <td className="cm-td-name" style={{ fontWeight: 600 }}>{s.name}</td>
-                              <td>{s.time}</td>
-                              <td>{s.type}</td>
-                              <td><span className={`cm-an-pri-pill ${s.risk === 'High' ? 'high' : s.risk === 'Medium' ? 'med' : 'low'}`}>{s.risk}</span></td>
-                              <td><button className="cm-view-details">View</button></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    {todaySchedule.length > 0 ? (
+                      <div className="cm-table-wrap">
+                        <table className="cm-table">
+                          <thead><tr><th>Patient Name</th><th>Time</th><th>Visit Type</th><th>Actions</th></tr></thead>
+                          <tbody>
+                            {todaySchedule.map((s, i) => (
+                              <tr key={i}>
+                                <td style={{ fontWeight: 600 }}>{s.name}</td>
+                                <td>{s.time}</td>
+                                <td>{s.type}</td>
+                                <td><button className="cm-view-details" onClick={() => navigate(`/patient-view?id=${s.patientId}`)}>View</button></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No appointments scheduled for today</p>
+                    )}
                   </div>
                 </div>
               )}
