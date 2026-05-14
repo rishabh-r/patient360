@@ -424,14 +424,14 @@
 }
 
 /* ── Move to Analytics button ── */
-.pv-analytics-btn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 16px; border-radius: 8px;
+.pv-move-analytics-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 6px;
   background: #2563EB; color: #fff;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: background 0.15s;
+  font-size: 10px; font-weight: 600; cursor: pointer;
+  margin-left: auto; transition: background 0.15s;
 }
-.pv-analytics-btn:hover { background: #1D4ED8; }
+.pv-move-analytics-btn:hover { background: #1D4ED8; }
 
 /* ── Risk Score ── */
 .pv-risk-score {

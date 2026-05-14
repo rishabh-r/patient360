@@ -135,6 +135,8 @@ export default function PatientView({ onLogout }) {
   const [actApproving, setActApproving] = useState(false);
   const [actToast, setActToast] = useState(false);
   const [dedupedActions, setDedupedActions] = useState(null);
+  const [patientOrgId, setPatientOrgId] = useState('');
+  const [analyticsToast, setAnalyticsToast] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [docPage, setDocPage] = useState(1);
   const [viewingDoc, setViewingDoc] = useState(null);
@@ -246,6 +248,8 @@ export default function PatientView({ onLogout }) {
       setPatientEmail(email);
       const disease = (pt?.extension || []).find(e => e.url === 'disease')?.valueString || '';
       if (disease) setConditions([disease]);
+      const orgRef = pt?.managingOrganization?.reference?.replace('Organization/', '') || '';
+      setPatientOrgId(orgRef);
 
       const condEntries = condRes?.entry || [];
       const condData = condEntries.map(e => {
@@ -559,6 +563,19 @@ export default function PatientView({ onLogout }) {
   const taskCounts = { pending: taskQueue.filter(t => t.status === 'pending').length, inprocess: taskQueue.filter(t => t.status === 'inprocess').length, completed: taskQueue.filter(t => t.status === 'completed').length };
   const unapprovedInstructions = dedupedInstructions !== null ? dedupedInstructions : apptInstructions;
 
+  async function handleMoveToAnalytics() {
+    if (!healthStatus?.riskScore || !patientOrgId) return;
+    try {
+      await fetch(`${FHIR_BASE}/baseR4/CareCoordinationNote/risk-assignment`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ riskScore: healthStatus.riskScore, patientId, organizationId: patientOrgId }),
+      });
+      setAnalyticsToast(true);
+      setTimeout(() => setAnalyticsToast(false), 2000);
+    } catch {}
+  }
+
   const displayActions = dedupedActions !== null ? dedupedActions : aiActions;
 
   async function handleApproveActions() {
@@ -673,18 +690,10 @@ export default function PatientView({ onLogout }) {
       {/* Sub-header */}
       <div className="pv-subheader">
         <h1 className="pv-page-title">My Health Dashboard</h1>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          {role === 'CARE_MANAGER' && (
-            <button className="pv-analytics-btn" onClick={() => navigate(`/care-manager?id=${localStorage.getItem('p360_ref_id') || ''}`)}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
-              Move to Analytics
-            </button>
-          )}
-          <button className="pv-back" onClick={() => navigate('/')}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-            Back to Home
-          </button>
-        </div>
+        <button className="pv-back" onClick={() => navigate('/')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          Back to Home
+        </button>
       </div>
 
       {/* ── Top Row ── */}
@@ -718,8 +727,15 @@ export default function PatientView({ onLogout }) {
                 <div className="pv-risk-score">
                   <span className="pv-risk-label">Risk Score:</span>
                   <span className={`pv-risk-value ${healthStatus.riskScore > 75 ? 'critical' : healthStatus.riskScore > 50 ? 'high' : healthStatus.riskScore > 25 ? 'moderate' : 'low'}`}>{healthStatus.riskScore}/100</span>
+                  {role === 'CARE_MANAGER' && (
+                    <button className="pv-move-analytics-btn" onClick={handleMoveToAnalytics}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                      Analytics
+                    </button>
+                  )}
                 </div>
               )}
+              {analyticsToast && <div className="pv-instr-toast">Moved to Analytics</div>}
 
               <h3 className="pv-section-label">Condition</h3>
               {conditions.length > 0 ? (

@@ -27,6 +27,7 @@ export default function CareManagerView({ onLogout }) {
   const [orgPage, setOrgPage] = useState(1);
   const [patientSearch, setPatientSearch] = useState('');
   const [mainTab, setMainTab] = useState('patients');
+  const [riskPatients, setRiskPatients] = useState([]);
 
   useEffect(() => {
     function handleClick(e) {
@@ -81,6 +82,17 @@ export default function CareManagerView({ onLogout }) {
         .catch(() => setOrgPatients(prev => ({ ...prev, [org.id]: [] })));
     });
   }, [visibleOrgs.map(o => o.id).join(','), orgPage]);
+
+  useEffect(() => {
+    if (!selectedOrg || mainTab !== 'analytics') return;
+    const pts = orgPatients[selectedOrg] || [];
+    if (!pts.length) { setRiskPatients([]); return; }
+    Promise.all(pts.map(p =>
+      callFhirApi(`${FHIR_BASE}/baseR4/CareCoordinationNote/risk-assignment?patientId=${p.id}&orgId=${selectedOrg}`)
+        .then(res => res?.riskScore ? { ...p, riskScore: res.riskScore } : null)
+        .catch(() => null)
+    )).then(results => setRiskPatients(results.filter(Boolean).sort((a, b) => b.riskScore - a.riskScore)));
+  }, [selectedOrg, mainTab, orgPatients[selectedOrg]?.length]);
 
   const selectedOrgData = orgs.find(o => o.id === selectedOrg);
   const patients = selectedOrg ? (orgPatients[selectedOrg] || []) : [];
@@ -231,14 +243,14 @@ export default function CareManagerView({ onLogout }) {
               {mainTab === 'analytics' && (
                 <div className="cm-analytics">
                   <div className="cm-analytics-scroll">
-                    <h3 className="cm-an-section-title">High-Risk & Deteriorating Patients <span className="cm-an-count">{patients.filter(p => p.condition).length} Patients</span></h3>
-                    {patients.slice(0, 3).map((p, i) => (
+                    <h3 className="cm-an-section-title">High-Risk & Deteriorating Patients <span className="cm-an-count">{riskPatients.length} Patients</span></h3>
+                    {riskPatients.length > 0 ? riskPatients.map((p, i) => (
                       <div className="cm-an-risk-card" key={i}>
                         <div className="cm-an-risk-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
                         <div className="cm-an-risk-info"><span className="cm-an-risk-name">{p.name}</span><span className="cm-an-risk-issue">{p.condition || 'Under monitoring'}</span></div>
-                        <div className="cm-an-risk-score"><span className="cm-an-score-label">Risk Score</span><span className="cm-an-score-val">{90 - i * 4}</span></div>
+                        <div className="cm-an-risk-score"><span className="cm-an-score-label">Risk Score</span><span className="cm-an-score-val">{p.riskScore}</span></div>
                       </div>
-                    ))}
+                    )) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No risk-assigned patients in this organization</p>}
 
                     <div className="cm-an-kpi-row">
                       <div className="cm-an-kpi"><span className="cm-an-kpi-label">Recent Admissions</span><span className="cm-an-kpi-val">12</span><span className="cm-an-kpi-change down">↘ 8% from last week</span></div>
