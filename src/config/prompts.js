@@ -1,13 +1,19 @@
-export const HEALTH_STATUS_PROMPT = `You are a clinical assessment AI. Based on the patient's conditions, recent observations, and medications, provide an overall health status.
+export const HEALTH_STATUS_PROMPT = `You are a clinical assessment AI. Based on the patient's conditions, recent observations, and medications, provide an overall health status and a risk score.
 
 Return ONLY a valid JSON object with no extra text:
-{"status": "Good", "reason": "brief one-sentence explanation"}
+{"status": "Good", "reason": "brief one-sentence explanation", "riskScore": 35}
 
 Status must be one of:
 - "Good" — conditions well-controlled, observations mostly in normal range, medications adhered to
 - "Fair" — some conditions not optimally controlled, minor observation abnormalities
 - "Poor" — multiple uncontrolled conditions, significant observation abnormalities
-- "Critical" — acute or severe conditions, dangerously abnormal observation values`;
+- "Critical" — acute or severe conditions, dangerously abnormal observation values
+
+riskScore must be a number from 0 to 100:
+- 0-25: Low risk (well-managed, stable)
+- 26-50: Moderate risk (some concerns, needs monitoring)
+- 51-75: High risk (significant clinical concerns)
+- 76-100: Very high risk (critical, immediate attention needed)`;
 
 export const CONDITIONS_PROMPT = `You are a clinical AI. From the patient's condition data, identify the 2 most important and well-known primary diseases in simple patient-friendly language.
 

@@ -706,6 +706,15 @@ export default function PatientView({ onLogout }) {
                   <span className="pv-pill pv-status-fair">Fair</span>
                 )}
               </div>
+              {!aiLoading && healthStatus?.riskScore !== undefined && (
+                <div className="pv-risk-score">
+                  <span className="pv-risk-label">Risk Score</span>
+                  <div className="pv-risk-bar-wrap">
+                    <div className="pv-risk-bar" style={{ width: `${healthStatus.riskScore}%`, background: healthStatus.riskScore > 75 ? '#DC2626' : healthStatus.riskScore > 50 ? '#EA580C' : healthStatus.riskScore > 25 ? '#F59E0B' : '#22C55E' }}></div>
+                  </div>
+                  <span className={`pv-risk-value ${healthStatus.riskScore > 75 ? 'critical' : healthStatus.riskScore > 50 ? 'high' : healthStatus.riskScore > 25 ? 'moderate' : 'low'}`}>{healthStatus.riskScore}/100</span>
+                </div>
+              )}
 
               <h3 className="pv-section-label">Condition</h3>
               {conditions.length > 0 ? (

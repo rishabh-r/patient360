@@ -423,6 +423,25 @@
   background: #3B82F6; flex-shrink: 0;
 }
 
+/* ── Risk Score ── */
+.pv-risk-score {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 8px; margin-bottom: 4px;
+}
+.pv-risk-label { font-size: 12px; font-weight: 600; color: #475569; white-space: nowrap; }
+.pv-risk-bar-wrap {
+  flex: 1; height: 8px; background: #E2E8F0;
+  border-radius: 4px; overflow: hidden;
+}
+.pv-risk-bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.pv-risk-value {
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.pv-risk-value.low { color: #22C55E; }
+.pv-risk-value.moderate { color: #F59E0B; }
+.pv-risk-value.high { color: #EA580C; }
+.pv-risk-value.critical { color: #DC2626; }
+
 /* ── Instruction Toast ── */
 .pv-instr-toast {
   background: #DCFCE7; color: #16A34A; border: 1px solid #86EFAC;
