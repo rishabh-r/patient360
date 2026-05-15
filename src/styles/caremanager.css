@@ -232,15 +232,33 @@
 
 .cm-an-risk-card {
   display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-  background: #FFF5F5; border: 1px solid #FECACA; border-radius: 10px; margin-bottom: 8px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; margin-bottom: 8px;
 }
-.cm-an-risk-icon { width: 36px; height: 36px; border-radius: 50%; background: #FEE2E2; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cm-an-risk-card--high {
+  background: #FFF5F5; border-color: #FECACA;
+}
+.cm-an-risk-card--medium {
+  background: #FFFBEB; border-color: #FDE68A;
+}
+.cm-an-risk-card--low {
+  background: #F0FDF4; border-color: #BBF7D0;
+}
+.cm-an-risk-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.cm-an-risk-card--high .cm-an-risk-icon { background: #FEE2E2; color: #DC2626; }
+.cm-an-risk-card--medium .cm-an-risk-icon { background: #FEF3C7; color: #EA580C; }
+.cm-an-risk-card--low .cm-an-risk-icon { background: #DCFCE7; color: #16A34A; }
 .cm-an-risk-info { flex: 1; display: flex; flex-direction: column; }
 .cm-an-risk-name { font-size: 13px; font-weight: 600; color: #1E293B; }
 .cm-an-risk-issue { font-size: 11px; color: #64748B; margin-top: 2px; }
 .cm-an-risk-score { display: flex; flex-direction: column; align-items: flex-end; }
 .cm-an-score-label { font-size: 10px; color: #64748B; }
-.cm-an-score-val { font-size: 20px; font-weight: 700; color: #DC2626; }
+.cm-an-score-val { font-size: 20px; font-weight: 700; }
+.cm-an-risk-card--high .cm-an-score-val { color: #DC2626; }
+.cm-an-risk-card--medium .cm-an-score-val { color: #EA580C; }
+.cm-an-risk-card--low .cm-an-score-val { color: #16A34A; }
 
 .cm-an-kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
 .cm-an-kpi { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px; }
@@ -262,8 +280,8 @@
 .cm-an-gap-issue { font-size: 11px; color: #64748B; margin-top: 2px; }
 .cm-an-pri-pill { font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
 .cm-an-pri-pill.high { background: #FEE2E2; color: #DC2626; }
-.cm-an-pri-pill.med { background: #FEF3C7; color: #D97706; }
-.cm-an-pri-pill.low { background: #DBEAFE; color: #2563EB; }
+.cm-an-pri-pill.medium { background: #FFEDD5; color: #EA580C; }
+.cm-an-pri-pill.low { background: #DCFCE7; color: #16A34A; }
 .cm-an-schedule-btn { font-size: 12px; font-weight: 500; color: #2563EB; cursor: pointer; }
 .cm-an-schedule-btn:hover { text-decoration: underline; }
 

@@ -9,6 +9,15 @@ import '../styles/caremanager.css';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+/** High > 50, medium 26–50, low ≤ 25 (same thresholds as risk stratification). */
+function riskTierFromScore(score) {
+  const s = Number(score);
+  if (Number.isNaN(s)) return 'low';
+  if (s > 50) return 'high';
+  if (s > 25) return 'medium';
+  return 'low';
+}
+
 /** Buckets for CareCoordinationNote risk scores (0–100), aligned with PatientView tiers. */
 function stratifyRiskPatients(riskPatients) {
   let high = 0;
@@ -23,6 +32,8 @@ function stratifyRiskPatients(riskPatients) {
   }
   return { high, medium, low };
 }
+
+const RISK_TIER_ORDER = { high: 0, medium: 1, low: 2 };
 
 function nameFromEmail(email) {
   if (!email) return '';
@@ -164,6 +175,7 @@ export default function CareManagerView({ onLogout }) {
     )).then(riskResults => {
       const riskPts = riskResults.filter(Boolean).sort((a, b) => b.riskScore - a.riskScore);
       setRiskPatients(riskPts);
+      const highRiskOver50 = riskPts.filter(p => Number(p.riskScore) > 50).length;
 
       return Promise.all(riskPts.map(async p => {
         try {
@@ -179,23 +191,28 @@ export default function CareManagerView({ onLogout }) {
           if (missedAppts.length) issues.push(`Missed follow-up: ${missedAppts[missedAppts.length - 1]}`);
           return { ...p, issues, gapCount: stoppedMeds.length + missedAppts.length };
         } catch { return null; }
-      }));
-    }).then(results => {
-      if (!results) return;
-      const gaps = results.filter(Boolean).sort((a, b) => b.gapCount - a.gapCount);
-      setCareGaps(gaps);
+      })).then(results => {
+        if (!results) return;
+        const gaps = results.filter(Boolean).sort((a, b) => {
+          const pa = RISK_TIER_ORDER[riskTierFromScore(a.riskScore)];
+          const pb = RISK_TIER_ORDER[riskTierFromScore(b.riskScore)];
+          if (pa !== pb) return pa - pb;
+          return b.gapCount - a.gapCount;
+        });
+        setCareGaps(gaps);
 
-      const gapSummary = gaps.map(g => `${g.name}: ${g.issues.join(', ')}`).join('\n');
-      const totalPatients = pts.length;
-      const context = `Organization with ${totalPatients} patients.\nCare gaps found:\n${gapSummary || 'None'}\nHigh-risk patients: ${riskPatients.length}`;
+        const gapSummary = gaps.map(g => `${g.name}: ${g.issues.join(', ')}`).join('\n');
+        const totalPatients = pts.length;
+        const context = `Organization with ${totalPatients} patients.\nCare gaps found:\n${gapSummary || 'None'}\nPatients with risk score > 50: ${highRiskOver50}`;
 
-      callAI('You are a healthcare analytics AI. Based on the care gap data, calculate HEDIS measure percentages for Diabetes Care, Hypertension Control, and Preventive Care. Return ONLY valid JSON: [{"label":"Diabetes Care","pct":85},{"label":"Hypertension Control","pct":90},{"label":"Preventive Care","pct":75}]', context)
-        .then(r => { try { setHedisData(JSON.parse(r)); } catch { setHedisData([{label:'Diabetes Care',pct:87},{label:'Hypertension Control',pct:92},{label:'Preventive Care',pct:78}]); } })
-        .catch(() => setHedisData([{label:'Diabetes Care',pct:87},{label:'Hypertension Control',pct:92},{label:'Preventive Care',pct:78}]));
+        callAI('You are a healthcare analytics AI. Based on the care gap data, calculate HEDIS measure percentages for Diabetes Care, Hypertension Control, and Preventive Care. Return ONLY valid JSON: [{"label":"Diabetes Care","pct":85},{"label":"Hypertension Control","pct":90},{"label":"Preventive Care","pct":75}]', context)
+          .then(r => { try { setHedisData(JSON.parse(r)); } catch { setHedisData([{label:'Diabetes Care',pct:87},{label:'Hypertension Control',pct:92},{label:'Preventive Care',pct:78}]); } })
+          .catch(() => setHedisData([{label:'Diabetes Care',pct:87},{label:'Hypertension Control',pct:92},{label:'Preventive Care',pct:78}]));
 
-      callAI('You are a healthcare analytics AI. Based on the care gap data, calculate a MIPS performance score (0-100). Return ONLY valid JSON: {"score":85,"status":"Above Target"}', context)
-        .then(r => { try { setMipsScore(JSON.parse(r)); } catch { setMipsScore({score:85,status:'Above Target'}); } })
-        .catch(() => setMipsScore({score:85,status:'Above Target'}));
+        callAI('You are a healthcare analytics AI. Based on the care gap data, calculate a MIPS performance score (0-100). Return ONLY valid JSON: {"score":85,"status":"Above Target"}', context)
+          .then(r => { try { setMipsScore(JSON.parse(r)); } catch { setMipsScore({score:85,status:'Above Target'}); } })
+          .catch(() => setMipsScore({score:85,status:'Above Target'}));
+      });
     });
   }, [selectedOrg, mainTab, orgPatients[selectedOrg]?.length]);
 
@@ -205,6 +222,11 @@ export default function CareManagerView({ onLogout }) {
 
   const riskStratification = useMemo(() => stratifyRiskPatients(riskPatients), [riskPatients]);
   const riskStratTotal = riskStratification.high + riskStratification.medium + riskStratification.low;
+
+  const highRiskOver50Count = useMemo(
+    () => riskPatients.filter(p => Number(p.riskScore) > 50).length,
+    [riskPatients],
+  );
 
   const riskStratPercents = useMemo(() => {
     const { high, medium, low } = riskStratification;
@@ -399,13 +421,16 @@ export default function CareManagerView({ onLogout }) {
                 <div className="cm-analytics">
                   <div className="cm-analytics-scroll">
                     <h3 className="cm-an-section-title">High-Risk & Deteriorating Patients <span className="cm-an-count">{riskPatients.length} {riskPatients.length === 1 ? 'Patient' : 'Patients'}</span></h3>
-                    {riskPatients.length > 0 ? riskPatients.map((p, i) => (
-                      <div className="cm-an-risk-card" key={i}>
-                        <div className="cm-an-risk-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                    {riskPatients.length > 0 ? riskPatients.map(p => {
+                      const tier = riskTierFromScore(p.riskScore);
+                      return (
+                      <div className={`cm-an-risk-card cm-an-risk-card--${tier}`} key={p.id}>
+                        <div className="cm-an-risk-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
                         <div className="cm-an-risk-info"><span className="cm-an-risk-name">{p.name}</span><span className="cm-an-risk-issue">{p.condition || 'Under monitoring'}</span></div>
                         <div className="cm-an-risk-score"><span className="cm-an-score-label">Risk Score</span><span className="cm-an-score-val">{p.riskScore}</span></div>
                       </div>
-                    )) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No risk-assigned patients in this organization</p>}
+                      );
+                    }) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No risk-assigned patients in this organization</p>}
 
                     <div className="cm-an-kpi-row">
                       <div className="cm-an-kpi">
@@ -421,16 +446,20 @@ export default function CareManagerView({ onLogout }) {
                     </div>
 
                     <h3 className="cm-an-section-title">Preventive & Clinical Care Gaps</h3>
-                    {careGaps.length > 0 ? careGaps.map((p, i) => (
-                      <div className="cm-an-gap-row" key={i}>
+                    {careGaps.length > 0 ? careGaps.map(p => {
+                      const tier = riskTierFromScore(p.riskScore);
+                      const priLabel = tier === 'high' ? 'High' : tier === 'medium' ? 'Medium' : 'Low';
+                      return (
+                      <div className="cm-an-gap-row" key={p.id}>
                         <div className="cm-an-gap-info">
                           <span className="cm-an-gap-name">{p.name}</span>
                           {p.issues.map((issue, j) => <span key={j} className="cm-an-gap-issue">{issue}</span>)}
                         </div>
-                        <span className={`cm-an-pri-pill ${riskPatients.some(r => r.id === p.id) ? 'high' : p.gapCount > 1 ? 'med' : 'low'}`}>{riskPatients.some(r => r.id === p.id) ? 'High' : p.gapCount > 1 ? 'Medium' : 'Low'} Priority</span>
+                        <span className={`cm-an-pri-pill ${tier}`}>{priLabel} Priority</span>
                         <button className="cm-an-schedule-btn">Schedule</button>
                       </div>
-                    )) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No care gaps detected</p>}
+                      );
+                    }) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No care gaps detected</p>}
 
                     <div className="cm-an-hedis-row">
                       <div className="cm-an-hedis">
@@ -478,7 +507,7 @@ export default function CareManagerView({ onLogout }) {
                     <h3 className="cm-an-section-title">Population View</h3>
                     <div className="cm-an-pop-row">
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#3B82F6' }}><span className="cm-an-pop-num">{patients.length}</span><span className="cm-an-pop-label">Total Patients</span></div>
-                      <div className="cm-an-pop-stat" style={{ borderLeftColor: '#EF4444' }}><span className="cm-an-pop-num">{riskPatients.length}</span><span className="cm-an-pop-label">High Risk</span></div>
+                      <div className="cm-an-pop-stat" style={{ borderLeftColor: '#EF4444' }}><span className="cm-an-pop-num">{highRiskOver50Count}</span><span className="cm-an-pop-label">High Risk</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#F59E0B' }}><span className="cm-an-pop-num">{careGaps.length}</span><span className="cm-an-pop-label">Care Gaps</span></div>
                     </div>
 
