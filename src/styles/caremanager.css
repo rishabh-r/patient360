@@ -299,9 +299,38 @@
 .cm-an-mips-status { font-size: 12px; font-weight: 600; color: #14B8A6; }
 
 .cm-an-pop-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+.cm-an-pop-row--4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
 .cm-an-pop-stat { padding: 14px; border-radius: 8px; border-left: 4px solid; background: #F8FAFC; }
 .cm-an-pop-num { display: block; font-size: 22px; font-weight: 700; color: #1E293B; }
 .cm-an-pop-label { display: block; font-size: 11px; color: #64748B; margin-top: 2px; }
+
+/* Encounter Trend + Upcoming Appointments side-by-side */
+.cm-an-trend-appt-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+.cm-an-trend-card, .cm-an-upcoming-card {
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 16px 18px;
+}
+.cm-an-trend-chart { height: 260px; margin-top: 12px; }
+
+.cm-an-upcoming-list {
+  margin-top: 12px; max-height: 260px; overflow-y: auto;
+  scrollbar-width: thin; display: flex; flex-direction: column;
+}
+.cm-an-upcoming-item {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 12px 0; border-bottom: 1px solid #F1F5F9;
+}
+.cm-an-upcoming-item:last-child { border-bottom: none; }
+.cm-an-upcoming-left { display: flex; flex-direction: column; gap: 3px; }
+.cm-an-upcoming-name { font-size: 14px; font-weight: 700; color: #1E293B; }
+.cm-an-upcoming-type-pill {
+  display: inline-block; width: fit-content;
+  font-size: 11px; font-weight: 500; padding: 2px 10px;
+  border-radius: 12px; background: #EFF6FF; color: #2563EB;
+}
+.cm-an-upcoming-pract { font-size: 12px; color: #64748B; }
+.cm-an-upcoming-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.cm-an-upcoming-date { font-size: 13px; font-weight: 600; color: #1E293B; }
+.cm-an-upcoming-time { font-size: 12px; color: #64748B; }
 
 /* Risk stratification (analytics — same cohort as High-Risk & Deteriorating Patients) */
 .cm-an-strat-card {

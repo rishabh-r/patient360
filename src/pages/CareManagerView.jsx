@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
 import '../styles/caremanager.css';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
 /** High > 50, medium 26–50, low ≤ 25 (same thresholds as risk stratification). */
 function riskTierFromScore(score) {
@@ -65,6 +65,10 @@ export default function CareManagerView({ onLogout }) {
   const [mipsScore, setMipsScore] = useState(null);
   const [admissions, setAdmissions] = useState({ count: 0, pctChange: 0 });
   const [discharges, setDischarges] = useState({ count: 0, pctChange: 0 });
+  const [alos, setAlos] = useState({ days: 0, pctChange: 0 });
+  const [readmissionRate, setReadmissionRate] = useState({ rate: 0, pctChange: 0 });
+  const [upcomingAppts, setUpcomingAppts] = useState([]);
+  const [encounterTrend, setEncounterTrend] = useState(null);
 
   useEffect(() => {
     function handleClick(e) {
@@ -140,6 +144,42 @@ export default function CareManagerView({ onLogout }) {
       return param?.valueInteger || 0;
     }
 
+    async function fetchFinishedEncounters(orgId, dateGt, dateLt) {
+      const url = new URL(`${FHIR_BASE}/baseR4/Encounter`);
+      url.searchParams.append('status', 'finished');
+      url.searchParams.append('date', `gt${dateGt}`);
+      url.searchParams.append('date', `lt${dateLt}`);
+      url.searchParams.append('organization', orgId);
+      url.searchParams.append('page', '0');
+      url.searchParams.append('size', '500');
+      const res = await callFhirApi(url.toString());
+      return (res?.entry || []).map(e => e.resource).filter(Boolean);
+    }
+
+    function calcAlos(encounters) {
+      let totalDays = 0;
+      let count = 0;
+      for (const enc of encounters) {
+        const s = enc.period?.start;
+        const e = enc.period?.end;
+        if (!s || !e) continue;
+        const days = (new Date(e) - new Date(s)) / 86400000;
+        if (days >= 0) { totalDays += days; count++; }
+      }
+      return count > 0 ? +(totalDays / count).toFixed(1) : 0;
+    }
+
+    function calcReadmissionRate(encounters) {
+      const patientAdmissions = {};
+      for (const enc of encounters) {
+        const pid = enc.subject?.reference?.replace('Patient/', '') || '';
+        if (pid) patientAdmissions[pid] = (patientAdmissions[pid] || 0) + 1;
+      }
+      const uniquePatients = Object.keys(patientAdmissions).length;
+      const readmitted = Object.values(patientAdmissions).filter(c => c > 1).length;
+      return uniquePatients > 0 ? +((readmitted / uniquePatients) * 100).toFixed(1) : 0;
+    }
+
     (async () => {
       try {
         const [currAdm, prevAdm] = await Promise.all([
@@ -155,8 +195,59 @@ export default function CareManagerView({ onLogout }) {
         ]);
         const disPct = prevDis > 0 ? Math.round(((currDis - prevDis) / prevDis) * 100) : 0;
         setDischarges({ count: currDis, pctChange: disPct });
+
+        const [currEncs, prevEncs] = await Promise.all([
+          fetchFinishedEncounters(selectedOrg, oneYearAgo, today),
+          fetchFinishedEncounters(selectedOrg, twoYearsAgo, oneYearAgo),
+        ]);
+
+        const currAlos = calcAlos(currEncs);
+        const prevAlos = calcAlos(prevEncs);
+        const alosPct = prevAlos > 0 ? Math.round(((currAlos - prevAlos) / prevAlos) * 100) : 0;
+        setAlos({ days: currAlos, pctChange: alosPct });
+
+        const currReadm = calcReadmissionRate(currEncs);
+        const prevReadm = calcReadmissionRate(prevEncs);
+        const readmPctPt = +(currReadm - prevReadm).toFixed(1);
+        setReadmissionRate({ rate: currReadm, pctChange: readmPctPt });
+
+        const halfYears = [];
+        for (let i = 3; i >= 0; i--) {
+          const hEnd = new Date(now.getFullYear(), now.getMonth() - i * 6, now.getDate());
+          const hStart = new Date(hEnd.getFullYear(), hEnd.getMonth() - 6, hEnd.getDate());
+          halfYears.push({ start: hStart.toISOString().split('T')[0], end: hEnd.toISOString().split('T')[0] });
+        }
+        const trendData = await Promise.all(halfYears.map(h => fetchFinishedEncounters(selectedOrg, h.start, h.end)));
+        const labels = halfYears.map(h => {
+          const d = new Date(h.end);
+          const m = d.toLocaleString('en-US', { month: 'short' });
+          return `${m} ${d.getFullYear()}`;
+        });
+        const completed = trendData.map(encs => encs.filter(e => e.status === 'finished').length);
+        const cancelled = trendData.map((_, idx) => {
+          const h = halfYears[idx];
+          return 0;
+        });
+
+        const cancelledPromises = halfYears.map(async h => {
+          try {
+            const url = new URL(`${FHIR_BASE}/baseR4/Encounter`);
+            url.searchParams.append('status', 'cancelled');
+            url.searchParams.append('date', `gt${h.start}`);
+            url.searchParams.append('date', `lt${h.end}`);
+            url.searchParams.append('organization', selectedOrg);
+            url.searchParams.append('page', '0');
+            url.searchParams.append('size', '500');
+            const res = await callFhirApi(url.toString());
+            return (res?.entry || []).length;
+          } catch { return 0; }
+        });
+        const cancelledCounts = await Promise.all(cancelledPromises);
+
+        setEncounterTrend({ labels, completed, cancelled: cancelledCounts });
       } catch {}
     })();
+
     Promise.all(pts.map(p =>
       callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`)
         .then(res => {
@@ -167,6 +258,31 @@ export default function CareManagerView({ onLogout }) {
           return { name: p.name, time, type: todayAppt.description || todayAppt.serviceType?.[0]?.text || 'Appointment', patientId: p.id };
         }).catch(() => null)
     )).then(results => setTodaySchedule(results.filter(Boolean).sort((a, b) => a.time.localeCompare(b.time))));
+
+    Promise.all(pts.map(async p => {
+      try {
+        const res = await callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`);
+        const appts = (res?.entry || []).map(e => e.resource).filter(r => r.status === 'booked' && r.start);
+        const future = appts.filter(a => new Date(a.start) >= now).sort((a, b) => new Date(a.start) - new Date(b.start));
+        if (!future.length) return null;
+        const a = future[0];
+        const dt = new Date(a.start);
+        const date = dt.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const time = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const practRef = a.participant?.find(x => x.individual?.reference?.startsWith('Practitioner/'))?.individual?.reference;
+        let practName = '';
+        if (practRef) {
+          try {
+            const pRes = await callFhirApi(`${FHIR_BASE}/baseR4/${practRef}`);
+            const prefix = pRes?.name?.[0]?.prefix?.[0] || 'Dr.';
+            const given = pRes?.name?.[0]?.given?.join(' ') || '';
+            const family = pRes?.name?.[0]?.family || '';
+            practName = `${prefix} ${given} ${family}`.trim();
+          } catch { practName = ''; }
+        }
+        return { name: p.name, type: a.description || a.serviceType?.[0]?.text || 'Appointment', date, time, practitioner: practName, patientId: p.id };
+      } catch { return null; }
+    })).then(results => setUpcomingAppts(results.filter(Boolean).sort((a, b) => new Date(a.date) - new Date(b.date))));
 
     Promise.all(pts.map(p =>
       callFhirApi(`${FHIR_BASE}/baseR4/CareCoordinationNote/risk-assignment?patientId=${p.id}&orgId=${selectedOrg}`)
@@ -489,26 +605,25 @@ export default function CareManagerView({ onLogout }) {
                     <div className="cm-an-kpi-row">
                       <div className="cm-an-kpi">
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">ALOS</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
-                        <span className="cm-an-kpi-val">4.2 days</span><span className="cm-an-kpi-change down">↓ 5% vs last month</span>
-                        <div className="cm-an-mini-bars">{[18,22,15,25,20,30,18,24,16,28].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#99F6E4'}}/>)}</div>
+                        <span className="cm-an-kpi-val">{alos.days} days</span>
+                        <span className={`cm-an-kpi-change ${alos.pctChange <= 0 ? 'down' : 'up'}`}>{alos.pctChange <= 0 ? '↓' : '↑'} {Math.abs(alos.pctChange)}% vs last year</span>
                       </div>
                       <div className="cm-an-kpi">
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">Readmission Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></div>
-                        <span className="cm-an-kpi-val">8.5%</span><span className="cm-an-kpi-change up">↑ 2% vs last month</span>
-                        <div className="cm-an-mini-bars">{[20,18,25,22,28,15,30,20,24,18].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#FDE68A'}}/>)}</div>
-                      </div>
-                      <div className="cm-an-kpi">
-                        <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">No Show Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-                        <span className="cm-an-kpi-val">12.3%</span><span className="cm-an-kpi-change down">↓ 8% vs last month</span>
-                        <div className="cm-an-mini-bars">{[25,20,22,18,15,28,20,24,16,22].map((h,i)=><div key={i} className="cm-an-mini-bar" style={{height:h,background:'#DDD6FE'}}/>)}</div>
+                        <span className="cm-an-kpi-val">{readmissionRate.rate}%</span>
+                        <span className={`cm-an-kpi-change ${readmissionRate.pctChange <= 0 ? 'down' : 'up'}`}>{readmissionRate.pctChange <= 0 ? '↓' : '↑'} {Math.abs(readmissionRate.pctChange)}% vs last year</span>
                       </div>
                     </div>
 
                     <h3 className="cm-an-section-title">Population View</h3>
-                    <div className="cm-an-pop-row">
+                    <div className="cm-an-pop-row cm-an-pop-row--4">
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#3B82F6' }}><span className="cm-an-pop-num">{patients.length}</span><span className="cm-an-pop-label">Total Patients</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#EF4444' }}><span className="cm-an-pop-num">{highRiskOver50Count}</span><span className="cm-an-pop-label">High Risk</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#F59E0B' }}><span className="cm-an-pop-num">{careGaps.length}</span><span className="cm-an-pop-label">Care Gaps</span></div>
+                      <div className="cm-an-pop-stat" style={{ borderLeftColor: '#6366F1' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" style={{ marginBottom: 2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <span className="cm-an-pop-num">{upcomingAppts.length}</span><span className="cm-an-pop-label">Upcoming Appts</span>
+                      </div>
                     </div>
 
                     <div className="cm-an-strat-card">
@@ -551,6 +666,56 @@ export default function CareManagerView({ onLogout }) {
                       ) : (
                         <p className="cm-an-strat-empty">No risk-assigned patients to stratify. Risk scores appear in High-Risk & Deteriorating Patients when the API returns a score.</p>
                       )}
+                    </div>
+
+                    <div className="cm-an-trend-appt-row">
+                      <div className="cm-an-trend-card">
+                        <h3 className="cm-an-strat-title">Encounter Trend</h3>
+                        <p className="cm-an-strat-sub">Half-yearly encounter activity and completion rates</p>
+                        {encounterTrend ? (
+                          <div className="cm-an-trend-chart">
+                            <Bar
+                              data={{
+                                labels: encounterTrend.labels,
+                                datasets: [
+                                  { label: 'Completed', data: encounterTrend.completed, backgroundColor: '#22C55E', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.55 },
+                                  { label: 'Cancelled', data: encounterTrend.cancelled, backgroundColor: '#F59E0B', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.55 },
+                                ],
+                              }}
+                              options={{
+                                responsive: true, maintainAspectRatio: false,
+                                plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+                                scales: {
+                                  x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                                  y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { font: { size: 11 }, stepSize: 6 } },
+                                },
+                              }}
+                            />
+                          </div>
+                        ) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>Loading encounter trend...</p>}
+                      </div>
+
+                      <div className="cm-an-upcoming-card">
+                        <h3 className="cm-an-strat-title">Upcoming Appointments</h3>
+                        <p className="cm-an-strat-sub">Next scheduled appointments for panel patients</p>
+                        {upcomingAppts.length > 0 ? (
+                          <div className="cm-an-upcoming-list">
+                            {upcomingAppts.map((a, i) => (
+                              <div className="cm-an-upcoming-item" key={i}>
+                                <div className="cm-an-upcoming-left">
+                                  <span className="cm-an-upcoming-name">{a.name}</span>
+                                  {a.type && <span className="cm-an-upcoming-type-pill">{a.type}</span>}
+                                  {a.practitioner && <span className="cm-an-upcoming-pract">{a.practitioner}</span>}
+                                </div>
+                                <div className="cm-an-upcoming-right">
+                                  <span className="cm-an-upcoming-date">{a.date}</span>
+                                  <span className="cm-an-upcoming-time">{a.time}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No upcoming appointments</p>}
+                      </div>
                     </div>
 
                     <h3 className="cm-an-section-title">Today's Schedule</h3>
