@@ -3448,3 +3448,51 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 77. `507a72c` — Dynamic care gaps, AI-generated HEDIS + MIPS, AI badges
 
 ---
+
+## Session: May 15, 2026
+
+### Documentation catch-up (`notes2.md`)
+- Prior session’s analytics work was summarized into this file (`f761357`).
+
+### Care Manager Analytics — Care gaps scoped to risk-assigned patients
+- Preventive & Clinical Care Gaps are computed **only for patients who have a risk score** from `GET /baseR4/CareCoordinationNote/risk-assignment` (same cohort as “High-Risk & Deteriorating Patients”).
+- Fetch chain: resolve risk-assigned list first, then for each of those patients load MedicationRequest + Appointment to derive stopped meds and missed/no-show/cancelled appointments (`d531dc9`).
+
+### Recent Admissions & Discharges — dynamic from Encounter `$count`
+- Uses `GET /baseR4/Encounter/$count` with `organization={orgId}`, optional `status`, and FHIR `date` parameters for a rolling window.
+- **YoY-style comparison**: current window vs previous window; percentage change shown on the KPI cards (`04d0503`).
+- **Window length**: initially a 3‑month-style comparison in an earlier iteration; **updated to 1‑year vs prior 1‑year** for both admissions (all statuses) and discharges (`status=finished`) (`068fdb3`).
+
+### Risk Stratification (analytics)
+- New card **above “Today’s Schedule”**, below **Population View**.
+- **Data source**: same cohort as **High-Risk & Deteriorating Patients** (patients with a returned `riskScore`).
+- **Buckets** (used for pie + legend): **High** if score **> 50**, **Medium** if **26–50**, **Low** if **≤ 25** (aligned with Patient View risk coloring).
+- **Chart**: Chart.js `Pie` via `react-chartjs-2`; colors approximately `#e54d42` (high), `#f39c12` (medium), `#27ae60` (low); legend rows show counts and percentages (adjusted so tiers sum to 100%).
+- Empty state when no risk-assigned patients (`8ecbecc`).
+
+### Risk score–driven UI (analytics)
+- **High-Risk & Deteriorating Patients** cards: background, border, icon, and numeric score colored **red / orange / green** by the same three thresholds (`431c2ac`).
+- **Preventive & Clinical Care Gaps** priority pills: **High / Medium / Low** from **risk score** (not from “any risk assignment” or gap count alone). Rows **sorted** by priority (high → medium → low), then by `gapCount`. Low-priority pill styling updated to **green** (`.cm-an-pri-pill.low`); medium uses `.medium` (renamed from `.med`) (`431c2ac`).
+- **Population View — “High Risk”** stat: count is **only patients with risk score > 50**, not the full count of risk-assigned patients (`431c2ac`).
+- **AI context** for HEDIS/MIPS: fixed stale closure — nested `then` after `riskPts` is built; context includes **“Patients with risk score > 50: N”** using the correct in-scope count (`431c2ac`).
+
+### Analytics section order (current, Care Manager)
+1. High-Risk & Deteriorating Patients  
+2. KPI row: Recent Admissions, Discharges (dynamic, 1y vs prior 1y)  
+3. Preventive & Clinical Care Gaps  
+4. HEDIS + MIPS (AI)  
+5. ALOS / Readmission / No Show (static KPIs)  
+6. Population View  
+7. **Risk Stratification** (pie)  
+8. Today’s Schedule  
+
+### Git commits (May 15, 2026)
+
+78. `f761357` — Update notes2.md with dynamic care gaps, AI HEDIS/MIPS, layout fixes  
+79. `d531dc9` — Care gaps only for risk-assigned patients; chained fetch after risk list resolves  
+80. `04d0503` — Dynamic Recent Admissions + Discharges from Encounter `$count` with period comparison % change  
+81. `068fdb3` — Change encounter comparison period from 3 months to 1 year  
+82. `8ecbecc` — Add analytics Risk Stratification pie chart above Today’s Schedule  
+83. `431c2ac` — Color analytics by risk score, gap priority from score, high-risk Population count > 50  
+
+---
