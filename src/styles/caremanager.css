@@ -285,6 +285,84 @@
 .cm-an-pop-num { display: block; font-size: 22px; font-weight: 700; color: #1E293B; }
 .cm-an-pop-label { display: block; font-size: 11px; color: #64748B; margin-top: 2px; }
 
+/* Risk stratification (analytics — same cohort as High-Risk & Deteriorating Patients) */
+.cm-an-strat-card {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin: 16px 0;
+}
+.cm-an-strat-head { margin-bottom: 14px; }
+.cm-an-strat-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 4px;
+}
+.cm-an-strat-sub {
+  font-size: 12px;
+  color: #64748B;
+  margin: 0;
+  line-height: 1.45;
+}
+.cm-an-strat-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px 28px;
+}
+.cm-an-strat-chart-wrap {
+  width: 220px;
+  height: 220px;
+  flex-shrink: 0;
+  margin: 0 auto;
+}
+.cm-an-strat-legend {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+.cm-an-strat-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.cm-an-strat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.cm-an-strat-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cm-an-strat-tier { font-size: 13px; font-weight: 600; color: #1E293B; }
+.cm-an-strat-desc { font-size: 11px; color: #64748B; line-height: 1.4; }
+.cm-an-strat-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  text-align: right;
+  flex-shrink: 0;
+  align-self: center;
+}
+.cm-an-strat-empty {
+  font-size: 13px;
+  color: #94A3B8;
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* ── Org Pagination ── */
 .cm-org-pagination {
   display: flex; align-items: center; justify-content: center;

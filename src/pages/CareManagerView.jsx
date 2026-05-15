@@ -1,9 +1,28 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Pie } from 'react-chartjs-2';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
 import '../styles/caremanager.css';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+/** Buckets for CareCoordinationNote risk scores (0–100), aligned with PatientView tiers. */
+function stratifyRiskPatients(riskPatients) {
+  let high = 0;
+  let medium = 0;
+  let low = 0;
+  for (const p of riskPatients) {
+    const s = Number(p.riskScore);
+    if (Number.isNaN(s)) continue;
+    if (s > 50) high += 1;
+    else if (s > 25) medium += 1;
+    else low += 1;
+  }
+  return { high, medium, low };
+}
 
 function nameFromEmail(email) {
   if (!email) return '';
@@ -183,6 +202,56 @@ export default function CareManagerView({ onLogout }) {
   const selectedOrgData = orgs.find(o => o.id === selectedOrg);
   const patients = selectedOrg ? (orgPatients[selectedOrg] || []) : [];
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(patientSearch.toLowerCase()));
+
+  const riskStratification = useMemo(() => stratifyRiskPatients(riskPatients), [riskPatients]);
+  const riskStratTotal = riskStratification.high + riskStratification.medium + riskStratification.low;
+
+  const riskStratPercents = useMemo(() => {
+    const { high, medium, low } = riskStratification;
+    const t = high + medium + low;
+    if (!t) return { high: 0, medium: 0, low: 0 };
+    const ph = Math.round((100 * high) / t);
+    const pm = Math.round((100 * medium) / t);
+    const pl = 100 - ph - pm;
+    return { high: ph, medium: pm, low: pl };
+  }, [riskStratification]);
+
+  const riskStratPieData = useMemo(() => {
+    const { high, medium, low } = riskStratification;
+    const tiers = [
+      { key: 'high', label: 'High Risk', count: high, color: '#e54d42' },
+      { key: 'medium', label: 'Medium Risk', count: medium, color: '#f39c12' },
+      { key: 'low', label: 'Low Risk', count: low, color: '#27ae60' },
+    ].filter(x => x.count > 0);
+    if (!tiers.length) return null;
+    return {
+      labels: tiers.map(x => x.label),
+      datasets: [{
+        data: tiers.map(x => x.count),
+        backgroundColor: tiers.map(x => x.color),
+        borderColor: '#fff',
+        borderWidth: 2,
+      }],
+    };
+  }, [riskStratification]);
+
+  const riskStratPieOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label(ctx) {
+            const v = ctx.raw ?? 0;
+            const sum = (ctx.dataset.data || []).reduce((a, b) => a + b, 0);
+            const pct = sum ? Math.round((100 * v) / sum) : 0;
+            return ` ${v} patient${v === 1 ? '' : 's'} (${pct}%)`;
+          },
+        },
+      },
+    },
+  }), []);
 
   return (
     <div className="cm-page">
@@ -411,6 +480,48 @@ export default function CareManagerView({ onLogout }) {
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#3B82F6' }}><span className="cm-an-pop-num">{patients.length}</span><span className="cm-an-pop-label">Total Patients</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#EF4444' }}><span className="cm-an-pop-num">{riskPatients.length}</span><span className="cm-an-pop-label">High Risk</span></div>
                       <div className="cm-an-pop-stat" style={{ borderLeftColor: '#F59E0B' }}><span className="cm-an-pop-num">{careGaps.length}</span><span className="cm-an-pop-label">Care Gaps</span></div>
+                    </div>
+
+                    <div className="cm-an-strat-card">
+                      <div className="cm-an-strat-head">
+                        <h3 className="cm-an-strat-title">Risk Stratification</h3>
+                        <p className="cm-an-strat-sub">Patient distribution by risk level.</p>
+                      </div>
+                      {riskStratTotal > 0 && riskStratPieData ? (
+                        <div className="cm-an-strat-body">
+                          <div className="cm-an-strat-chart-wrap">
+                            <Pie data={riskStratPieData} options={riskStratPieOptions} />
+                          </div>
+                          <div className="cm-an-strat-legend">
+                            <div className="cm-an-strat-row">
+                              <span className="cm-an-strat-dot" style={{ background: '#e54d42' }} />
+                              <div className="cm-an-strat-text">
+                                <span className="cm-an-strat-tier">High Risk</span>
+                                <span className="cm-an-strat-desc">Multiple chronic conditions, recent hospitalizations (risk score above 50)</span>
+                              </div>
+                              <span className="cm-an-strat-count">{riskStratification.high} patient{riskStratification.high === 1 ? '' : 's'} · {riskStratPercents.high}%</span>
+                            </div>
+                            <div className="cm-an-strat-row">
+                              <span className="cm-an-strat-dot" style={{ background: '#f39c12' }} />
+                              <div className="cm-an-strat-text">
+                                <span className="cm-an-strat-tier">Medium Risk</span>
+                                <span className="cm-an-strat-desc">1–2 chronic conditions, stable (risk score 26–50)</span>
+                              </div>
+                              <span className="cm-an-strat-count">{riskStratification.medium} patient{riskStratification.medium === 1 ? '' : 's'} · {riskStratPercents.medium}%</span>
+                            </div>
+                            <div className="cm-an-strat-row">
+                              <span className="cm-an-strat-dot" style={{ background: '#27ae60' }} />
+                              <div className="cm-an-strat-text">
+                                <span className="cm-an-strat-tier">Low Risk</span>
+                                <span className="cm-an-strat-desc">Well-controlled single condition (risk score 25 or below)</span>
+                              </div>
+                              <span className="cm-an-strat-count">{riskStratification.low} patient{riskStratification.low === 1 ? '' : 's'} · {riskStratPercents.low}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="cm-an-strat-empty">No risk-assigned patients to stratify. Risk scores appear in High-Risk & Deteriorating Patients when the API returns a score.</p>
+                      )}
                     </div>
 
                     <h3 className="cm-an-section-title">Today's Schedule</h3>
