@@ -564,12 +564,13 @@ export default function PatientView({ onLogout }) {
   const unapprovedInstructions = dedupedInstructions !== null ? dedupedInstructions : apptInstructions;
 
   async function handleMoveToAnalytics() {
-    if (!healthStatus?.riskScore || !patientOrgId) return;
+    if (!healthStatus || !patientOrgId) return;
     try {
+      const score = healthStatus.riskScore ?? 50;
       await fetch(`${FHIR_BASE}/baseR4/CareCoordinationNote/risk-assignment`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ riskScore: healthStatus.riskScore, patientId, organizationId: patientOrgId }),
+        body: JSON.stringify({ riskScore: score, patientId, organizationId: patientOrgId }),
       });
       setAnalyticsToast(true);
       setTimeout(() => setAnalyticsToast(false), 2000);
@@ -639,7 +640,7 @@ export default function PatientView({ onLogout }) {
       {/* Navbar */}
       <nav className="pv-nav">
         <div className="pv-nav-left">
-          <img src="/images/R_Systems_White.png" alt="R Systems" className="pv-nav-logo" />
+          <img src="/images/Rsystems_Logo_White.png" alt="R Systems" className="pv-nav-logo" />
           <span className="pv-nav-title">Patient 360 Portal</span>
         </div>
         <div className="pv-nav-right">
@@ -731,17 +732,11 @@ export default function PatientView({ onLogout }) {
                   <span className="pv-pill pv-status-fair">Fair</span>
                 )}
               </div>
-              {!aiLoading && healthStatus?.riskScore !== undefined && (
-                <div className="pv-risk-score">
-                  <span className="pv-risk-label">Risk Score:</span>
-                  <span className={`pv-risk-value ${healthStatus.riskScore > 75 ? 'critical' : healthStatus.riskScore > 50 ? 'high' : healthStatus.riskScore > 25 ? 'moderate' : 'low'}`}>{healthStatus.riskScore}/100</span>
-                  {role === 'CARE_MANAGER' && (
-                    <button className="pv-move-analytics-btn" onClick={handleMoveToAnalytics}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
-                      Move to Analytics
-                    </button>
-                  )}
-                </div>
+              {role === 'CARE_MANAGER' && healthStatus && (
+                <button className="pv-move-analytics-btn" onClick={handleMoveToAnalytics} style={{ marginTop: 8 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                  Move to Analytics
+                </button>
               )}
               {analyticsToast && <div className="pv-instr-toast">Moved to Analytics</div>}
 
@@ -1121,7 +1116,6 @@ export default function PatientView({ onLogout }) {
               {stoppedMeds.map((m, i) => (
                 <p key={i}>• {m.name}</p>
               ))}
-              <a href="#" className="pv-mark-taken" onClick={e => e.preventDefault()}>Mark as taken</a>
             </div>
           )}
 

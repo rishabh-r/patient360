@@ -32,7 +32,7 @@ export default function LoginScreen({ onLoginSuccess }) {
     <div className="ls-page">
       <div className="ls-topbar">
         <div className="ls-topbar-brand">
-          <img src="/images/LogoRsi.png" alt="R Systems" className="ls-topbar-logo" />
+          <img src="/images/Rsystems_Logo_White.png" alt="R Systems" className="ls-topbar-logo" />
           <span className="ls-topbar-title">Patient 360 Portal</span>
         </div>
         <span className="ls-topbar-badge">Secure Healthcare Access</span>

@@ -84,7 +84,7 @@ export default function HealthcareProviderView({ onLogout }) {
       {/* Navbar */}
       <nav className="hp-nav">
         <div className="hp-nav-left">
-          <img src="/images/R_Systems_White.png" alt="R Systems" className="hp-nav-logo" />
+          <img src="/images/Rsystems_Logo_White.png" alt="R Systems" className="hp-nav-logo" />
           <span className="hp-nav-title">Patient 360 Portal</span>
         </div>
         <div className="hp-nav-right">

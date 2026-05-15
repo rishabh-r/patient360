@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
 import { callFhirApi, buildUrl } from '../services/fhir';
-import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
 import '../styles/caremanager.css';
 
@@ -59,10 +58,7 @@ export default function CareManagerView({ onLogout }) {
   const [patientSearch, setPatientSearch] = useState('');
   const [mainTab, setMainTab] = useState('patients');
   const [riskPatients, setRiskPatients] = useState([]);
-  const [todaySchedule, setTodaySchedule] = useState([]);
   const [careGaps, setCareGaps] = useState([]);
-  const [hedisData, setHedisData] = useState(null);
-  const [mipsScore, setMipsScore] = useState(null);
   const [admissions, setAdmissions] = useState({ count: 0, pctChange: 0 });
   const [discharges, setDischarges] = useState({ count: 0, pctChange: 0 });
   const [alos, setAlos] = useState({ days: 0, pctChange: 0 });
@@ -170,14 +166,19 @@ export default function CareManagerView({ onLogout }) {
     }
 
     function calcReadmissionRate(encounters) {
-      const patientAdmissions = {};
+      const patientDiseaseMap = {};
       for (const enc of encounters) {
         const pid = enc.subject?.reference?.replace('Patient/', '') || '';
-        if (pid) patientAdmissions[pid] = (patientAdmissions[pid] || 0) + 1;
+        if (!pid) continue;
+        const disease = enc.diagnosis?.[0]?.condition?.display || '';
+        const key = `${pid}::${disease.toLowerCase().trim()}`;
+        patientDiseaseMap[key] = (patientDiseaseMap[key] || 0) + 1;
       }
-      const uniquePatients = Object.keys(patientAdmissions).length;
-      const readmitted = Object.values(patientAdmissions).filter(c => c > 1).length;
-      return uniquePatients > 0 ? +((readmitted / uniquePatients) * 100).toFixed(1) : 0;
+      const uniquePatients = new Set(Object.keys(patientDiseaseMap).map(k => k.split('::')[0])).size;
+      const patientsReadmittedSameDisease = new Set(
+        Object.entries(patientDiseaseMap).filter(([, c]) => c > 1).map(([k]) => k.split('::')[0])
+      ).size;
+      return uniquePatients > 0 ? +((patientsReadmittedSameDisease / uniquePatients) * 100).toFixed(1) : 0;
     }
 
     (async () => {
@@ -248,17 +249,6 @@ export default function CareManagerView({ onLogout }) {
       } catch {}
     })();
 
-    Promise.all(pts.map(p =>
-      callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`)
-        .then(res => {
-          const appts = (res?.entry || []).map(e => e.resource).filter(r => r.status === 'booked' && r.start);
-          const todayAppt = appts.find(a => a.start.startsWith(today));
-          if (!todayAppt) return null;
-          const time = new Date(todayAppt.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-          return { name: p.name, time, type: todayAppt.description || todayAppt.serviceType?.[0]?.text || 'Appointment', patientId: p.id };
-        }).catch(() => null)
-    )).then(results => setTodaySchedule(results.filter(Boolean).sort((a, b) => a.time.localeCompare(b.time))));
-
     Promise.all(pts.map(async p => {
       try {
         const res = await callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`);
@@ -316,18 +306,6 @@ export default function CareManagerView({ onLogout }) {
           return b.gapCount - a.gapCount;
         });
         setCareGaps(gaps);
-
-        const gapSummary = gaps.map(g => `${g.name}: ${g.issues.join(', ')}`).join('\n');
-        const totalPatients = pts.length;
-        const context = `Organization with ${totalPatients} patients.\nCare gaps found:\n${gapSummary || 'None'}\nPatients with risk score > 50: ${highRiskOver50}`;
-
-        callAI('You are a healthcare analytics AI. Based on the care gap data, calculate HEDIS measure percentages for Diabetes Care, Hypertension Control, and Preventive Care. Return ONLY valid JSON: [{"label":"Diabetes Care","pct":85},{"label":"Hypertension Control","pct":90},{"label":"Preventive Care","pct":75}]', context)
-          .then(r => { try { setHedisData(JSON.parse(r)); } catch { setHedisData([{label:'Diabetes Care',pct:87},{label:'Hypertension Control',pct:92},{label:'Preventive Care',pct:78}]); } })
-          .catch(() => setHedisData([{label:'Diabetes Care',pct:87},{label:'Hypertension Control',pct:92},{label:'Preventive Care',pct:78}]));
-
-        callAI('You are a healthcare analytics AI. Based on the care gap data, calculate a MIPS performance score (0-100). Return ONLY valid JSON: {"score":85,"status":"Above Target"}', context)
-          .then(r => { try { setMipsScore(JSON.parse(r)); } catch { setMipsScore({score:85,status:'Above Target'}); } })
-          .catch(() => setMipsScore({score:85,status:'Above Target'}));
       });
     });
   }, [selectedOrg, mainTab, orgPatients[selectedOrg]?.length]);
@@ -395,7 +373,7 @@ export default function CareManagerView({ onLogout }) {
     <div className="cm-page">
       <nav className="cm-nav">
         <div className="cm-nav-left">
-          <img src="/images/R_Systems_White.png" alt="R Systems" className="cm-nav-logo" />
+          <img src="/images/Rsystems_Logo_White.png" alt="R Systems" className="cm-nav-logo" />
           <span className="cm-nav-title">Patient 360 Portal</span>
         </div>
         <div className="cm-nav-right">
@@ -439,12 +417,12 @@ export default function CareManagerView({ onLogout }) {
         <div className="cm-orgs-panel">
           <h2 className="cm-orgs-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg>
-            Organizations
+            Clinic Locations
           </h2>
 
           <div className="cm-search-box">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" placeholder="Search organizations..." value={search} onChange={e => { setSearch(e.target.value); setOrgPage(1); }} className="cm-search-input" />
+            <input type="text" placeholder="Search clinic locations..." value={search} onChange={e => { setSearch(e.target.value); setOrgPage(1); }} className="cm-search-input" />
           </div>
 
           <div className="cm-org-list">
@@ -467,7 +445,7 @@ export default function CareManagerView({ onLogout }) {
                 </div>
               ))
             ) : (
-              <div className="cm-empty-state"><p className="cm-empty-sub">No organizations found</p></div>
+              <div className="cm-empty-state"><p className="cm-empty-sub">No clinic locations found</p></div>
             )}
           </div>
 
@@ -486,7 +464,7 @@ export default function CareManagerView({ onLogout }) {
           {!selectedOrg ? (
             <div className="cm-empty-state">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
-              <h3 className="cm-empty-title">Select an organization to view patients</h3>
+              <h3 className="cm-empty-title">Select a clinic location to view patients</h3>
               <p className="cm-empty-sub">Choose from the list on the left</p>
             </div>
           ) : (
@@ -543,7 +521,6 @@ export default function CareManagerView({ onLogout }) {
                       <div className={`cm-an-risk-card cm-an-risk-card--${tier}`} key={p.id}>
                         <div className="cm-an-risk-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
                         <div className="cm-an-risk-info"><span className="cm-an-risk-name">{p.name}</span><span className="cm-an-risk-issue">{p.condition || 'Under monitoring'}</span></div>
-                        <div className="cm-an-risk-score"><span className="cm-an-score-label">Risk Score</span><span className="cm-an-score-val">{p.riskScore}</span></div>
                       </div>
                       );
                     }) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No risk-assigned patients in this organization</p>}
@@ -571,36 +548,11 @@ export default function CareManagerView({ onLogout }) {
                           <span className="cm-an-gap-name">{p.name}</span>
                           {p.issues.map((issue, j) => <span key={j} className="cm-an-gap-issue">{issue}</span>)}
                         </div>
-                        <span className={`cm-an-pri-pill ${tier}`}>{priLabel} Priority</span>
+                        <span className={`cm-an-pri-pill ${tier}`}>{priLabel} Risk</span>
                         <button className="cm-an-schedule-btn">Schedule</button>
                       </div>
                       );
                     }) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No care gaps detected</p>}
-
-                    <div className="cm-an-hedis-row">
-                      <div className="cm-an-hedis">
-                        <h3 className="cm-an-section-title">HEDIS Measures <span className="cm-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
-                        {(hedisData || [{label:'Diabetes Care',pct:87},{label:'Hypertension Control',pct:92},{label:'Preventive Care',pct:78}]).map((m, i) => {
-                          const colors = ['#3B82F6', '#22C55E', '#F59E0B'];
-                          return (
-                            <div className="cm-an-hedis-item" key={i}>
-                              <div className="cm-an-hedis-meta"><span>{m.label}</span><span className="cm-an-hedis-pct">{m.pct}%</span></div>
-                              <div className="cm-an-hedis-bar"><div style={{ width: `${m.pct}%`, background: colors[i % 3], height: '100%', borderRadius: 5 }} /></div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="cm-an-mips">
-                        <h3 className="cm-an-section-title">MIPS <span className="cm-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h3>
-                        {(() => { const s = mipsScore || { score: 85, status: 'Above Target' }; return (<>
-                          <div className="cm-an-mips-donut">
-                            <svg width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="46" fill="none" stroke="#E2E8F0" strokeWidth="10" /><circle cx="60" cy="60" r="46" fill="none" stroke="#14B8A6" strokeWidth="10" strokeDasharray={`${(s.score / 100) * 2 * Math.PI * 46} ${2 * Math.PI * 46}`} strokeLinecap="round" transform="rotate(-90 60 60)" /></svg>
-                            <div className="cm-an-mips-text"><span className="cm-an-mips-score">{s.score}</span><span className="cm-an-mips-label">Score</span></div>
-                          </div>
-                          <p className="cm-an-mips-status">{s.status}</p>
-                        </>); })()}
-                      </div>
-                    </div>
 
                     <div className="cm-an-kpi-row">
                       <div className="cm-an-kpi">
@@ -718,26 +670,6 @@ export default function CareManagerView({ onLogout }) {
                       </div>
                     </div>
 
-                    <h3 className="cm-an-section-title">Today's Schedule</h3>
-                    {todaySchedule.length > 0 ? (
-                      <div className="cm-table-wrap">
-                        <table className="cm-table">
-                          <thead><tr><th>Patient Name</th><th>Time</th><th>Visit Type</th><th>Actions</th></tr></thead>
-                          <tbody>
-                            {todaySchedule.map((s, i) => (
-                              <tr key={i}>
-                                <td style={{ fontWeight: 600 }}>{s.name}</td>
-                                <td>{s.time}</td>
-                                <td>{s.type}</td>
-                                <td><button className="cm-view-details" onClick={() => navigate(`/patient-view?id=${s.patientId}`)}>View</button></td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No appointments scheduled for today</p>
-                    )}
                   </div>
                 </div>
               )}
