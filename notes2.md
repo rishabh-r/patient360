@@ -3494,5 +3494,71 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 81. `068fdb3` — Change encounter comparison period from 3 months to 1 year  
 82. `8ecbecc` — Add analytics Risk Stratification pie chart above Today’s Schedule  
 83. `431c2ac` — Color analytics by risk score, gap priority from score, high-risk Population count > 50  
+84. `f843690` — Append notes2.md: May 15 analytics, risk stratification, commits 78-83  
+
+---
+
+## Session: May 15, 2026 (continued)
+
+### No Show Rate — Removed
+- Entire No Show Rate KPI card (including mini bar chart) removed from analytics.
+- KPI row below HEDIS/MIPS now shows only **ALOS** and **Readmission Rate** (2-column grid, same as Admissions/Discharges row).
+
+### ALOS — Dynamic from Encounter API
+- **API**: `GET /baseR4/Encounter?status=finished&date=gt{1yr ago}&date=lt{today}&organization={orgId}&page=0&size=500`
+- Fetches all finished encounters for the org in the past year.
+- Calculates average length of stay from `period.start` → `period.end` (in days).
+- **Comparison**: same calculation for the prior year window (2 years ago → 1 year ago); shows `↓ X% vs last year` or `↑ X% vs last year`.
+- Helper function `calcAlos(encounters)` computes the average.
+
+### Readmission Rate — Dynamic from Encounter API
+- Uses the **same finished encounters** fetched for ALOS (no extra API call).
+- Groups encounters by patient ID (`subject.reference`); counts patients admitted **more than once** in the year.
+- Rate = `(readmitted patients / unique patients) × 100`.
+- **Comparison**: same logic for prior year; shows percentage-point difference vs last year.
+- Helper function `calcReadmissionRate(encounters)` computes the rate.
+
+### Encounter Trend — Half-Yearly Bar Chart
+- New card in analytics, displayed **side-by-side** with Upcoming Appointments (2-column grid).
+- **4 half-yearly periods** working backwards from current date.
+- For each period: fetches finished encounters + cancelled encounters separately from Encounter API.
+- Chart.js `Bar` chart (via `react-chartjs-2`) with:
+  - Green bars = Completed (finished)
+  - Orange bars = Cancelled
+  - Legend at bottom
+- Labels show "Mon YYYY" of each period's end date.
+- Registered `CategoryScale`, `LinearScale`, `BarElement` in Chart.js.
+
+### Upcoming Appointments — Dynamic
+- New card in analytics, side-by-side with Encounter Trend.
+- For each patient in the org, fetches `GET /baseR4/Appointment?patient={id}&page=0&size=100`.
+- Picks the **nearest future booked appointment** only (one per patient).
+- Each row shows: **patient name** (bold), **appointment type** (blue pill), **practitioner name** (fetched from `GET /baseR4/Practitioner/{id}`), **date**, and **time**.
+- Sorted by date ascending.
+- Scrollable list with max-height 260px.
+
+### Population View — Upcoming Appts Count Added
+- 4th stat added: **Upcoming Appts** with count from the upcoming appointments data.
+- Purple left border, calendar icon.
+- Grid changed from 3-column to 4-column (`.cm-an-pop-row--4`).
+
+### Analytics Section Order (updated)
+1. High-Risk & Deteriorating Patients  
+2. KPI row: Recent Admissions, Discharges (dynamic, 1y vs prior 1y)  
+3. Preventive & Clinical Care Gaps  
+4. HEDIS + MIPS (AI)  
+5. ALOS + Readmission Rate (dynamic, 1y vs prior 1y)  
+6. Population View (4 stats: Total Patients, High Risk, Care Gaps, Upcoming Appts)  
+7. Risk Stratification (pie chart)  
+8. **Encounter Trend** (bar chart) + **Upcoming Appointments** (side-by-side)  
+9. Today's Schedule  
+
+### Files Changed
+- `src/pages/CareManagerView.jsx` — new state (`alos`, `readmissionRate`, `upcomingAppts`, `encounterTrend`); new helpers (`fetchFinishedEncounters`, `calcAlos`, `calcReadmissionRate`); Chart.js `Bar` + scale registrations; JSX for Encounter Trend, Upcoming Appointments, updated Population View; removed No Show Rate card.
+- `src/styles/caremanager.css` — `.cm-an-pop-row--4` (4-col grid); `.cm-an-trend-appt-row`, `.cm-an-trend-card`, `.cm-an-upcoming-card`, `.cm-an-trend-chart`, `.cm-an-upcoming-*` styles.
+
+### Git Commits (May 15 continued)
+
+85. `862deb1` — Dynamic ALOS, Readmission Rate, Encounter Trend, Upcoming Appointments; remove No Show Rate; Upcoming Appts in Population View
 
 ---
