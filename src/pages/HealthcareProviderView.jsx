@@ -318,14 +318,14 @@ export default function HealthcareProviderView({ onLogout }) {
                             <Bar
                               data={{
                                 labels: data.map(() => ''),
-                                datasets: [{ data: data.map(d => d.value), backgroundColor: '#93C5FD', borderRadius: 2, barPercentage: 1.0, categoryPercentage: 1.0 }],
+                                datasets: [{ data: data.map(d => d.value), backgroundColor: '#93C5FD', borderRadius: 2, barPercentage: 0.88, categoryPercentage: 0.92 }],
                               }}
                               options={{
                                 responsive: true, maintainAspectRatio: false,
                                 plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw} ${data[0]?.unit || ''}` } } },
                                 scales: {
-                                  x: { display: true, grid: { display: false, drawBorder: true }, ticks: { display: false }, border: { display: true, color: '#E2E8F0' } },
-                                  y: { display: true, grid: { display: true, color: '#E2E8F0', lineWidth: 1, drawBorder: true }, ticks: { display: false }, border: { display: true, color: '#E2E8F0' } },
+                                  x: { display: false },
+                                  y: { display: false },
                                 },
                               }}
                             />
