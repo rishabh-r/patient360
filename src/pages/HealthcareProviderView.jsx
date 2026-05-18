@@ -324,8 +324,8 @@ export default function HealthcareProviderView({ onLogout }) {
                                 responsive: true, maintainAspectRatio: false,
                                 plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw} ${data[0]?.unit || ''}` } } },
                                 scales: {
-                                  x: { display: false, grid: { display: false } },
-                                  y: { display: false, grid: { display: true, color: '#E2E8F0', lineWidth: 1 } },
+                                  x: { display: true, grid: { display: false, drawBorder: true }, ticks: { display: false }, border: { display: true, color: '#E2E8F0' } },
+                                  y: { display: true, grid: { display: true, color: '#E2E8F0', lineWidth: 1, drawBorder: true }, ticks: { display: false }, border: { display: true, color: '#E2E8F0' } },
                                 },
                               }}
                             />
