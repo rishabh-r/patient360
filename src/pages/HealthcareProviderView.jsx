@@ -100,9 +100,10 @@ export default function HealthcareProviderView({ onLogout }) {
     setDetailLoading(true);
     setPatientDetail(null);
     try {
-      const [ptRes, obsRes, medRes] = await Promise.all([
+      const [ptRes, obsRes, vitalsRes, medRes] = await Promise.all([
         callFhirApi(buildUrl('/baseR4/Patient/find', { id: pid })),
         callFhirApi(buildUrl('/baseR4/Observation/search', { patient: pid, page: 0, size: 200 })),
+        callFhirApi(`${FHIR_BASE}/baseR4/Observation/vitals/search?patient=${pid}`),
         callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: pid, page: 0, size: 100 })),
       ]);
 
@@ -116,15 +117,11 @@ export default function HealthcareProviderView({ onLogout }) {
       const email = (pt?.telecom || []).find(t => t.system === 'email')?.value || '';
       const insurance = (pt?.extension || []).find(e => e.url === 'insurance')?.valueString || '';
 
-      const allObs = (obsRes?.entry || []).map(e => e.resource).filter(Boolean);
-
-      const vitalsCategories = ['vital-signs'];
-      const vitals = allObs
-        .filter(o => (o.category || []).some(c => (c.coding || []).some(cd => vitalsCategories.includes(cd.code))))
+      const allVitals = (vitalsRes?.entry || []).map(e => e.resource).filter(Boolean)
         .sort((a, b) => new Date(b.effectiveDateTime || 0) - new Date(a.effectiveDateTime || 0));
 
       const latestVitalsMap = {};
-      for (const v of vitals) {
+      for (const v of allVitals) {
         const code = v.code?.coding?.[0]?.display || v.code?.text || '';
         if (code && !latestVitalsMap[code]) {
           latestVitalsMap[code] = {
@@ -135,8 +132,8 @@ export default function HealthcareProviderView({ onLogout }) {
       }
       const recentVitals = Object.values(latestVitalsMap);
 
+      const allObs = (obsRes?.entry || []).map(e => e.resource).filter(Boolean);
       const labObs = allObs
-        .filter(o => !(o.category || []).some(c => (c.coding || []).some(cd => vitalsCategories.includes(cd.code))))
         .sort((a, b) => new Date(b.effectiveDateTime || 0) - new Date(a.effectiveDateTime || 0));
 
       const latestLabMap = {};
