@@ -312,7 +312,7 @@ export default function CareManagerView({ onLogout }) {
 
   const selectedOrgData = orgs.find(o => o.id === selectedOrg);
   const patients = selectedOrg ? (orgPatients[selectedOrg] || []) : [];
-  const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(patientSearch.toLowerCase()));
+  const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(patientSearch.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
 
   const riskStratification = useMemo(() => stratifyRiskPatients(riskPatients), [riskPatients]);
   const riskStratTotal = riskStratification.high + riskStratification.medium + riskStratification.low;

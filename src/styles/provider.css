@@ -232,7 +232,7 @@
 .hp-pp-right {
   background: #fff; border: 1px solid #E2E8F0; border-left: none;
   border-radius: 0 12px 12px 0; padding: 20px;
-  display: flex; align-items: center; justify-content: center;
+  overflow-y: auto; max-height: calc(100vh - 200px);
 }
 .hp-pp-search {
   display: flex; align-items: center; gap: 8px;
@@ -279,8 +279,87 @@
 .hp-pp-empty {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 10px;
+  min-height: 300px; width: 100%;
 }
 .hp-pp-empty-title { font-size: 14px; font-weight: 500; color: #64748B; }
+.hp-pp-loading { font-size: 13px; color: #94A3B8; }
+.hp-pp-card-active { background: #EFF6FF; border-left: 3px solid #3B82F6; }
+
+/* Risk pill colors */
+.hp-risk-critical { background: #FEE2E2; color: #DC2626; }
+
+/* Profile dropdown */
+.hp-profile-wrap { position: relative; }
+.hp-profile-dropdown {
+  position: absolute; top: 42px; right: 0; z-index: 200;
+  width: 220px; background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+.hp-profile-info { display: flex; flex-direction: column; padding: 14px 16px; border-bottom: 1px solid #F1F5F9; }
+.hp-profile-name { font-size: 14px; font-weight: 600; color: #1E293B; }
+.hp-profile-email { font-size: 12px; color: #64748B; margin-top: 2px; }
+.hp-profile-signout {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; font-size: 13px; font-weight: 500;
+  color: #DC2626; cursor: pointer; transition: background 0.15s;
+}
+.hp-profile-signout:hover { background: #FEF2F2; }
+
+/* Detail scroll area */
+.hp-detail-scroll {
+  display: flex; flex-direction: column; gap: 16px; width: 100%;
+}
+
+/* Detail cards */
+.hp-detail-card {
+  background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 10px; padding: 18px;
+}
+.hp-detail-title { font-size: 15px; font-weight: 700; color: #1E293B; margin: 0 0 14px; }
+
+/* Demographics grid */
+.hp-demo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px 20px; }
+.hp-demo-label { display: block; font-size: 11px; color: #64748B; margin-bottom: 2px; }
+.hp-demo-value { display: block; font-size: 13px; font-weight: 600; color: #1E293B; }
+
+/* Clinical Outcomes */
+.hp-outcomes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.hp-outcome-item {}
+.hp-outcome-label { font-size: 13px; font-weight: 600; color: #374151; display: block; margin-bottom: 8px; }
+.hp-outcome-chart { height: 180px; }
+
+/* Vitals + Lab — side by side via flex-wrap on parent */
+.hp-detail-half { flex: 1; min-width: 0; }
+.hp-detail-scroll > .hp-detail-half:nth-child(3) { float: left; width: calc(50% - 8px); }
+.hp-detail-scroll > .hp-detail-half:nth-child(4) { float: right; width: calc(50% - 8px); }
+
+.hp-vitals-list { display: flex; flex-direction: column; }
+.hp-vital-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid #F1F5F9;
+}
+.hp-vital-row:last-child { border-bottom: none; }
+.hp-vital-name { font-size: 13px; color: #374151; }
+.hp-vital-val { font-size: 13px; font-weight: 700; color: #1E293B; }
+.hp-lab-val { color: #16A34A; }
+
+/* Medications */
+.hp-meds-list { display: flex; flex-direction: column; gap: 8px; }
+.hp-med-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border: 1px solid #E2E8F0; border-radius: 8px;
+}
+.hp-med-info { display: flex; flex-direction: column; }
+.hp-med-name { font-size: 13px; font-weight: 600; color: #1E293B; }
+.hp-med-dosage { font-size: 11px; color: #64748B; margin-top: 2px; }
+
+/* Vitals + Lab side-by-side wrapper */
+.hp-detail-scroll {
+  display: flex; flex-direction: row; flex-wrap: wrap; gap: 16px; width: 100%;
+}
+.hp-detail-scroll > .hp-detail-card { width: 100%; }
+.hp-detail-scroll > .hp-detail-half { width: calc(50% - 8px); }
 
 /* ── Responsive ── */
 @media (max-width: 1024px) {
