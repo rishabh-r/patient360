@@ -40,6 +40,9 @@ export default function HealthcareProviderView({ onLogout }) {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientDetail, setPatientDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [vitalsPage, setVitalsPage] = useState(1);
+  const [labPage, setLabPage] = useState(1);
+  const ITEMS_PER_PAGE = 4;
 
   useEffect(() => {
     function handleClick(e) {
@@ -146,7 +149,7 @@ export default function HealthcareProviderView({ onLogout }) {
           };
         }
       }
-      const latestLab = Object.values(latestLabMap).slice(0, 4);
+      const latestLab = Object.values(latestLabMap);
 
       const obsGrouped = {};
       for (const o of labObs) {
@@ -162,7 +165,21 @@ export default function HealthcareProviderView({ onLogout }) {
       for (const k of Object.keys(obsGrouped)) {
         obsGrouped[k].sort((a, b) => new Date(a.date) - new Date(b.date));
       }
-      const trendTypes = Object.keys(obsGrouped).filter(k => obsGrouped[k].length >= 2).slice(0, 2);
+      const trendTypes = Object.keys(obsGrouped).filter(k => obsGrouped[k].length >= 2);
+
+      const trendDirections = {};
+      for (const type of trendTypes) {
+        const vals = obsGrouped[type].map(d => d.value).filter(v => v !== null);
+        if (vals.length < 2) { trendDirections[type] = 'Stable'; continue; }
+        const first = vals.slice(0, Math.ceil(vals.length / 2));
+        const second = vals.slice(Math.ceil(vals.length / 2));
+        const avgFirst = first.reduce((a, b) => a + b, 0) / first.length;
+        const avgSecond = second.reduce((a, b) => a + b, 0) / second.length;
+        const diff = ((avgSecond - avgFirst) / avgFirst) * 100;
+        if (Math.abs(diff) < 5) trendDirections[type] = 'Stable';
+        else if (diff < 0) trendDirections[type] = 'Improving';
+        else trendDirections[type] = 'Not Improving';
+      }
 
       const activeMeds = (medRes?.entry || [])
         .map(e => e.resource)
@@ -173,8 +190,8 @@ export default function HealthcareProviderView({ onLogout }) {
         }));
 
       setPatientDetail({
-        name, dob, mrn, phone, email, insurance,
-        recentVitals, latestLab, trendTypes, obsGrouped, activeMeds,
+        name, dob, mrn, phone, email,
+        recentVitals, latestLab, trendTypes, trendDirections, obsGrouped, activeMeds,
       });
     } catch {
       setPatientDetail(null);
@@ -183,7 +200,11 @@ export default function HealthcareProviderView({ onLogout }) {
   }
 
   useEffect(() => {
-    if (selectedPatient) loadPatientDetail(selectedPatient);
+    if (selectedPatient) {
+      setVitalsPage(1);
+      setLabPage(1);
+      loadPatientDetail(selectedPatient);
+    }
   }, [selectedPatient]);
 
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
@@ -280,39 +301,39 @@ export default function HealthcareProviderView({ onLogout }) {
                   <div><span className="hp-demo-label">MRN</span><span className="hp-demo-value">{patientDetail.mrn || '—'}</span></div>
                   <div><span className="hp-demo-label">Phone</span><span className="hp-demo-value">{patientDetail.phone || '—'}</span></div>
                   <div><span className="hp-demo-label">Email</span><span className="hp-demo-value">{patientDetail.email || '—'}</span></div>
-                  <div><span className="hp-demo-label">Insurance</span><span className="hp-demo-value">{patientDetail.insurance || '—'}</span></div>
                 </div>
               </div>
 
-              {/* 2. Clinical Outcomes (Observation trends) */}
+              {/* 2. Clinical Outcomes (Observation trends — horizontal scroll, 2 visible) */}
               {patientDetail.trendTypes.length > 0 && (
                 <div className="hp-detail-card">
                   <h3 className="hp-detail-title">Clinical Outcomes</h3>
-                  <div className="hp-outcomes-grid">
+                  <div className="hp-outcomes-scroll">
                     {patientDetail.trendTypes.map(type => {
                       const data = patientDetail.obsGrouped[type];
+                      const direction = patientDetail.trendDirections[type] || 'Stable';
+                      const dirColor = direction === 'Improving' ? '#16A34A' : direction === 'Not Improving' ? '#DC2626' : '#64748B';
+                      const dirArrow = direction === 'Improving' ? '↓' : direction === 'Not Improving' ? '↑' : '→';
                       return (
                         <div key={type} className="hp-outcome-item">
                           <span className="hp-outcome-label">{type} Trend</span>
                           <div className="hp-outcome-chart">
                             <Bar
                               data={{
-                                labels: data.map(d => {
-                                  const dt = new Date(d.date);
-                                  return `${dt.toLocaleString('en-US', { month: 'short' })} ${dt.getFullYear()}`;
-                                }),
-                                datasets: [{ data: data.map(d => d.value), backgroundColor: '#3B82F6', borderRadius: 3, barPercentage: 0.5 }],
+                                labels: data.map(() => ''),
+                                datasets: [{ data: data.map(d => d.value), backgroundColor: '#93C5FD', borderRadius: 3, barPercentage: 0.65 }],
                               }}
                               options={{
                                 responsive: true, maintainAspectRatio: false,
                                 plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw} ${data[0]?.unit || ''}` } } },
                                 scales: {
-                                  x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
-                                  y: { beginAtZero: false, grid: { color: '#F1F5F9' }, ticks: { font: { size: 10 } } },
+                                  x: { display: false },
+                                  y: { display: false },
                                 },
                               }}
                             />
                           </div>
+                          <span className="hp-outcome-direction" style={{ color: dirColor }}>{direction} {dirArrow}</span>
                         </div>
                       );
                     })}
@@ -320,35 +341,57 @@ export default function HealthcareProviderView({ onLogout }) {
                 </div>
               )}
 
-              {/* 3. Recent Vitals */}
-              {patientDetail.recentVitals.length > 0 && (
+              {/* 3. Recent Vitals (paginated, 4 per page) */}
+              {patientDetail.recentVitals.length > 0 && (() => {
+                const totalVPages = Math.ceil(patientDetail.recentVitals.length / ITEMS_PER_PAGE);
+                const visibleVitals = patientDetail.recentVitals.slice((vitalsPage - 1) * ITEMS_PER_PAGE, vitalsPage * ITEMS_PER_PAGE);
+                return (
                 <div className="hp-detail-card hp-detail-half">
                   <h3 className="hp-detail-title">Recent Vitals</h3>
-                  <div className="hp-vitals-list">
-                    {patientDetail.recentVitals.map((v, i) => (
+                  <div className="hp-vitals-list hp-vitals-fixed">
+                    {visibleVitals.map((v, i) => (
                       <div className="hp-vital-row" key={i}>
                         <span className="hp-vital-name">{v.name}</span>
                         <span className="hp-vital-val">{v.value}</span>
                       </div>
                     ))}
                   </div>
+                  {totalVPages > 1 && (
+                    <div className="hp-pagination">
+                      <button className="hp-page-btn" disabled={vitalsPage <= 1} onClick={() => setVitalsPage(vitalsPage - 1)}>Prev</button>
+                      <span className="hp-page-info">{vitalsPage} / {totalVPages}</span>
+                      <button className="hp-page-btn" disabled={vitalsPage >= totalVPages} onClick={() => setVitalsPage(vitalsPage + 1)}>Next</button>
+                    </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
-              {/* 4. Lab Results (latest one per type) */}
-              {patientDetail.latestLab.length > 0 && (
+              {/* 4. Lab Results (paginated, 4 per page) */}
+              {patientDetail.latestLab.length > 0 && (() => {
+                const totalLPages = Math.ceil(patientDetail.latestLab.length / ITEMS_PER_PAGE);
+                const visibleLabs = patientDetail.latestLab.slice((labPage - 1) * ITEMS_PER_PAGE, labPage * ITEMS_PER_PAGE);
+                return (
                 <div className="hp-detail-card hp-detail-half">
                   <h3 className="hp-detail-title">Lab Results</h3>
-                  <div className="hp-vitals-list">
-                    {patientDetail.latestLab.map((l, i) => (
+                  <div className="hp-vitals-list hp-vitals-fixed">
+                    {visibleLabs.map((l, i) => (
                       <div className="hp-vital-row" key={i}>
                         <span className="hp-vital-name">{l.name}</span>
                         <span className="hp-vital-val hp-lab-val">{l.value}</span>
                       </div>
                     ))}
                   </div>
+                  {totalLPages > 1 && (
+                    <div className="hp-pagination">
+                      <button className="hp-page-btn" disabled={labPage <= 1} onClick={() => setLabPage(labPage - 1)}>Prev</button>
+                      <span className="hp-page-info">{labPage} / {totalLPages}</span>
+                      <button className="hp-page-btn" disabled={labPage >= totalLPages} onClick={() => setLabPage(labPage + 1)}>Next</button>
+                    </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* 5. Current Medications */}
               {patientDetail.activeMeds.length > 0 && (
