@@ -3560,5 +3560,91 @@ Lifestyle Goals section in the "My Care Plan & Tasks" container is now dynamic f
 ### Git Commits (May 15 continued)
 
 85. `862deb1` — Dynamic ALOS, Readmission Rate, Encounter Trend, Upcoming Appointments; remove No Show Rate; Upcoming Appts in Population View
+86. `2ae22d4` — Append notes2.md: ALOS, Readmission, Encounter Trend, Upcoming Appts, commit 85
+
+---
+
+## Session: May 15, 2026 (evening) + May 18–19, 2026
+
+### Care Manager Analytics — Cleanup
+- **HEDIS + MIPS removed** — sections, state, AI calls, `callAI` import all removed.
+- **Organizations → Clinic Locations** — title, search placeholder, empty states all renamed.
+- **Care Gaps pills**: "High/Medium/Low Priority" → "High/Medium/Low Risk".
+- **Today's Schedule removed** from analytics.
+- **Readmission Rate**: now checks if patient admitted **more than once for the same disease** (`diagnosis[0].condition.display`). Groups by `patientId::disease` composite key.
+- **No Show Rate removed** from analytics.
+- **Risk Score removed** from PatientView (label + value + color-coded display) and from analytics High-Risk cards.
+- **"Move to Analytics"** button remains in PatientView for CARE_MANAGER, defaults riskScore to 50 if not available from AI.
+- **Mark as Taken** link removed from stopped medications in PatientView.
+- **New R Systems logo** (`Rsystems_Logo_White.png`) replaced in all views: PatientView, CareManagerView, HealthcareProviderView, LoginScreen.
+- **Patients sorted alphabetically** in CareManagerView org patient table.
+
+### Git Commits (May 15 evening)
+
+87. `78995e8` — Remove HEDIS/MIPS/Today Schedule/Risk Score/No Show; rename Orgs to Clinic Locations; same-disease readmission; remove Mark as Taken; new logo; Priority to Risk
+
+---
+
+### Healthcare Provider View — Complete Rewrite (May 18–19)
+
+#### Patient List (Patients Tab)
+- **Dynamic from API**: `GET /baseR4/Practitioner/fetch-patients-by-practitioner?id={practId}`
+- Each patient shows: name, age/gender, condition (from `extension[url=disease]`)
+- **Risk pills removed** — no high/low/medium labels in sidebar
+- Sorted alphabetically, searchable
+- **Profile dropdown** with dynamic practitioner name + email (from Practitioner API) + Sign Out
+
+#### Patient Detail (on click in Patients Tab)
+5 containers:
+1. **Patient Demographics** — Name, DOB, MRN, Phone, Email (from `Patient/find` API). Insurance removed.
+2. **Clinical Outcomes** — All observation types with 2+ data points shown as bar charts in **horizontal scroll** (2 visible at a time). No x/y axes, slight gap between bars. Below each chart: "Improving ↓" (green) / "Not Improving ↑" (red) / "Stable →" (gray) based on first-half vs second-half average comparison.
+3. **Recent Vitals** — From dedicated `GET /baseR4/Observation/vitals/search?patient={id}` API. All vitals shown, **paginated at 4 per page**.
+4. **Lab Results** — From `Observation/search` API (non-vitals). All unique latest values, **paginated at 4 per page**.
+5. **Current Medications** — Active medications from MedicationRequest API. Name + dosage.
+
+#### Analytics Tab (new)
+Two tabs: **Patients** (existing detail view) + **Analytics** (new).
+
+**KPI Row (4 cards, equal spacing):**
+- **Today's Schedule** — count of booked appointments matching today's date across all patients
+- **Yearly Visits** — finished encounter count for past year, `↗ +X% vs last year` comparison
+- **Avg LOS** — average `period.start→end` days for finished encounters, `↘ -X days` comparison vs prior year
+- **Med Adherence** — `(patients without stopped meds / total patients) × 100`%
+
+**Today's Appointments:**
+- Schedule for today's date (dynamic day/date header)
+- For each patient: hits Appointment API, filters `status=booked` matching today
+- Shows: time, patient name, appointment type
+
+**ER Visits / Recent Admissions / Recent Discharges (3-column):**
+- **ER Visits**: encounters with `class.code === 'EMER'`, shows name, age, diagnosis, time, status
+- **Recent Admissions**: latest inpatient admission (`class.code === 'IMP'`) per patient by `period.start`, shows diagnosis, department, date
+- **Recent Discharges**: latest finished inpatient discharge per patient by `period.end`, shows diagnosis, LOS (days), disposition, follow-up date (if booked appointment matching diagnosis exists after discharge)
+
+**Care Gaps Overview + High-Risk Patients (2-column):**
+- **Care Gaps**: same logic as CareManager — stopped meds + noshow/cancelled appointments per patient, sorted by gap count
+- **High-Risk Patients**: for each patient, fetches Conditions + Observations + Medications → builds context → calls `HEALTH_STATUS_PROMPT` AI. Shows patients where AI returns **"Poor"** or **"Critical"** status. Loading spinner "Fetching high-risk patients..." while processing. Cards: name, age, condition, last visit, "Review Chart →" (switches to Patients tab). Risk score pill removed.
+
+**Half-Yearly Visits Trend + Patient Outcomes (2-column):**
+- **Half-Yearly Visits Trend** (line chart): 4 half-year periods backwards from today. Each: `GET /baseR4/Encounter?patient={id}&status=finished&date=gt{start}&date=lt{end}` per patient. Teal line + fill.
+- **Patient Outcomes** (bar chart): same 4 half-year periods. Per patient per period: calls `GET /baseR4/Observation/search?patient={id}&date=gt{start}&date=lt{end}` and compares avg values vs the prior 6-month window. Improved (green) / Stable (blue) / Declined (red). Legend at bottom.
+
+#### Chart Styling (Clinical Outcomes in Patients Tab)
+- Bars with slight gap (`barPercentage: 0.88`, `categoryPercentage: 0.92`)
+- No axes, no border lines (reverted from an attempt with outer borders)
+- Bar color: `#93C5FD` (soft blue)
+
+### Git Commits (May 18–19)
+
+88. `d778c22` — Dynamic Provider view: patient list from API, patient detail, sort CM patients alphabetically, provider profile dropdown
+89. `82da5a7` — Remove insurance, all obs trends with h-scroll, no axes, trend labels, vitals+labs pagination at 4/page
+90. `61648f8` — Fix vitals: use dedicated Observation/vitals/search API endpoint
+91. `30d78b7` — Clinical Outcomes: no-gap bars, horizontal grid lines visible
+92. `9a675c2` — Chart: show outer border lines and inner horizontal grid lines, hide tick labels
+93. `2303b2c` — Revert chart borders, add slight gap between bars
+94. `4d70021` — Provider: two tabs (Patients + Analytics), remove risk pills, dynamic KPIs, today's appointments
+95. `76222c9` — Provider analytics: yearly visits, ER visits, recent admissions, recent discharges with LOS and follow-up
+96. `b316f1b` — Provider analytics: Care Gaps, AI High-Risk patients, Yearly Visits Trend line chart, Patient Outcomes bar chart
+97. `2dc5f6e` — Remove risk score from high-risk cards; half-yearly visits trend + patient outcomes with date-param observation API
 
 ---
