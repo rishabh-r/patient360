@@ -36,9 +36,12 @@ export default function HealthcareProviderView({ onLogout }) {
   const ITEMS_PER_PAGE = 4;
 
   const [todayAppts, setTodayAppts] = useState([]);
-  const [quarterlyVisits, setQuarterlyVisits] = useState({ count: 0, pctChange: 0 });
+  const [yearlyVisits, setYearlyVisits] = useState({ count: 0, pctChange: 0 });
   const [avgLos, setAvgLos] = useState({ days: 0, pctChange: 0 });
   const [medAdherence, setMedAdherence] = useState({ pct: 0 });
+  const [erVisits, setErVisits] = useState([]);
+  const [recentAdmissions, setRecentAdmissions] = useState([]);
+  const [recentDischarges, setRecentDischarges] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
@@ -115,36 +118,40 @@ export default function HealthcareProviderView({ onLogout }) {
       setTodayAppts(results.flat().sort((a, b) => a.time.localeCompare(b.time)));
     });
 
-    async function fetchEncounters(dateGt, dateLt) {
-      const allEncs = [];
+    async function fetchEncountersForPatient(pid, status, dateGt, dateLt) {
+      try {
+        const url = new URL(`${FHIR_BASE}/baseR4/Encounter`);
+        url.searchParams.append('patient', pid);
+        if (status) url.searchParams.append('status', status);
+        url.searchParams.append('date', `gt${dateGt}`);
+        url.searchParams.append('date', `lt${dateLt}`);
+        url.searchParams.append('page', '0');
+        url.searchParams.append('size', '200');
+        const res = await callFhirApi(url.toString());
+        return (res?.entry || []).map(e => e.resource).filter(Boolean);
+      } catch { return []; }
+    }
+
+    async function fetchAllFinished(dateGt, dateLt) {
+      const all = [];
       for (const p of patients) {
-        try {
-          const url = new URL(`${FHIR_BASE}/baseR4/Encounter`);
-          url.searchParams.append('patient', p.id);
-          url.searchParams.append('status', 'finished');
-          url.searchParams.append('date', `gt${dateGt}`);
-          url.searchParams.append('date', `lt${dateLt}`);
-          url.searchParams.append('page', '0');
-          url.searchParams.append('size', '200');
-          const res = await callFhirApi(url.toString());
-          const encs = (res?.entry || []).map(e => e.resource).filter(Boolean);
-          allEncs.push(...encs);
-        } catch {}
+        const encs = await fetchEncountersForPatient(p.id, 'finished', dateGt, dateLt);
+        all.push(...encs);
       }
-      return allEncs;
+      return all;
     }
 
     (async () => {
       try {
         const [currEncs, prevEncs] = await Promise.all([
-          fetchEncounters(threeMonthsAgo, today),
-          fetchEncounters(sixMonthsAgo, threeMonthsAgo),
+          fetchAllFinished(oneYearAgo, today),
+          fetchAllFinished(twoYearsAgo, oneYearAgo),
         ]);
 
         const currCount = currEncs.length;
         const prevCount = prevEncs.length;
-        const qPct = prevCount > 0 ? Math.round(((currCount - prevCount) / prevCount) * 100) : 0;
-        setQuarterlyVisits({ count: currCount, pctChange: qPct });
+        const yPct = prevCount > 0 ? Math.round(((currCount - prevCount) / prevCount) * 100) : 0;
+        setYearlyVisits({ count: currCount, pctChange: yPct });
 
         function calcAlos(encounters) {
           let totalDays = 0, count = 0;
@@ -157,15 +164,99 @@ export default function HealthcareProviderView({ onLogout }) {
           }
           return count > 0 ? +(totalDays / count).toFixed(1) : 0;
         }
-
-        const [losEncs, prevLosEncs] = await Promise.all([
-          fetchEncounters(oneYearAgo, today),
-          fetchEncounters(twoYearsAgo, oneYearAgo),
-        ]);
-        const currAlos = calcAlos(losEncs);
-        const prevAlos = calcAlos(prevLosEncs);
+        const currAlos = calcAlos(currEncs);
+        const prevAlos = calcAlos(prevEncs);
         const alosDiff = prevAlos > 0 ? +((currAlos - prevAlos).toFixed(1)) : 0;
         setAvgLos({ days: currAlos, pctChange: alosDiff });
+
+        const allEncountersAllStatus = [];
+        for (const p of patients) {
+          try {
+            const url = new URL(`${FHIR_BASE}/baseR4/Encounter`);
+            url.searchParams.append('patient', p.id);
+            url.searchParams.append('page', '0');
+            url.searchParams.append('size', '200');
+            const res = await callFhirApi(url.toString());
+            const encs = (res?.entry || []).map(e => ({ ...e.resource, _patientName: p.name, _patientAge: p.age, _patientId: p.id })).filter(Boolean);
+            allEncountersAllStatus.push(...encs);
+          } catch {}
+        }
+
+        const erList = allEncountersAllStatus
+          .filter(e => e.class?.code === 'EMER')
+          .sort((a, b) => new Date(b.period?.start || 0) - new Date(a.period?.start || 0))
+          .map(e => {
+            const diagnosis = e.diagnosis?.[0]?.condition?.display || '';
+            const time = e.period?.start ? new Date(e.period.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+            return { name: e._patientName, age: e._patientAge, mrn: '', diagnosis, time, status: e.status || '' };
+          });
+        setErVisits(erList);
+
+        const patientLatestAdm = {};
+        for (const e of allEncountersAllStatus) {
+          if (e.class?.code !== 'IMP' || !e.period?.start) continue;
+          const pid = e._patientId;
+          const startDate = new Date(e.period.start);
+          if (!patientLatestAdm[pid] || startDate > new Date(patientLatestAdm[pid].period.start)) {
+            patientLatestAdm[pid] = e;
+          }
+        }
+        const admList = Object.values(patientLatestAdm)
+          .sort((a, b) => new Date(b.period.start) - new Date(a.period.start))
+          .map(e => {
+            const diagnosis = e.diagnosis?.[0]?.condition?.display || '';
+            const dept = e.location?.[0]?.location?.display || '';
+            const practRef = e.participant?.[0]?.individual?.reference || '';
+            const dateStr = new Date(e.period.start).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', hour12: true });
+            return { name: e._patientName, age: e._patientAge, mrn: '', diagnosis, department: dept, physician: practRef.replace('Practitioner/', ''), date: dateStr };
+          });
+        setRecentAdmissions(admList);
+
+        const patientLatestDis = {};
+        for (const e of allEncountersAllStatus) {
+          if (e.status !== 'finished' || e.class?.code !== 'IMP' || !e.period?.end) continue;
+          const pid = e._patientId;
+          const endDate = new Date(e.period.end);
+          if (!patientLatestDis[pid] || endDate > new Date(patientLatestDis[pid].period.end)) {
+            patientLatestDis[pid] = e;
+          }
+        }
+
+        const apptMap = {};
+        for (const p of patients) {
+          try {
+            const res = await callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`);
+            apptMap[p.id] = (res?.entry || []).map(e => e.resource).filter(Boolean);
+          } catch { apptMap[p.id] = []; }
+        }
+
+        const disList = Object.values(patientLatestDis)
+          .sort((a, b) => new Date(b.period.end) - new Date(a.period.end))
+          .map(e => {
+            const diagnosis = e.diagnosis?.[0]?.condition?.display || '';
+            const startD = new Date(e.period.start);
+            const endD = new Date(e.period.end);
+            const los = Math.max(1, Math.round((endD - startD) / 86400000));
+            const disposition = e.location?.find(l => l.location?.display?.toLowerCase().includes('home'))?.location?.display || '';
+            const dateStr = new Date(e.period.end).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', hour12: true });
+
+            let followUp = '';
+            const pAppts = apptMap[e._patientId] || [];
+            const diagLower = diagnosis.toLowerCase();
+            const futureAppt = pAppts
+              .filter(a => a.status === 'booked' && a.start && new Date(a.start) > endD)
+              .sort((a, b) => new Date(a.start) - new Date(b.start))
+              .find(a => {
+                const desc = (a.description || '').toLowerCase();
+                return diagLower && desc.includes(diagLower.split(' ')[0]);
+              });
+            if (futureAppt) {
+              followUp = new Date(futureAppt.start).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            }
+
+            return { name: e._patientName, age: e._patientAge, mrn: '', diagnosis, los: `${los} days`, disposition, followUp, date: dateStr };
+          });
+        setRecentDischarges(disList);
       } catch {}
       setAnalyticsLoading(false);
     })();
@@ -442,10 +533,10 @@ export default function HealthcareProviderView({ onLogout }) {
               <span className="hp-an-kpi-sub">{todayAppts.filter(a => a.completed).length} completed</span>
             </div>
             <div className="hp-an-kpi">
-              <span className="hp-an-kpi-label">Quarterly Visits</span>
-              <span className="hp-an-kpi-val">{quarterlyVisits.count}</span>
-              <span className={`hp-an-kpi-change ${quarterlyVisits.pctChange >= 0 ? 'up-green' : 'down-red'}`}>
-                {quarterlyVisits.pctChange >= 0 ? '↗' : '↘'} {quarterlyVisits.pctChange >= 0 ? '+' : ''}{quarterlyVisits.pctChange}% vs last quarter
+              <span className="hp-an-kpi-label">Yearly Visits</span>
+              <span className="hp-an-kpi-val">{yearlyVisits.count}</span>
+              <span className={`hp-an-kpi-change ${yearlyVisits.pctChange >= 0 ? 'up-green' : 'down-red'}`}>
+                {yearlyVisits.pctChange >= 0 ? '↗' : '↘'} {yearlyVisits.pctChange >= 0 ? '+' : ''}{yearlyVisits.pctChange}% vs last year
               </span>
             </div>
             <div className="hp-an-kpi">
@@ -480,6 +571,62 @@ export default function HealthcareProviderView({ onLogout }) {
                 ))}
               </div>
             ) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No appointments scheduled for today</p>}
+          </div>
+
+          <div className="hp-an-three-col">
+            <div className="hp-an-col-card">
+              <h3 className="hp-an-card-title">ER Visits</h3>
+              <p className="hp-an-card-sub">Current emergency department patients</p>
+              <div className="hp-an-col-list">
+                {erVisits.length > 0 ? erVisits.map((e, i) => (
+                  <div className="hp-an-er-card" key={i}>
+                    <div className="hp-an-er-top">
+                      <span className="hp-an-er-name">{e.name}</span>
+                    </div>
+                    <span className="hp-an-er-meta">Age {e.age}</span>
+                    {e.diagnosis && <span className="hp-an-er-diag">{e.diagnosis}</span>}
+                    <div className="hp-an-er-bottom">
+                      <span className="hp-an-er-time">{e.time}</span>
+                      <span className="hp-an-er-status">{e.status === 'in-progress' ? 'Under Observation' : e.status === 'finished' ? 'Completed' : e.status}</span>
+                    </div>
+                  </div>
+                )) : <p className="hp-an-empty-text">No ER visits</p>}
+              </div>
+            </div>
+
+            <div className="hp-an-col-card">
+              <h3 className="hp-an-card-title">Recent Admissions</h3>
+              <p className="hp-an-card-sub">Latest admissions per patient</p>
+              <div className="hp-an-col-list">
+                {recentAdmissions.length > 0 ? recentAdmissions.map((a, i) => (
+                  <div className="hp-an-adm-card" key={i}>
+                    <span className="hp-an-adm-name">{a.name}</span>
+                    <span className="hp-an-adm-meta">Age {a.age}</span>
+                    {a.diagnosis && <p className="hp-an-adm-line"><strong>Diagnosis:</strong> {a.diagnosis}</p>}
+                    {a.department && <p className="hp-an-adm-line"><strong>Department:</strong> {a.department}</p>}
+                    <span className="hp-an-adm-date">{a.date}</span>
+                  </div>
+                )) : <p className="hp-an-empty-text">No recent admissions</p>}
+              </div>
+            </div>
+
+            <div className="hp-an-col-card">
+              <h3 className="hp-an-card-title">Recent Discharges</h3>
+              <p className="hp-an-card-sub">Latest discharges per patient</p>
+              <div className="hp-an-col-list">
+                {recentDischarges.length > 0 ? recentDischarges.map((d, i) => (
+                  <div className="hp-an-adm-card" key={i}>
+                    <span className="hp-an-adm-name">{d.name}</span>
+                    <span className="hp-an-adm-meta">Age {d.age}</span>
+                    {d.diagnosis && <p className="hp-an-adm-line"><strong>Diagnosis:</strong> {d.diagnosis}</p>}
+                    <p className="hp-an-adm-line"><strong>LOS:</strong> {d.los}</p>
+                    {d.disposition && <p className="hp-an-adm-line"><strong>Disposition:</strong> {d.disposition}</p>}
+                    {d.followUp && <p className="hp-an-adm-line"><strong>Follow-up:</strong> {d.followUp}</p>}
+                    <span className="hp-an-adm-date">{d.date}</span>
+                  </div>
+                )) : <p className="hp-an-empty-text">No recent discharges</p>}
+              </div>
+            </div>
           </div>
         </div>
       )}

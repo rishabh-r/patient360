@@ -416,6 +416,43 @@
 .hp-an-appt-name { font-size: 14px; font-weight: 600; color: #1E293B; }
 .hp-an-appt-type { font-size: 12px; color: #64748B; }
 
+/* ── Three-column: ER / Admissions / Discharges ── */
+.hp-an-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.hp-an-col-card {
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px;
+  display: flex; flex-direction: column;
+}
+.hp-an-col-list {
+  flex: 1; overflow-y: auto; max-height: 420px;
+  display: flex; flex-direction: column; gap: 10px; margin-top: 8px;
+  scrollbar-width: thin;
+}
+.hp-an-empty-text { font-size: 13px; color: #94A3B8; padding: 12px 0; }
+
+.hp-an-er-card {
+  padding: 14px; border: 1px solid #E2E8F0; border-radius: 8px;
+  display: flex; flex-direction: column; gap: 4px;
+  border-left: 3px solid #F59E0B;
+}
+.hp-an-er-top { display: flex; align-items: center; gap: 8px; }
+.hp-an-er-name { font-size: 14px; font-weight: 700; color: #1E293B; }
+.hp-an-er-meta { font-size: 11px; color: #64748B; }
+.hp-an-er-diag { font-size: 12px; color: #374151; }
+.hp-an-er-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.hp-an-er-time { font-size: 11px; color: #64748B; }
+.hp-an-er-status { font-size: 11px; font-weight: 600; color: #D97706; }
+
+.hp-an-adm-card {
+  padding: 14px; border: 1px solid #E2E8F0; border-radius: 8px;
+  display: flex; flex-direction: column; gap: 3px;
+  border-left: 3px solid #3B82F6;
+}
+.hp-an-adm-name { font-size: 14px; font-weight: 700; color: #1E293B; }
+.hp-an-adm-meta { font-size: 11px; color: #64748B; }
+.hp-an-adm-line { font-size: 12px; color: #374151; margin: 0; }
+.hp-an-adm-line strong { color: #1E293B; }
+.hp-an-adm-date { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .hp-analytics, .hp-panel { padding: 16px; }
