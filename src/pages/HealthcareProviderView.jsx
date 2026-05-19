@@ -326,23 +326,24 @@ export default function HealthcareProviderView({ onLogout }) {
     })();
 
     (async () => {
-      const months = [];
+      const halves = [];
       const now2 = new Date();
-      for (let i = 5; i >= 0; i--) {
-        const mStart = new Date(now2.getFullYear(), now2.getMonth() - i, 1);
-        const mEnd = new Date(now2.getFullYear(), now2.getMonth() - i + 1, 0);
-        months.push({ label: mStart.toLocaleString('en-US', { month: 'short' }), start: mStart.toISOString().split('T')[0], end: mEnd.toISOString().split('T')[0] });
+      for (let i = 3; i >= 0; i--) {
+        const hEnd = new Date(now2.getFullYear(), now2.getMonth() - i * 6, now2.getDate());
+        const hStart = new Date(hEnd.getFullYear(), hEnd.getMonth() - 6, hEnd.getDate());
+        const label = `${hEnd.toLocaleString('en-US', { month: 'short' })} ${hEnd.getFullYear()}`;
+        halves.push({ label, start: hStart.toISOString().split('T')[0], end: hEnd.toISOString().split('T')[0] });
       }
       const counts = [];
-      for (const m of months) {
+      for (const h of halves) {
         let total = 0;
         for (const p of patients) {
           try {
             const url = new URL(`${FHIR_BASE}/baseR4/Encounter`);
             url.searchParams.append('patient', p.id);
             url.searchParams.append('status', 'finished');
-            url.searchParams.append('date', `gt${m.start}`);
-            url.searchParams.append('date', `lt${m.end}`);
+            url.searchParams.append('date', `gt${h.start}`);
+            url.searchParams.append('date', `lt${h.end}`);
             url.searchParams.append('page', '0');
             url.searchParams.append('size', '200');
             const res = await callFhirApi(url.toString());
@@ -351,30 +352,46 @@ export default function HealthcareProviderView({ onLogout }) {
         }
         counts.push(total);
       }
-      setYearlyTrend({ labels: months.map(m => m.label), data: counts });
+      setYearlyTrend({ labels: halves.map(h => h.label), data: counts });
     })();
 
     (async () => {
-      const months = [];
+      const halves = [];
       const now3 = new Date();
-      for (let i = 5; i >= 0; i--) {
-        const mStart = new Date(now3.getFullYear(), now3.getMonth() - i, 1);
-        const mEnd = new Date(now3.getFullYear(), now3.getMonth() - i + 1, 0);
-        months.push({ label: mStart.toLocaleString('en-US', { month: 'short' }), start: mStart.toISOString().split('T')[0], end: mEnd.toISOString().split('T')[0] });
+      for (let i = 3; i >= 0; i--) {
+        const hEnd = new Date(now3.getFullYear(), now3.getMonth() - i * 6, now3.getDate());
+        const hStart = new Date(hEnd.getFullYear(), hEnd.getMonth() - 6, hEnd.getDate());
+        const label = `${hEnd.toLocaleString('en-US', { month: 'short' })} ${hEnd.getFullYear()}`;
+        halves.push({ label, start: hStart.toISOString().split('T')[0], end: hEnd.toISOString().split('T')[0] });
       }
       const improved = [], stable = [], declined = [];
-      for (const m of months) {
+      for (const h of halves) {
         let imp = 0, stb = 0, dec = 0;
         for (const p of patients) {
           try {
-            const res = await callFhirApi(buildUrl('/baseR4/Observation/search', { patient: p.id, page: 0, size: 200 }));
-            const obs = (res?.entry || []).map(e => e.resource).filter(o => o?.effectiveDateTime && o?.valueQuantity?.value != null);
-            const inMonth = obs.filter(o => o.effectiveDateTime >= m.start && o.effectiveDateTime <= m.end);
-            const before = obs.filter(o => o.effectiveDateTime < m.start);
-            if (!inMonth.length || !before.length) { stb++; continue; }
-            const avgCurr = inMonth.reduce((s, o) => s + o.valueQuantity.value, 0) / inMonth.length;
-            const avgPrev = before.slice(-inMonth.length).reduce((s, o) => s + o.valueQuantity.value, 0) / Math.min(before.length, inMonth.length);
-            const diff = ((avgCurr - avgPrev) / avgPrev) * 100;
+            const url = new URL(`${FHIR_BASE}/baseR4/Observation/search`);
+            url.searchParams.append('patient', p.id);
+            url.searchParams.append('date', `gt${h.start}`);
+            url.searchParams.append('date', `lt${h.end}`);
+            url.searchParams.append('page', '0');
+            url.searchParams.append('size', '200');
+            const currRes = await callFhirApi(url.toString());
+            const currObs = (currRes?.entry || []).map(e => e.resource).filter(o => o?.valueQuantity?.value != null);
+
+            const prevUrl = new URL(`${FHIR_BASE}/baseR4/Observation/search`);
+            prevUrl.searchParams.append('patient', p.id);
+            const prevStart = new Date(new Date(h.start).getFullYear(), new Date(h.start).getMonth() - 6, new Date(h.start).getDate());
+            prevUrl.searchParams.append('date', `gt${prevStart.toISOString().split('T')[0]}`);
+            prevUrl.searchParams.append('date', `lt${h.start}`);
+            prevUrl.searchParams.append('page', '0');
+            prevUrl.searchParams.append('size', '200');
+            const prevRes = await callFhirApi(prevUrl.toString());
+            const prevObs = (prevRes?.entry || []).map(e => e.resource).filter(o => o?.valueQuantity?.value != null);
+
+            if (!currObs.length || !prevObs.length) { stb++; continue; }
+            const avgCurr = currObs.reduce((s, o) => s + o.valueQuantity.value, 0) / currObs.length;
+            const avgPrev = prevObs.reduce((s, o) => s + o.valueQuantity.value, 0) / prevObs.length;
+            const diff = avgPrev !== 0 ? ((avgCurr - avgPrev) / avgPrev) * 100 : 0;
             if (diff < -5) imp++;
             else if (diff > 5) dec++;
             else stb++;
@@ -382,7 +399,7 @@ export default function HealthcareProviderView({ onLogout }) {
         }
         improved.push(imp); stable.push(stb); declined.push(dec);
       }
-      setPatientOutcomes({ labels: months.map(m => m.label), improved, stable, declined });
+      setPatientOutcomes({ labels: halves.map(h => h.label), improved, stable, declined });
     })();
   }, [tab, patients.length]);
 
@@ -770,7 +787,6 @@ export default function HealthcareProviderView({ onLogout }) {
                   <div className="hp-an-risk-card" key={i}>
                     <div className="hp-an-risk-top">
                       <span className="hp-an-risk-name">{p.name}</span>
-                      <span className="hp-an-risk-pill">Risk: {p.riskScore}</span>
                     </div>
                     <span className="hp-an-risk-meta">Age {p.age}</span>
                     {p.condition && <span className="hp-an-risk-cond">{p.condition}</span>}
@@ -784,7 +800,7 @@ export default function HealthcareProviderView({ onLogout }) {
 
           <div className="hp-an-two-col">
             <div className="hp-an-card">
-              <h3 className="hp-an-card-title">Yearly Visits Trend</h3>
+              <h3 className="hp-an-card-title">Half-Yearly Visits Trend</h3>
               {yearlyTrend ? (
                 <div className="hp-an-chart-wrap">
                   <Line
