@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend, Filler } from 'chart.js';
+import { Bar, Line } from 'react-chartjs-2';
 import { callFhirApi, buildUrl } from '../services/fhir';
+import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
+import { HEALTH_STATUS_PROMPT } from '../config/prompts';
 import '../styles/provider.css';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend, Filler);
 
 function nameFromEmail(email) {
   if (!email) return '';
@@ -42,6 +44,11 @@ export default function HealthcareProviderView({ onLogout }) {
   const [erVisits, setErVisits] = useState([]);
   const [recentAdmissions, setRecentAdmissions] = useState([]);
   const [recentDischarges, setRecentDischarges] = useState([]);
+  const [careGaps, setCareGaps] = useState([]);
+  const [highRiskPatients, setHighRiskPatients] = useState([]);
+  const [highRiskLoading, setHighRiskLoading] = useState(false);
+  const [yearlyTrend, setYearlyTrend] = useState(null);
+  const [patientOutcomes, setPatientOutcomes] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
@@ -273,6 +280,110 @@ export default function HealthcareProviderView({ onLogout }) {
       const adherentPct = totalPatients > 0 ? Math.round(((totalPatients - patientsWithStopped) / totalPatients) * 100) : 100;
       setMedAdherence({ pct: adherentPct });
     });
+
+    Promise.all(patients.map(async p => {
+      try {
+        const [medRes, apptRes] = await Promise.all([
+          callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 100 })).catch(() => null),
+          callFhirApi(buildUrl('/baseR4/Appointment', { patient: p.id, page: 0, size: 100 })).catch(() => null),
+        ]);
+        const stoppedMeds = (medRes?.entry || []).filter(e => e.resource?.status === 'stopped').map(e => e.resource?.medicationCodeableConcept?.coding?.[0]?.display || e.resource?.medicationCodeableConcept?.text || '');
+        const missedAppts = (apptRes?.entry || []).filter(e => e.resource?.status === 'noshow' || e.resource?.status === 'cancelled').map(e => e.resource?.description || e.resource?.serviceType?.[0]?.text || 'Appointment');
+        if (!stoppedMeds.length && !missedAppts.length) return null;
+        const issues = [];
+        if (stoppedMeds.length) issues.push(`Missed medication: ${stoppedMeds[stoppedMeds.length - 1]}`);
+        if (missedAppts.length) issues.push(`Missed follow-up: ${missedAppts[missedAppts.length - 1]}`);
+        return { ...p, issues, gapCount: stoppedMeds.length + missedAppts.length };
+      } catch { return null; }
+    })).then(results => {
+      setCareGaps(results.filter(Boolean).sort((a, b) => b.gapCount - a.gapCount));
+    });
+
+    setHighRiskLoading(true);
+    (async () => {
+      const riskList = [];
+      for (const p of patients) {
+        try {
+          const [condRes, obsRes, medRes] = await Promise.all([
+            callFhirApi(buildUrl('/baseR4/Condition', { patient: p.id, page: 0, size: 100 })).catch(() => null),
+            callFhirApi(buildUrl('/baseR4/Observation/search', { patient: p.id, page: 0, size: 100 })).catch(() => null),
+            callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 100 })).catch(() => null),
+          ]);
+          const conds = (condRes?.entry || []).map(e => `${e.resource?.code?.coding?.[0]?.display || ''} (${e.resource?.clinicalStatus?.coding?.[0]?.code || ''})`).join(', ');
+          const obs = (obsRes?.entry || []).map(e => { const r = e.resource; return `${r?.code?.coding?.[0]?.display || ''}: ${r?.valueQuantity?.value ?? ''} ${r?.valueQuantity?.unit || ''}`; }).join(', ');
+          const meds = (medRes?.entry || []).map(e => `${e.resource?.medicationCodeableConcept?.coding?.[0]?.display || ''} (${e.resource?.status || ''})`).join(', ');
+          const ctx = `Patient: ${p.name}\nConditions: ${conds || 'None'}\nObservations: ${obs || 'None'}\nMedications: ${meds || 'None'}`;
+          const aiRes = await callAI(HEALTH_STATUS_PROMPT, ctx);
+          const parsed = JSON.parse(aiRes);
+          if (parsed.status === 'Poor' || parsed.status === 'Critical') {
+            const lastEnc = (obsRes?.entry || []).map(e => e.resource?.effectiveDateTime).filter(Boolean).sort().pop();
+            riskList.push({ ...p, riskScore: parsed.riskScore || 75, status: parsed.status, reason: parsed.reason, lastVisit: lastEnc ? lastEnc.split('T')[0] : '' });
+          }
+        } catch {}
+      }
+      setHighRiskPatients(riskList.sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0)));
+      setHighRiskLoading(false);
+    })();
+
+    (async () => {
+      const months = [];
+      const now2 = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const mStart = new Date(now2.getFullYear(), now2.getMonth() - i, 1);
+        const mEnd = new Date(now2.getFullYear(), now2.getMonth() - i + 1, 0);
+        months.push({ label: mStart.toLocaleString('en-US', { month: 'short' }), start: mStart.toISOString().split('T')[0], end: mEnd.toISOString().split('T')[0] });
+      }
+      const counts = [];
+      for (const m of months) {
+        let total = 0;
+        for (const p of patients) {
+          try {
+            const url = new URL(`${FHIR_BASE}/baseR4/Encounter`);
+            url.searchParams.append('patient', p.id);
+            url.searchParams.append('status', 'finished');
+            url.searchParams.append('date', `gt${m.start}`);
+            url.searchParams.append('date', `lt${m.end}`);
+            url.searchParams.append('page', '0');
+            url.searchParams.append('size', '200');
+            const res = await callFhirApi(url.toString());
+            total += (res?.entry || []).length;
+          } catch {}
+        }
+        counts.push(total);
+      }
+      setYearlyTrend({ labels: months.map(m => m.label), data: counts });
+    })();
+
+    (async () => {
+      const months = [];
+      const now3 = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const mStart = new Date(now3.getFullYear(), now3.getMonth() - i, 1);
+        const mEnd = new Date(now3.getFullYear(), now3.getMonth() - i + 1, 0);
+        months.push({ label: mStart.toLocaleString('en-US', { month: 'short' }), start: mStart.toISOString().split('T')[0], end: mEnd.toISOString().split('T')[0] });
+      }
+      const improved = [], stable = [], declined = [];
+      for (const m of months) {
+        let imp = 0, stb = 0, dec = 0;
+        for (const p of patients) {
+          try {
+            const res = await callFhirApi(buildUrl('/baseR4/Observation/search', { patient: p.id, page: 0, size: 200 }));
+            const obs = (res?.entry || []).map(e => e.resource).filter(o => o?.effectiveDateTime && o?.valueQuantity?.value != null);
+            const inMonth = obs.filter(o => o.effectiveDateTime >= m.start && o.effectiveDateTime <= m.end);
+            const before = obs.filter(o => o.effectiveDateTime < m.start);
+            if (!inMonth.length || !before.length) { stb++; continue; }
+            const avgCurr = inMonth.reduce((s, o) => s + o.valueQuantity.value, 0) / inMonth.length;
+            const avgPrev = before.slice(-inMonth.length).reduce((s, o) => s + o.valueQuantity.value, 0) / Math.min(before.length, inMonth.length);
+            const diff = ((avgCurr - avgPrev) / avgPrev) * 100;
+            if (diff < -5) imp++;
+            else if (diff > 5) dec++;
+            else stb++;
+          } catch { stb++; }
+        }
+        improved.push(imp); stable.push(stb); declined.push(dec);
+      }
+      setPatientOutcomes({ labels: months.map(m => m.label), improved, stable, declined });
+    })();
   }, [tab, patients.length]);
 
   async function loadPatientDetail(pid) {
@@ -626,6 +737,107 @@ export default function HealthcareProviderView({ onLogout }) {
                   </div>
                 )) : <p className="hp-an-empty-text">No recent discharges</p>}
               </div>
+            </div>
+          </div>
+
+          <div className="hp-an-two-col">
+            <div className="hp-an-col-card">
+              <h3 className="hp-an-card-title">Care Gaps Overview</h3>
+              <p className="hp-an-card-sub">Patients with missed medications or follow-ups</p>
+              <div className="hp-an-col-list">
+                {careGaps.length > 0 ? careGaps.map((g, i) => (
+                  <div className="hp-an-gap-row" key={i}>
+                    <div className="hp-an-gap-info">
+                      <span className="hp-an-gap-name">{g.name}</span>
+                      {g.issues.map((issue, j) => <span key={j} className="hp-an-gap-issue">{issue}</span>)}
+                    </div>
+                    <span className="hp-an-gap-count">{g.gapCount} gap{g.gapCount > 1 ? 's' : ''}</span>
+                  </div>
+                )) : <p className="hp-an-empty-text">No care gaps detected</p>}
+              </div>
+            </div>
+
+            <div className="hp-an-col-card">
+              <h3 className="hp-an-card-title">High-Risk Patients</h3>
+              <p className="hp-an-card-sub">Patients requiring close monitoring</p>
+              <div className="hp-an-col-list">
+                {highRiskLoading ? (
+                  <div className="hp-an-risk-loading">
+                    <div className="hp-spinner" />
+                    <span>Fetching high-risk patients...</span>
+                  </div>
+                ) : highRiskPatients.length > 0 ? highRiskPatients.map((p, i) => (
+                  <div className="hp-an-risk-card" key={i}>
+                    <div className="hp-an-risk-top">
+                      <span className="hp-an-risk-name">{p.name}</span>
+                      <span className="hp-an-risk-pill">Risk: {p.riskScore}</span>
+                    </div>
+                    <span className="hp-an-risk-meta">Age {p.age}</span>
+                    {p.condition && <span className="hp-an-risk-cond">{p.condition}</span>}
+                    {p.lastVisit && <span className="hp-an-risk-visit">Last visit: {p.lastVisit}</span>}
+                    <button className="hp-an-risk-review" onClick={() => { setTab('patients'); setSelectedPatient(p.id); }}>Review Chart →</button>
+                  </div>
+                )) : <p className="hp-an-empty-text">No high-risk patients detected</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="hp-an-two-col">
+            <div className="hp-an-card">
+              <h3 className="hp-an-card-title">Yearly Visits Trend</h3>
+              {yearlyTrend ? (
+                <div className="hp-an-chart-wrap">
+                  <Line
+                    data={{
+                      labels: yearlyTrend.labels,
+                      datasets: [{
+                        label: 'Visits',
+                        data: yearlyTrend.data,
+                        borderColor: '#14B8A6',
+                        backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#14B8A6',
+                      }],
+                    }}
+                    options={{
+                      responsive: true, maintainAspectRatio: false,
+                      plugins: { legend: { display: false } },
+                      scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                        y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { font: { size: 11 } } },
+                      },
+                    }}
+                  />
+                </div>
+              ) : <p className="hp-an-empty-text">Loading trend data...</p>}
+            </div>
+
+            <div className="hp-an-card">
+              <h3 className="hp-an-card-title">Patient Outcomes</h3>
+              {patientOutcomes ? (
+                <div className="hp-an-chart-wrap">
+                  <Bar
+                    data={{
+                      labels: patientOutcomes.labels,
+                      datasets: [
+                        { label: 'Improved', data: patientOutcomes.improved, backgroundColor: '#22C55E', borderRadius: 3 },
+                        { label: 'Stable', data: patientOutcomes.stable, backgroundColor: '#3B82F6', borderRadius: 3 },
+                        { label: 'Declined', data: patientOutcomes.declined, backgroundColor: '#EF4444', borderRadius: 3 },
+                      ],
+                    }}
+                    options={{
+                      responsive: true, maintainAspectRatio: false,
+                      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+                      scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                        y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { font: { size: 11 } } },
+                      },
+                    }}
+                  />
+                </div>
+              ) : <p className="hp-an-empty-text">Loading outcomes data...</p>}
             </div>
           </div>
         </div>
