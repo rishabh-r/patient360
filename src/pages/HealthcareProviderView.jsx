@@ -597,8 +597,8 @@ export default function HealthcareProviderView({ onLogout }) {
                           <div key={type} className="hp-outcome-item">
                             <span className="hp-outcome-label">{type} Trend</span>
                             <div className="hp-outcome-chart">
-                              <Bar data={{ labels: data.map(() => ''), datasets: [{ data: data.map(d => d.value), backgroundColor: '#93C5FD', borderRadius: 2, barPercentage: 0.88, categoryPercentage: 0.92 }] }}
-                                options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw} ${data[0]?.unit || ''}` } } }, scales: { x: { display: false }, y: { display: false } } }} />
+                              <Bar data={{ labels: data.map(d => { const dt = new Date(d.date); return dt.toLocaleString('en-US', { month: 'short', year: '2-digit' }); }), datasets: [{ data: data.map(d => d.value), backgroundColor: '#93C5FD', borderRadius: 2, barPercentage: 0.88, categoryPercentage: 0.92 }] }}
+                                options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw} ${data[0]?.unit || ''}` } } }, scales: { x: { display: true, grid: { display: false }, ticks: { font: { size: 8 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 8 } }, y: { display: false } } }} />
                             </div>
                             <span className="hp-outcome-direction" style={{ color: dirColor }}>{direction} {dirArrow}</span>
                           </div>
