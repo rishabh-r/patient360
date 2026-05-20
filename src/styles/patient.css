@@ -217,8 +217,11 @@
 }
 .pv-med-name { font-size: 14px; font-weight: 600; color: #1E293B; }
 .pv-med-detail {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; align-items: baseline; gap: 8px;
   font-size: 12px; color: #475569; padding: 2px 0;
+}
+.pv-med-detail strong {
+  flex-shrink: 0; min-width: 60px;
 }
 .pv-med-reminder {
   display: flex; align-items: center; gap: 6px;
