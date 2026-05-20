@@ -269,7 +269,7 @@ export default function PatientView({ onLogout }) {
           status: r.status || '',
           authoredOn: r.authoredOn || '',
           dosage: r.dosageInstruction?.[0]?.text || '',
-          reason: r.reasonCode?.[0]?.coding?.[0]?.display || r.reasonCode?.[0]?.text || '',
+          reason: r.note?.[0]?.text || '',
           frequency: r.dosageInstruction?.[0]?.timing?.code?.text || r.dosageInstruction?.[0]?.timing?.repeat?.frequency ? `${r.dosageInstruction?.[0]?.timing?.repeat?.frequency}x daily` : '',
         };
       }).sort((a, b) => (b.authoredOn || '').localeCompare(a.authoredOn || ''));
