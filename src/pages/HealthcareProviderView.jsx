@@ -35,7 +35,10 @@ export default function HealthcareProviderView({ onLogout }) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [vitalsPage, setVitalsPage] = useState(1);
   const [labPage, setLabPage] = useState(1);
+  const [docPage, setDocPage] = useState(1);
+  const [viewingDoc, setViewingDoc] = useState(null);
   const ITEMS_PER_PAGE = 4;
+  const DOCS_PER_PAGE = 5;
 
   const [todayAppts, setTodayAppts] = useState([]);
   const [yearlyVisits, setYearlyVisits] = useState({ count: 0, pctChange: 0 });
@@ -407,11 +410,12 @@ export default function HealthcareProviderView({ onLogout }) {
     setDetailLoading(true);
     setPatientDetail(null);
     try {
-      const [ptRes, obsRes, vitalsRes, medRes] = await Promise.all([
+      const [ptRes, obsRes, vitalsRes, medRes, docsRes] = await Promise.all([
         callFhirApi(buildUrl('/baseR4/Patient/find', { id: pid })),
         callFhirApi(buildUrl('/baseR4/Observation/search', { patient: pid, page: 0, size: 200 })),
         callFhirApi(`${FHIR_BASE}/baseR4/Observation/vitals/search?patient=${pid}`),
         callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: pid, page: 0, size: 100 })),
+        callFhirApi(buildUrl('/baseR4/DocumentReference', { patient: pid, page: 0, size: 100 })),
       ]);
 
       const pt = ptRes?.entry?.[0]?.resource || ptRes;
@@ -472,13 +476,25 @@ export default function HealthcareProviderView({ onLogout }) {
       const activeMeds = (medRes?.entry || []).map(e => e.resource).filter(r => r?.status === 'active')
         .map(r => ({ name: r.medicationCodeableConcept?.coding?.[0]?.display || r.medicationCodeableConcept?.text || '', dosage: r.dosageInstruction?.[0]?.text || '' }));
 
-      setPatientDetail({ name, dob, mrn, phone, email, recentVitals, latestLab, trendTypes, trendDirections, obsGrouped, activeMeds });
+      const documents = (docsRes?.entry || []).map(e => {
+        const r = e.resource;
+        return {
+          id: r.id, title: r.content?.[0]?.attachment?.title || r.description || 'Untitled',
+          description: r.description || '', author: r.author?.[0]?.display || 'Unknown',
+          specialty: r.author?.[0]?.extension?.find(x => x.url === 'specialty')?.valueString || '',
+          date: r.date || '', type: r.type?.coding?.[0]?.display || 'Document',
+          contentType: r.content?.[0]?.attachment?.contentType || 'text/plain',
+          data: r.content?.[0]?.attachment?.data || '',
+        };
+      }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+      setPatientDetail({ name, dob, mrn, phone, email, recentVitals, latestLab, trendTypes, trendDirections, obsGrouped, activeMeds, documents });
     } catch { setPatientDetail(null); }
     setDetailLoading(false);
   }
 
   useEffect(() => {
-    if (selectedPatient) { setVitalsPage(1); setLabPage(1); loadPatientDetail(selectedPatient); }
+    if (selectedPatient) { setVitalsPage(1); setLabPage(1); setDocPage(1); setViewingDoc(null); loadPatientDetail(selectedPatient); }
   }, [selectedPatient]);
 
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
@@ -641,6 +657,68 @@ export default function HealthcareProviderView({ onLogout }) {
                       {patientDetail.activeMeds.map((m, i) => (
                         <div className="hp-med-row" key={i}><div className="hp-med-info"><span className="hp-med-name">{m.name}</span>{m.dosage && <span className="hp-med-dosage">{m.dosage}</span>}</div></div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {patientDetail.documents && patientDetail.documents.length > 0 && (() => {
+                  const totalDocPages = Math.ceil(patientDetail.documents.length / DOCS_PER_PAGE);
+                  const visibleDocs = patientDetail.documents.slice((docPage - 1) * DOCS_PER_PAGE, docPage * DOCS_PER_PAGE);
+                  function fmtDate(d) { if (!d) return ''; const dt = new Date(d); return dt.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }); }
+                  function downloadDoc(doc) {
+                    if (!doc.data) return;
+                    const blob = new Blob([atob(doc.data)], { type: doc.contentType || 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = doc.title || 'document'; a.click(); URL.revokeObjectURL(url);
+                  }
+                  return (
+                  <div className="hp-detail-card">
+                    <h3 className="hp-detail-title">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" style={{ marginRight: 6, verticalAlign: 'text-bottom' }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                      Documents
+                    </h3>
+                    {visibleDocs.map((doc, i) => (
+                      <div className="hp-doc-row" key={doc.id || i}>
+                        <div className="hp-doc-icon">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                        </div>
+                        <div className="hp-doc-text">
+                          <span className="hp-doc-title">{doc.description || doc.title}</span>
+                          <span className="hp-doc-sub">{doc.author}{doc.specialty ? ` · ${doc.specialty}` : ''} · {fmtDate(doc.date)}</span>
+                        </div>
+                        <div className="hp-doc-actions">
+                          <a href="#" className="hp-doc-view" onClick={e => { e.preventDefault(); setViewingDoc(doc); }}>View</a>
+                          <a href="#" className="hp-doc-dl" onClick={e => { e.preventDefault(); downloadDoc(doc); }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                    {totalDocPages > 1 && (
+                      <div className="hp-pagination">
+                        <button className="hp-page-btn" disabled={docPage <= 1} onClick={() => setDocPage(docPage - 1)}>Prev</button>
+                        <span className="hp-page-info">{docPage} / {totalDocPages}</span>
+                        <button className="hp-page-btn" disabled={docPage >= totalDocPages} onClick={() => setDocPage(docPage + 1)}>Next</button>
+                      </div>
+                    )}
+                  </div>
+                  );
+                })()}
+
+                {viewingDoc && (
+                  <div className="hp-modal-overlay" onClick={() => setViewingDoc(null)}>
+                    <div className="hp-modal" onClick={e => e.stopPropagation()}>
+                      <div className="hp-modal-header">
+                        <h3>Document</h3>
+                        <button className="hp-modal-close" onClick={() => setViewingDoc(null)}>×</button>
+                      </div>
+                      <div className="hp-modal-body">
+                        <p style={{ fontSize: 14, fontWeight: 600, color: '#1E293B', marginBottom: 4 }}>{viewingDoc.description || viewingDoc.title}</p>
+                        <p style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>{viewingDoc.author}{viewingDoc.specialty ? ` · ${viewingDoc.specialty}` : ''}</p>
+                        <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 14, fontSize: 13, lineHeight: 1.6, color: '#374151' }}>
+                          {viewingDoc.data ? atob(viewingDoc.data) : viewingDoc.description}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}

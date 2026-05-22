@@ -453,6 +453,43 @@
 .hp-an-adm-line strong { color: #1E293B; }
 .hp-an-adm-date { font-size: 11px; color: #94A3B8; margin-top: 4px; }
 
+/* ── Documents (Provider patient detail) ── */
+.hp-doc-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid #F1F5F9;
+}
+.hp-doc-row:last-of-type { border-bottom: none; }
+.hp-doc-icon { flex-shrink: 0; }
+.hp-doc-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hp-doc-title { font-size: 13px; font-weight: 600; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hp-doc-sub { font-size: 11px; color: #64748B; margin-top: 2px; }
+.hp-doc-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.hp-doc-view { font-size: 12px; font-weight: 500; color: #2563EB; cursor: pointer; }
+.hp-doc-view:hover { text-decoration: underline; }
+.hp-doc-dl { display: flex; cursor: pointer; }
+
+/* Document modal */
+.hp-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.hp-modal {
+  background: #fff; border-radius: 12px; width: 90%; max-width: 600px;
+  max-height: 80vh; display: flex; flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.15);
+}
+.hp-modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
+}
+.hp-modal-header h3 { font-size: 16px; font-weight: 600; color: #1E293B; margin: 0; }
+.hp-modal-close {
+  font-size: 22px; color: #94A3B8; cursor: pointer; line-height: 1;
+  background: none; border: none;
+}
+.hp-modal-close:hover { color: #1E293B; }
+.hp-modal-body { padding: 20px; overflow-y: auto; }
+
 /* ── Two-column rows ── */
 .hp-an-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
