@@ -167,11 +167,13 @@ export default function HealthcareProviderView({ onLogout }) {
         function calcAlos(encounters) {
           let totalDays = 0, count = 0;
           for (const enc of encounters) {
+            const code = enc.class?.code || '';
+            if (code !== 'IMP' && code !== 'INP') continue;
             const s = enc.period?.start;
             const e = enc.period?.end;
             if (!s || !e) continue;
             const days = (new Date(e) - new Date(s)) / 86400000;
-            if (days >= 0) { totalDays += days; count++; }
+            if (days > 0) { totalDays += days; count++; }
           }
           return count > 0 ? +(totalDays / count).toFixed(1) : 0;
         }
@@ -214,7 +216,8 @@ export default function HealthcareProviderView({ onLogout }) {
 
         const patientLatestAdm = {};
         for (const e of allEncountersAllStatus) {
-          if (!e.period?.start || e.status === 'cancelled') continue;
+          const code = e.class?.code || '';
+          if ((code !== 'IMP' && code !== 'INP') || !e.period?.start || e.status === 'cancelled') continue;
           const pid = e._patientId;
           const startDate = new Date(e.period.start);
           if (!patientLatestAdm[pid] || startDate > new Date(patientLatestAdm[pid].period.start)) {
@@ -234,7 +237,8 @@ export default function HealthcareProviderView({ onLogout }) {
 
         const patientLatestDis = {};
         for (const e of allEncountersAllStatus) {
-          if (e.status !== 'finished' || !e.period?.end) continue;
+          const code = e.class?.code || '';
+          if (e.status !== 'finished' || (code !== 'IMP' && code !== 'INP') || !e.period?.end) continue;
           const pid = e._patientId;
           const endDate = new Date(e.period.end);
           if (!patientLatestDis[pid] || endDate > new Date(patientLatestDis[pid].period.end)) {
@@ -282,7 +286,7 @@ export default function HealthcareProviderView({ onLogout }) {
     })();
 
     Promise.all(patients.map(p =>
-      callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 100 }))
+      callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 200 }))
         .then(res => {
           const allMeds = (res?.entry || []).map(e => e.resource).filter(Boolean);
           const total = allMeds.length;
