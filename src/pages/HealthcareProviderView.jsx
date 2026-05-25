@@ -164,22 +164,20 @@ export default function HealthcareProviderView({ onLogout }) {
         const yPct = prevCount > 0 ? Math.round(((currCount - prevCount) / prevCount) * 100) : 0;
         setYearlyVisits({ count: currCount, pctChange: yPct });
 
-        function calcAlos(encounters) {
-          let totalDays = 0, count = 0;
+        function calcAlosMinutes(encounters) {
+          let totalMin = 0, count = 0;
           for (const enc of encounters) {
-            const code = enc.class?.code || '';
-            if (code !== 'IMP' && code !== 'INP') continue;
             const s = enc.period?.start;
             const e = enc.period?.end;
             if (!s || !e) continue;
-            const days = (new Date(e) - new Date(s)) / 86400000;
-            if (days > 0) { totalDays += days; count++; }
+            const mins = (new Date(e) - new Date(s)) / 60000;
+            if (mins > 0) { totalMin += mins; count++; }
           }
-          return count > 0 ? +(totalDays / count).toFixed(1) : 0;
+          return count > 0 ? Math.round(totalMin / count) : 0;
         }
-        const currAlos = calcAlos(currEncs);
-        const prevAlos = calcAlos(prevEncs);
-        const alosDiff = prevAlos > 0 ? +((currAlos - prevAlos).toFixed(1)) : 0;
+        const currAlos = calcAlosMinutes(currEncs);
+        const prevAlos = calcAlosMinutes(prevEncs);
+        const alosDiff = prevAlos > 0 ? Math.round(currAlos - prevAlos) : 0;
         setAvgLos({ days: currAlos, pctChange: alosDiff });
 
         const allEncountersAllStatus = [];
@@ -780,9 +778,9 @@ export default function HealthcareProviderView({ onLogout }) {
             </div>
             <div className="hp-an-kpi">
               <span className="hp-an-kpi-label">Avg LOS</span>
-              <span className="hp-an-kpi-val">{avgLos.days} days</span>
+              <span className="hp-an-kpi-val">{avgLos.days} min</span>
               <span className={`hp-an-kpi-change ${avgLos.pctChange <= 0 ? 'up-green' : 'down-red'}`}>
-                {avgLos.pctChange <= 0 ? '↘' : '↗'} {avgLos.pctChange > 0 ? '+' : ''}{avgLos.pctChange} days
+                {avgLos.pctChange <= 0 ? '↘' : '↗'} {avgLos.pctChange > 0 ? '+' : ''}{avgLos.pctChange} min
               </span>
             </div>
             <div className="hp-an-kpi">
