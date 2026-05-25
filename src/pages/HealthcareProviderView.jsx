@@ -287,15 +287,12 @@ export default function HealthcareProviderView({ onLogout }) {
       callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 200 }))
         .then(res => {
           const allMeds = (res?.entry || []).map(e => e.resource).filter(Boolean);
-          const total = allMeds.length;
-          const stopped = allMeds.filter(m => m.status === 'stopped').length;
-          return { patientId: p.id, total, stopped };
-        }).catch(() => ({ patientId: p.id, total: 0, stopped: 0 }))
+          return { total: allMeds.length, stopped: allMeds.filter(m => m.status === 'stopped').length };
+        }).catch(() => ({ total: 0, stopped: 0 }))
     )).then(results => {
-      const patientsWithMeds = results.filter(r => r.total > 0);
-      if (!patientsWithMeds.length) { setMedAdherence({ pct: 100 }); return; }
-      const patientsWithStopped = patientsWithMeds.filter(r => r.stopped > 0).length;
-      const adherentPct = Math.round(((patientsWithMeds.length - patientsWithStopped) / patientsWithMeds.length) * 100);
+      const overallTotal = results.reduce((s, r) => s + r.total, 0);
+      const overallStopped = results.reduce((s, r) => s + r.stopped, 0);
+      const adherentPct = overallTotal > 0 ? Math.round(((overallTotal - overallStopped) / overallTotal) * 100) : 100;
       setMedAdherence({ pct: adherentPct });
     });
 
