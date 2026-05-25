@@ -35,6 +35,7 @@ export default function HealthcareProviderView({ onLogout }) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [vitalsPage, setVitalsPage] = useState(1);
   const [labPage, setLabPage] = useState(1);
+  const [medPage, setMedPage] = useState(1);
   const [docPage, setDocPage] = useState(1);
   const [viewingDoc, setViewingDoc] = useState(null);
   const ITEMS_PER_PAGE = 4;
@@ -213,7 +214,7 @@ export default function HealthcareProviderView({ onLogout }) {
 
         const patientLatestAdm = {};
         for (const e of allEncountersAllStatus) {
-          if (e.class?.code !== 'IMP' || !e.period?.start) continue;
+          if (!e.period?.start || e.status === 'cancelled') continue;
           const pid = e._patientId;
           const startDate = new Date(e.period.start);
           if (!patientLatestAdm[pid] || startDate > new Date(patientLatestAdm[pid].period.start)) {
@@ -233,7 +234,7 @@ export default function HealthcareProviderView({ onLogout }) {
 
         const patientLatestDis = {};
         for (const e of allEncountersAllStatus) {
-          if (e.status !== 'finished' || e.class?.code !== 'IMP' || !e.period?.end) continue;
+          if (e.status !== 'finished' || !e.period?.end) continue;
           const pid = e._patientId;
           const endDate = new Date(e.period.end);
           if (!patientLatestDis[pid] || endDate > new Date(patientLatestDis[pid].period.end)) {
@@ -281,15 +282,18 @@ export default function HealthcareProviderView({ onLogout }) {
     })();
 
     Promise.all(patients.map(p =>
-      callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, status: 'stopped', page: 0, size: 100 }))
+      callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 100 }))
         .then(res => {
-          const stopped = (res?.entry || []).length;
-          return { patientId: p.id, stopped };
-        }).catch(() => ({ patientId: p.id, stopped: 0 }))
+          const allMeds = (res?.entry || []).map(e => e.resource).filter(Boolean);
+          const total = allMeds.length;
+          const stopped = allMeds.filter(m => m.status === 'stopped').length;
+          return { patientId: p.id, total, stopped };
+        }).catch(() => ({ patientId: p.id, total: 0, stopped: 0 }))
     )).then(results => {
-      const totalPatients = results.length;
-      const patientsWithStopped = results.filter(r => r.stopped > 0).length;
-      const adherentPct = totalPatients > 0 ? Math.round(((totalPatients - patientsWithStopped) / totalPatients) * 100) : 100;
+      const patientsWithMeds = results.filter(r => r.total > 0);
+      if (!patientsWithMeds.length) { setMedAdherence({ pct: 100 }); return; }
+      const patientsWithStopped = patientsWithMeds.filter(r => r.stopped > 0).length;
+      const adherentPct = Math.round(((patientsWithMeds.length - patientsWithStopped) / patientsWithMeds.length) * 100);
       setMedAdherence({ pct: adherentPct });
     });
 
@@ -514,7 +518,7 @@ export default function HealthcareProviderView({ onLogout }) {
   }
 
   useEffect(() => {
-    if (selectedPatient) { setVitalsPage(1); setLabPage(1); setDocPage(1); setViewingDoc(null); loadPatientDetail(selectedPatient); }
+    if (selectedPatient) { setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null); loadPatientDetail(selectedPatient); }
   }, [selectedPatient]);
 
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
@@ -670,16 +674,21 @@ export default function HealthcareProviderView({ onLogout }) {
                   </div>);
                 })()}
 
-                {patientDetail.activeMeds.length > 0 && (
+                {patientDetail.activeMeds.length > 0 && (() => {
+                  const totalMPages = Math.ceil(patientDetail.activeMeds.length / ITEMS_PER_PAGE);
+                  const visibleMeds = patientDetail.activeMeds.slice((medPage - 1) * ITEMS_PER_PAGE, medPage * ITEMS_PER_PAGE);
+                  return (
                   <div className="hp-detail-card">
                     <h3 className="hp-detail-title">Current Medications</h3>
-                    <div className="hp-meds-list">
-                      {patientDetail.activeMeds.map((m, i) => (
+                    <div className="hp-meds-list hp-vitals-fixed">
+                      {visibleMeds.map((m, i) => (
                         <div className="hp-med-row" key={i}><div className="hp-med-info"><span className="hp-med-name">{m.name}</span>{m.dosage && <span className="hp-med-dosage">{m.dosage}</span>}</div></div>
                       ))}
                     </div>
+                    {totalMPages > 1 && <div className="hp-pagination"><button className="hp-page-btn" disabled={medPage <= 1} onClick={() => setMedPage(medPage - 1)}>Prev</button><span className="hp-page-info">{medPage} / {totalMPages}</span><button className="hp-page-btn" disabled={medPage >= totalMPages} onClick={() => setMedPage(medPage + 1)}>Next</button></div>}
                   </div>
-                )}
+                  );
+                })()}
 
                 {patientDetail.documents && patientDetail.documents.length > 0 && (() => {
                   const totalDocPages = Math.ceil(patientDetail.documents.length / DOCS_PER_PAGE);
