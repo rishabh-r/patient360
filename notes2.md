@@ -3646,5 +3646,59 @@ Two tabs: **Patients** (existing detail view) + **Analytics** (new).
 95. `76222c9` — Provider analytics: yearly visits, ER visits, recent admissions, recent discharges with LOS and follow-up
 96. `b316f1b` — Provider analytics: Care Gaps, AI High-Risk patients, Yearly Visits Trend line chart, Patient Outcomes bar chart
 97. `2dc5f6e` — Remove risk score from high-risk cards; half-yearly visits trend + patient outcomes with date-param observation API
+98. `4473912` — Append notes2.md: May 15 evening + May 18-19 Provider rewrite, commits 86-97
+
+---
+
+## Session: May 20–25, 2026
+
+### Clinical Outcomes — X-axis labels added
+- Bar charts in Provider Patients tab now show x-axis with compact date labels: `"Mar '23"`, `"Jun '24"`, etc. (short month + 2-digit year).
+- Font size 8px, `maxRotation: 45°`, `autoSkip: true`, `maxTicksLimit: 8` to avoid congestion.
+- Y-axis remains hidden.
+- Commit: `7998bb2`
+
+### Medication Purpose — use `note[0].text` instead of `reasonCode`
+- PatientView medications: "Purpose" field was showing raw ICD code from `reasonCode[0].text` (e.g., "E11.649").
+- Changed to read from `note[0].text` (e.g., "IV dextrose bolus for glucose <50").
+- Commit: `093fc17`
+
+### Medication detail CSS alignment fix
+- `.pv-med-detail` changed from `justify-content: space-between` to `align-items: baseline` + `gap: 8px`.
+- `strong` label gets `min-width: 60px` + `flex-shrink: 0` for consistent alignment when Purpose text wraps.
+- Commit: `908c200`
+
+### Provider Patients tab — Documents section added
+- New **Documents** section after Current Medications when a patient is selected.
+- Fetches from `GET /baseR4/DocumentReference?patient={id}&page=0&size=100`.
+- Each row: document icon, description/title, author + specialty + date, View link, Download icon.
+- **Paginated at 5 per page** with Prev/Next.
+- **View modal**: click "View" to open modal with decoded base64 content. Close by clicking × or overlay.
+- **Download**: creates blob from `attachment.data` and triggers browser download.
+- Sorted by date (newest first). Resets page/modal on patient switch.
+- CSS: `.hp-doc-row`, `.hp-doc-*`, `.hp-modal-*` styles added to `provider.css`.
+- Commit: `88fa84e`
+
+### Care Gaps — noshow appointments + CARE GAP RETURN check
+- **Missed follow-ups**: now uses **Appointment API** filtering `status === 'noshow'` (previously also included cancelled). Shows `description` as reason.
+- **Patient returned check**: also fetches all Encounters for the patient and checks if any encounter has `extension[url=clinicalNotes].valueString` containing **"CARE GAP RETURN"** (case-insensitive). If found, shows green "Patient returned after missed follow-up" label.
+- Stopped medications logic unchanged.
+- Commit: `3bac405`
+
+### ER Visits — EMER + finished, clinical notes, latest per patient
+- Filters encounters where `class.code === 'EMER'` **AND** `status === 'finished'` (previously showed all statuses).
+- **Reason** from `extension[url=clinicalNotes].valueString`, falling back to `diagnosis[0].condition.display`.
+- Shows **only the latest ER visit per patient** (grouped by patient, most recent `period.start`).
+- Subtitle changed from "Current emergency department patients" to **"Latest emergency patients"**.
+- Date shows full date+time.
+- Commit: `3bac405`
+
+### Git Commits (May 20–25)
+
+99. `7998bb2` — Clinical Outcomes: show x-axis with compact month/year labels
+100. `093fc17` — Medication Purpose: use note[0].text instead of reasonCode
+101. `908c200` — Fix medication detail alignment: label-value layout with consistent spacing
+102. `88fa84e` — Provider Patients tab: add Documents section after Current Medications with View/Download and modal
+103. `3bac405` — Care gaps: noshow appts + CARE GAP RETURN check; ER visits: EMER+finished, clinical notes reason, latest per patient
 
 ---
