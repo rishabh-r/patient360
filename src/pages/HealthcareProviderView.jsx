@@ -192,13 +192,22 @@ export default function HealthcareProviderView({ onLogout }) {
           } catch {}
         }
 
-        const erList = allEncountersAllStatus
-          .filter(e => e.class?.code === 'EMER')
+        const patientLatestEr = {};
+        for (const e of allEncountersAllStatus) {
+          if (e.class?.code !== 'EMER' || e.status !== 'finished') continue;
+          const pid = e._patientId;
+          const startDate = new Date(e.period?.start || 0);
+          if (!patientLatestEr[pid] || startDate > new Date(patientLatestEr[pid].period?.start || 0)) {
+            patientLatestEr[pid] = e;
+          }
+        }
+        const erList = Object.values(patientLatestEr)
           .sort((a, b) => new Date(b.period?.start || 0) - new Date(a.period?.start || 0))
           .map(e => {
-            const diagnosis = e.diagnosis?.[0]?.condition?.display || '';
-            const time = e.period?.start ? new Date(e.period.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
-            return { name: e._patientName, age: e._patientAge, mrn: '', diagnosis, time, status: e.status || '' };
+            const clinicalNotes = (e.extension || []).find(x => x.url === 'clinicalNotes')?.valueString || '';
+            const diagnosis = e.diagnosis?.[0]?.condition?.display || clinicalNotes || '';
+            const dateStr = e.period?.start ? new Date(e.period.start).toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+            return { name: e._patientName, age: e._patientAge, mrn: '', diagnosis, date: dateStr, status: 'Completed' };
           });
         setErVisits(erList);
 
@@ -286,17 +295,28 @@ export default function HealthcareProviderView({ onLogout }) {
 
     Promise.all(patients.map(async p => {
       try {
-        const [medRes, apptRes] = await Promise.all([
+        const [medRes, apptRes, encRes] = await Promise.all([
           callFhirApi(buildUrl('/baseR4/MedicationRequest', { patient: p.id, page: 0, size: 100 })).catch(() => null),
           callFhirApi(buildUrl('/baseR4/Appointment', { patient: p.id, page: 0, size: 100 })).catch(() => null),
+          callFhirApi(buildUrl('/baseR4/Encounter', { patient: p.id, page: 0, size: 200 })).catch(() => null),
         ]);
         const stoppedMeds = (medRes?.entry || []).filter(e => e.resource?.status === 'stopped').map(e => e.resource?.medicationCodeableConcept?.coding?.[0]?.display || e.resource?.medicationCodeableConcept?.text || '');
-        const missedAppts = (apptRes?.entry || []).filter(e => e.resource?.status === 'noshow' || e.resource?.status === 'cancelled').map(e => e.resource?.description || e.resource?.serviceType?.[0]?.text || 'Appointment');
-        if (!stoppedMeds.length && !missedAppts.length) return null;
+        const noshowAppts = (apptRes?.entry || []).filter(e => e.resource?.status === 'noshow').map(e => ({
+          desc: e.resource?.description || e.resource?.serviceType?.[0]?.text || 'Appointment',
+          reason: e.resource?.reasonCode?.[0]?.text || '',
+        }));
+
+        const encEntries = (encRes?.entry || []).map(e => e.resource).filter(Boolean);
+        const hasReturned = encEntries.some(enc => {
+          const notes = (enc.extension || []).find(x => x.url === 'clinicalNotes')?.valueString || '';
+          return notes.toUpperCase().includes('CARE GAP RETURN');
+        });
+
+        if (!stoppedMeds.length && !noshowAppts.length) return null;
         const issues = [];
         if (stoppedMeds.length) issues.push(`Missed medication: ${stoppedMeds[stoppedMeds.length - 1]}`);
-        if (missedAppts.length) issues.push(`Missed follow-up: ${missedAppts[missedAppts.length - 1]}`);
-        return { ...p, issues, gapCount: stoppedMeds.length + missedAppts.length };
+        if (noshowAppts.length) issues.push(`Missed follow-up: ${noshowAppts[noshowAppts.length - 1].desc}`);
+        return { ...p, issues, gapCount: stoppedMeds.length + noshowAppts.length, returned: hasReturned };
       } catch { return null; }
     })).then(results => {
       setCareGaps(results.filter(Boolean).sort((a, b) => b.gapCount - a.gapCount));
@@ -782,7 +802,7 @@ export default function HealthcareProviderView({ onLogout }) {
           <div className="hp-an-three-col">
             <div className="hp-an-col-card">
               <h3 className="hp-an-card-title">ER Visits</h3>
-              <p className="hp-an-card-sub">Current emergency department patients</p>
+              <p className="hp-an-card-sub">Latest emergency patients</p>
               <div className="hp-an-col-list">
                 {erVisits.length > 0 ? erVisits.map((e, i) => (
                   <div className="hp-an-er-card" key={i}>
@@ -792,8 +812,8 @@ export default function HealthcareProviderView({ onLogout }) {
                     <span className="hp-an-er-meta">Age {e.age}</span>
                     {e.diagnosis && <span className="hp-an-er-diag">{e.diagnosis}</span>}
                     <div className="hp-an-er-bottom">
-                      <span className="hp-an-er-time">{e.time}</span>
-                      <span className="hp-an-er-status">{e.status === 'in-progress' ? 'Under Observation' : e.status === 'finished' ? 'Completed' : e.status}</span>
+                      <span className="hp-an-er-time">{e.date}</span>
+                      <span className="hp-an-er-status">{e.status}</span>
                     </div>
                   </div>
                 )) : <p className="hp-an-empty-text">No ER visits</p>}
@@ -845,6 +865,7 @@ export default function HealthcareProviderView({ onLogout }) {
                     <div className="hp-an-gap-info">
                       <span className="hp-an-gap-name">{g.name}</span>
                       {g.issues.map((issue, j) => <span key={j} className="hp-an-gap-issue">{issue}</span>)}
+                      {g.returned && <span className="hp-an-gap-returned">Patient returned after missed follow-up</span>}
                     </div>
                     <span className="hp-an-gap-count">{g.gapCount} gap{g.gapCount > 1 ? 's' : ''}</span>
                   </div>
