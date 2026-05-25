@@ -153,16 +153,16 @@ export default function CareManagerView({ onLogout }) {
     }
 
     function calcAlos(encounters) {
-      let totalDays = 0;
+      let totalMin = 0;
       let count = 0;
       for (const enc of encounters) {
         const s = enc.period?.start;
         const e = enc.period?.end;
         if (!s || !e) continue;
-        const days = (new Date(e) - new Date(s)) / 86400000;
-        if (days >= 0) { totalDays += days; count++; }
+        const mins = (new Date(e) - new Date(s)) / 60000;
+        if (mins > 0) { totalMin += mins; count++; }
       }
-      return count > 0 ? +(totalDays / count).toFixed(1) : 0;
+      return count > 0 ? Math.round(totalMin / count) : 0;
     }
 
     function calcReadmissionRate(encounters) {
@@ -204,8 +204,8 @@ export default function CareManagerView({ onLogout }) {
 
         const currAlos = calcAlos(currEncs);
         const prevAlos = calcAlos(prevEncs);
-        const alosPct = prevAlos > 0 ? Math.round(((currAlos - prevAlos) / prevAlos) * 100) : 0;
-        setAlos({ days: currAlos, pctChange: alosPct });
+        const alosDiff = prevAlos > 0 ? Math.round(currAlos - prevAlos) : 0;
+        setAlos({ days: currAlos, pctChange: alosDiff });
 
         const currReadm = calcReadmissionRate(currEncs);
         const prevReadm = calcReadmissionRate(prevEncs);
@@ -557,8 +557,8 @@ export default function CareManagerView({ onLogout }) {
                     <div className="cm-an-kpi-row">
                       <div className="cm-an-kpi">
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">ALOS</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
-                        <span className="cm-an-kpi-val">{alos.days} days</span>
-                        <span className={`cm-an-kpi-change ${alos.pctChange <= 0 ? 'down' : 'up'}`}>{alos.pctChange <= 0 ? '↓' : '↑'} {Math.abs(alos.pctChange)}% vs last year</span>
+                        <span className="cm-an-kpi-val">{alos.days} min</span>
+                        <span className={`cm-an-kpi-change ${alos.pctChange <= 0 ? 'down' : 'up'}`}>{alos.pctChange <= 0 ? '↓' : '↑'} {Math.abs(alos.pctChange)} min vs last year</span>
                       </div>
                       <div className="cm-an-kpi">
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">Readmission Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></div>
