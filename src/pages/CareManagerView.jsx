@@ -128,6 +128,8 @@ export default function CareManagerView({ onLogout }) {
     const today = now.toISOString().split('T')[0];
     const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().split('T')[0];
     const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate()).toISOString().split('T')[0];
+    const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).toISOString().split('T')[0];
+    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate()).toISOString().split('T')[0];
 
     async function fetchEncounterCount(orgId, status, dateGt, dateLt) {
       const url = new URL(`${FHIR_BASE}/baseR4/Encounter/$count`);
@@ -156,6 +158,8 @@ export default function CareManagerView({ onLogout }) {
       let totalDays = 0;
       let count = 0;
       for (const enc of encounters) {
+        const code = enc.class?.code || '';
+        if (code !== 'IMP' && code !== 'INP') continue;
         const s = enc.period?.start;
         const e = enc.period?.end;
         if (!s || !e) continue;
@@ -197,18 +201,22 @@ export default function CareManagerView({ onLogout }) {
         const disPct = prevDis > 0 ? Math.round(((currDis - prevDis) / prevDis) * 100) : 0;
         setDischarges({ count: currDis, pctChange: disPct });
 
-        const [currEncs, prevEncs] = await Promise.all([
+        const [currAlosEncs, prevAlosEncs] = await Promise.all([
+          fetchFinishedEncounters(selectedOrg, oneMonthAgo, today),
+          fetchFinishedEncounters(selectedOrg, twoMonthsAgo, oneMonthAgo),
+        ]);
+
+        const currAlos = calcAlos(currAlosEncs);
+        const prevAlos = calcAlos(prevAlosEncs);
+        const alosDiff = prevAlos > 0 ? +((currAlos - prevAlos).toFixed(1)) : 0;
+        setAlos({ days: currAlos, pctChange: alosDiff });
+
+        const [currReadmEncs, prevReadmEncs] = await Promise.all([
           fetchFinishedEncounters(selectedOrg, oneYearAgo, today),
           fetchFinishedEncounters(selectedOrg, twoYearsAgo, oneYearAgo),
         ]);
-
-        const currAlos = calcAlos(currEncs);
-        const prevAlos = calcAlos(prevEncs);
-        const alosPct = prevAlos > 0 ? Math.round(((currAlos - prevAlos) / prevAlos) * 100) : 0;
-        setAlos({ days: currAlos, pctChange: alosPct });
-
-        const currReadm = calcReadmissionRate(currEncs);
-        const prevReadm = calcReadmissionRate(prevEncs);
+        const currReadm = calcReadmissionRate(currReadmEncs);
+        const prevReadm = calcReadmissionRate(prevReadmEncs);
         const readmPctPt = +(currReadm - prevReadm).toFixed(1);
         setReadmissionRate({ rate: currReadm, pctChange: readmPctPt });
 
@@ -387,7 +395,7 @@ export default function CareManagerView({ onLogout }) {
           </div>
           <div className="cm-profile-wrap" ref={profileRef}>
             <div className="cm-nav-avatar" onClick={() => setShowProfile(!showProfile)} style={{ cursor: 'pointer' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             {showProfile && (
               <div className="cm-profile-dropdown">
@@ -431,15 +439,15 @@ export default function CareManagerView({ onLogout }) {
             ) : visibleOrgs.length > 0 ? (
               visibleOrgs.map(org => (
                 <div className={`cm-org-card${selectedOrg === org.id ? ' cm-org-active' : ''}`} key={org.id} onClick={() => { setSelectedOrg(org.id); setPatientSearch(''); }}>
-                  <div className="cm-org-info">
-                    <div className="cm-org-name">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg>
-                      {org.name}
-                    </div>
-                    <span className="cm-org-type">{org.type}</span>
+                <div className="cm-org-info">
+                  <div className="cm-org-name">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg>
+                    {org.name}
                   </div>
-                  <div className="cm-org-count">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <span className="cm-org-type">{org.type}</span>
+                </div>
+                <div className="cm-org-count">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     {orgPatients[org.id] !== undefined ? `${orgPatients[org.id].length} patients` : '...'}
                   </div>
                 </div>
@@ -485,7 +493,7 @@ export default function CareManagerView({ onLogout }) {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                       <input type="text" placeholder="Search patients..." value={patientSearch} onChange={e => setPatientSearch(e.target.value)} />
                     </div>
-                  </div>
+                </div>
                   {!orgPatients[selectedOrg] ? (
                     <div className="cm-empty-state"><p className="cm-empty-sub">Loading patients...</p></div>
                   ) : filteredPatients.length === 0 ? (
@@ -558,7 +566,7 @@ export default function CareManagerView({ onLogout }) {
                       <div className="cm-an-kpi">
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">ALOS</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
                         <span className="cm-an-kpi-val">{alos.days} days</span>
-                        <span className={`cm-an-kpi-change ${alos.pctChange <= 0 ? 'down' : 'up'}`}>{alos.pctChange <= 0 ? '↓' : '↑'} {Math.abs(alos.pctChange)}% vs last year</span>
+                        <span className={`cm-an-kpi-change ${alos.pctChange <= 0 ? 'down' : 'up'}`}>{alos.pctChange <= 0 ? '↓' : '↑'} {alos.pctChange > 0 ? '+' : ''}{alos.pctChange} days vs last month</span>
                       </div>
                       <div className="cm-an-kpi">
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">Readmission Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></div>
@@ -662,9 +670,9 @@ export default function CareManagerView({ onLogout }) {
                                 <div className="cm-an-upcoming-right">
                                   <span className="cm-an-upcoming-date">{a.date}</span>
                                   <span className="cm-an-upcoming-time">{a.time}</span>
-                                </div>
-                              </div>
-                            ))}
+                      </div>
+                    </div>
+                  ))}
                           </div>
                         ) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No upcoming appointments</p>}
                       </div>

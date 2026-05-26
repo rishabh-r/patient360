@@ -114,6 +114,8 @@ export default function HealthcareProviderView({ onLogout }) {
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()).toISOString().split('T')[0];
     const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().split('T')[0];
     const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate()).toISOString().split('T')[0];
+    const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).toISOString().split('T')[0];
+    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate()).toISOString().split('T')[0];
 
     Promise.all(patients.map(p =>
       callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`)
@@ -167,6 +169,8 @@ export default function HealthcareProviderView({ onLogout }) {
         function calcAlos(encounters) {
           let totalDays = 0, count = 0;
           for (const enc of encounters) {
+            const code = enc.class?.code || '';
+            if (code !== 'IMP' && code !== 'INP') continue;
             const s = enc.period?.start;
             const e = enc.period?.end;
             if (!s || !e) continue;
@@ -175,8 +179,13 @@ export default function HealthcareProviderView({ onLogout }) {
           }
           return count > 0 ? +(totalDays / count).toFixed(1) : 0;
         }
-        const currAlos = calcAlos(currEncs);
-        const prevAlos = calcAlos(prevEncs);
+
+        const [currAlosEncs, prevAlosEncs] = await Promise.all([
+          fetchAllFinished(oneMonthAgo, today),
+          fetchAllFinished(twoMonthsAgo, oneMonthAgo),
+        ]);
+        const currAlos = calcAlos(currAlosEncs);
+        const prevAlos = calcAlos(prevAlosEncs);
         const alosDiff = prevAlos > 0 ? +((currAlos - prevAlos).toFixed(1)) : 0;
         setAvgLos({ days: currAlos, pctChange: alosDiff });
 
@@ -777,7 +786,7 @@ export default function HealthcareProviderView({ onLogout }) {
               <span className="hp-an-kpi-label">Avg LOS</span>
               <span className="hp-an-kpi-val">{avgLos.days} days</span>
               <span className={`hp-an-kpi-change ${avgLos.pctChange <= 0 ? 'up-green' : 'down-red'}`}>
-                {avgLos.pctChange <= 0 ? '↘' : '↗'} {avgLos.pctChange > 0 ? '+' : ''}{avgLos.pctChange} days
+                {avgLos.pctChange <= 0 ? '↘' : '↗'} {avgLos.pctChange > 0 ? '+' : ''}{avgLos.pctChange} days vs last month
               </span>
             </div>
             <div className="hp-an-kpi">
