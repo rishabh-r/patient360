@@ -3700,5 +3700,49 @@ Two tabs: **Patients** (existing detail view) + **Analytics** (new).
 101. `908c200` — Fix medication detail alignment: label-value layout with consistent spacing
 102. `88fa84e` — Provider Patients tab: add Documents section after Current Medications with View/Download and modal
 103. `3bac405` — Care gaps: noshow appts + CARE GAP RETURN check; ER visits: EMER+finished, clinical notes reason, latest per patient
+104. `b623333` — Append notes2.md: May 20-25 session, commits 99-103
+
+---
+
+## Session: May 25–27, 2026
+
+### Provider Analytics — Medication Pagination
+- Current Medications in Patients tab paginated at **4 per page** with Prev/Next.
+- Commit: `bf2b7a4`
+
+### Provider Analytics — Fix empty admissions/discharges/ALOS/med adherence
+- **Admissions/Discharges**: removed IMP-only filter (was empty because backend uses `INP` for some patients). Then re-added `IMP || INP` filter for inpatient-only.
+- **ALOS**: went through several iterations:
+  1. Days, all encounters → 0 days for outpatient (same-day visits)
+  2. Minutes, all encounters → worked but user wanted days
+  3. Days, IMP/INP only → correct for inpatient stays
+  4. Monthly window (current month vs last month) instead of yearly
+  - Final: `calcAlos` filters `class.code === 'IMP' || 'INP'`, `days > 0`, monthly comparison "vs last month"
+- **Med Adherence**: formula changed to `(total meds - stopped meds) / total meds × 100` across all patients (not per-patient percentage). Fetches all meds (size=200), filters `status === 'stopped'` client-side.
+- **Readmission Rate** in CareManager: still uses yearly window (unchanged).
+- Commits: `bf2b7a4`, `5115ce0`, `a99b03c`, `fd843ec`, `7cb3767`, `a26075d`, `e700178`
+
+### Patient View — Observation Trends for All Types
+- **`ALL_OBS_GROUPS` expanded from 11 → 45 entries**: added Glucose POC, HbA1c IFCC, HDL, LDL (both codes), Triglycerides (both codes), Hemoglobin, WBC, Platelets, Hematocrit, Albumin, BUN, eGFR, AST, ALT, Bilirubin, Calcium, Phosphate, Magnesium, Uric Acid, Ferritin, CRP, Troponin T/I, INR, Procalcitonin, LDH, TSH, Weight, Resp Rate, Temperature, SpO2 (3 codes), CO2, Chloride, Iron, Bicarbonate.
+- **Dynamic trend tabs**: `getTrendTabs` now auto-generates tabs for any LOINC code with 2+ data points that isn't in `ALL_OBS_GROUPS`, using the observation's `display` name and cycling colors.
+- Commit: `96733c3`
+
+### Knowledge Base (Time Traveller) — Updated
+- **17 new ICD-10 condition codes**: E78.5, E78.0, I11.9, I12.9, I15.0, I21.9, I25.10, I50.22, I16.1, J44.9, J96.10, C34.90, C34.11, Z51.11, D64.81, R04.2.
+- **45 new medications** with formulary drug codes (FD197446–FD300054): Prednisone, Isoniazid, Gabapentin, Levetiracetam, Phenytoin, Carbamazepine, Valproic Acid, Cisplatin, Pemetrexed, etc.
+- **8 new CPT procedure codes**: 99213, 99214, 36415, 94060, 82947, 83036, 82565, 81001.
+- **3 new LOINC codes**: 2089-1 (LDL direct), 2571-8 (Triglycerides alt), 59408-5 (SpO2 arterial).
+- Commit: `e55fe79` (time-traveller repo)
+
+### Git Commits (May 25–27)
+
+105. `bf2b7a4` — Paginate medications at 4/page; fix empty admissions/discharges; fix med adherence
+106. `5115ce0` — Fix: match both IMP and INP for inpatient encounters
+107. `a99b03c` — ALOS: calculate in minutes for all finished encounters
+108. `fd843ec` — Care Manager ALOS: calculate in minutes
+109. `7cb3767` — Revert ALOS to days in both views
+110. `a26075d` — Med adherence: total meds formula across all patients
+111. `e700178` — ALOS: INP/IMP only, monthly window vs last month, both views
+112. `96733c3` — Add 35+ observation LOINC codes; dynamic trend tabs for any observation with 2+ points
 
 ---
