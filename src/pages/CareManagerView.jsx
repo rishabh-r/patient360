@@ -692,7 +692,8 @@ export default function CareManagerView({ onLogout }) {
                       </div>
                     </div>
 
-                    <div className="cm-an-strat-card">
+                    {/* HEDIS HIDDEN — uncomment to show */}
+                    {false && <div className="cm-an-strat-card">
                       <div className="cm-an-strat-head">
                         <h3 className="cm-an-strat-title">HEDIS Quality Measures</h3>
                         <p className="cm-an-strat-sub">Healthcare Effectiveness Data and Information Set — patient quality scores</p>
@@ -730,7 +731,7 @@ export default function CareManagerView({ onLogout }) {
                       ) : (
                         <p className="cm-an-strat-empty">No eligible patients for HEDIS measures</p>
                       )}
-                    </div>
+                    </div>}
 
                   </div>
                 </div>

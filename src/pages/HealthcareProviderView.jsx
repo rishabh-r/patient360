@@ -982,7 +982,8 @@ export default function HealthcareProviderView({ onLogout }) {
             </div>
           </div>
 
-          <div className="hp-an-card">
+          {/* HEDIS HIDDEN — uncomment to show */}
+          {false && <div className="hp-an-card">
             <h3 className="hp-an-card-title">HEDIS Quality Measures</h3>
             <p className="hp-an-card-sub">Healthcare Effectiveness Data and Information Set — patient quality scores</p>
             {hedisLoading ? (
@@ -1018,7 +1019,7 @@ export default function HealthcareProviderView({ onLogout }) {
             ) : (
               <p className="hp-an-empty-text">No eligible patients for HEDIS measures</p>
             )}
-          </div>
+          </div>}
         </div>
       )}
     </div>
