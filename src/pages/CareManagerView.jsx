@@ -4,6 +4,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import { Pie, Bar } from 'react-chartjs-2';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { FHIR_BASE } from '../config/constants';
+import { calculateHedisScores } from '../services/hedis';
 import '../styles/caremanager.css';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
@@ -65,6 +66,8 @@ export default function CareManagerView({ onLogout }) {
   const [readmissionRate, setReadmissionRate] = useState({ rate: 0, pctChange: 0 });
   const [upcomingAppts, setUpcomingAppts] = useState([]);
   const [encounterTrend, setEncounterTrend] = useState(null);
+  const [hedisScores, setHedisScores] = useState(null);
+  const [hedisLoading, setHedisLoading] = useState(false);
 
   useEffect(() => {
     function handleClick(e) {
@@ -316,6 +319,17 @@ export default function CareManagerView({ onLogout }) {
         setCareGaps(gaps);
       });
     });
+  }, [selectedOrg, mainTab, orgPatients[selectedOrg]?.length]);
+
+  useEffect(() => {
+    if (!selectedOrg || mainTab !== 'analytics') return;
+    const pts = orgPatients[selectedOrg] || [];
+    if (!pts.length) return;
+    setHedisLoading(true);
+    calculateHedisScores(pts.map(p => p.id), callFhirApi, buildUrl, FHIR_BASE)
+      .then(result => setHedisScores(result))
+      .catch(() => setHedisScores(null))
+      .finally(() => setHedisLoading(false));
   }, [selectedOrg, mainTab, orgPatients[selectedOrg]?.length]);
 
   const selectedOrgData = orgs.find(o => o.id === selectedOrg);
@@ -676,6 +690,46 @@ export default function CareManagerView({ onLogout }) {
                           </div>
                         ) : <p style={{ fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>No upcoming appointments</p>}
                       </div>
+                    </div>
+
+                    <div className="cm-an-strat-card">
+                      <div className="cm-an-strat-head">
+                        <h3 className="cm-an-strat-title">HEDIS Quality Measures</h3>
+                        <p className="cm-an-strat-sub">Healthcare Effectiveness Data and Information Set — patient quality scores</p>
+                      </div>
+                      {hedisLoading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: '#64748B', fontSize: 13 }}>
+                          <div className="hp-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
+                          Calculating HEDIS scores...
+                        </div>
+                      ) : hedisScores && hedisScores.measures.length > 0 ? (
+                        <div className="cm-hedis-grid">
+                          {hedisScores.measures.map(m => (
+                            <div className={`cm-hedis-card${m.invertedMeasure ? ' cm-hedis-inverted' : ''}`} key={m.id}>
+                              <div className="cm-hedis-header">
+                                <span className="cm-hedis-domain">{m.domain}</span>
+                                <span className={`cm-hedis-rate${m.rate === null ? '' : m.invertedMeasure ? (m.rate <= 10 ? ' good' : m.rate <= 25 ? ' fair' : ' poor') : (m.rate >= 80 ? ' good' : m.rate >= 60 ? ' fair' : ' poor')}`}>
+                                  {m.rate !== null ? `${m.rate}%` : 'N/A'}
+                                </span>
+                              </div>
+                              <span className="cm-hedis-name">{m.name}</span>
+                              <span className="cm-hedis-desc">{m.description}</span>
+                              <div className="cm-hedis-bar-wrap">
+                                <div className="cm-hedis-bar" style={{ width: `${m.rate || 0}%` }} />
+                              </div>
+                              <span className="cm-hedis-meta">{m.met} of {m.eligible} eligible patients</span>
+                              {m.gapPatients.length > 0 && (
+                                <details className="cm-hedis-gaps">
+                                  <summary>{m.gapPatients.length} gap{m.gapPatients.length > 1 ? 's' : ''}</summary>
+                                  <ul>{m.gapPatients.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                                </details>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="cm-an-strat-empty">No eligible patients for HEDIS measures</p>
+                      )}
                     </div>
 
                   </div>

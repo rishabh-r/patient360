@@ -6,6 +6,7 @@ import { callFhirApi, buildUrl } from '../services/fhir';
 import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
 import { HEALTH_STATUS_PROMPT } from '../config/prompts';
+import { calculateHedisScores } from '../services/hedis';
 import '../styles/provider.css';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend, Filler);
@@ -53,6 +54,8 @@ export default function HealthcareProviderView({ onLogout }) {
   const [highRiskLoading, setHighRiskLoading] = useState(false);
   const [yearlyTrend, setYearlyTrend] = useState(null);
   const [patientOutcomes, setPatientOutcomes] = useState(null);
+  const [hedisScores, setHedisScores] = useState(null);
+  const [hedisLoading, setHedisLoading] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
@@ -436,6 +439,12 @@ export default function HealthcareProviderView({ onLogout }) {
       }
       setPatientOutcomes({ labels: halves.map(h => h.label), improved, stable, declined });
     })();
+
+    setHedisLoading(true);
+    calculateHedisScores(patients.map(p => p.id), callFhirApi, buildUrl, FHIR_BASE)
+      .then(result => setHedisScores(result))
+      .catch(() => setHedisScores(null))
+      .finally(() => setHedisLoading(false));
   }, [tab, patients.length]);
 
   async function loadPatientDetail(pid) {
@@ -971,6 +980,44 @@ export default function HealthcareProviderView({ onLogout }) {
                 </div>
               ) : <p className="hp-an-empty-text">Loading outcomes data...</p>}
             </div>
+          </div>
+
+          <div className="hp-an-card">
+            <h3 className="hp-an-card-title">HEDIS Quality Measures</h3>
+            <p className="hp-an-card-sub">Healthcare Effectiveness Data and Information Set — patient quality scores</p>
+            {hedisLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: '#64748B', fontSize: 13 }}>
+                <div className="hp-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
+                Calculating HEDIS scores...
+              </div>
+            ) : hedisScores && hedisScores.measures.length > 0 ? (
+              <div className="hp-hedis-grid">
+                {hedisScores.measures.map(m => (
+                  <div className={`hp-hedis-card${m.invertedMeasure ? ' hp-hedis-inverted' : ''}`} key={m.id}>
+                    <div className="hp-hedis-header">
+                      <span className="hp-hedis-domain">{m.domain}</span>
+                      <span className={`hp-hedis-rate${m.rate === null ? '' : m.invertedMeasure ? (m.rate <= 10 ? ' good' : m.rate <= 25 ? ' fair' : ' poor') : (m.rate >= 80 ? ' good' : m.rate >= 60 ? ' fair' : ' poor')}`}>
+                        {m.rate !== null ? `${m.rate}%` : 'N/A'}
+                      </span>
+                    </div>
+                    <span className="hp-hedis-name">{m.name}</span>
+                    <span className="hp-hedis-desc">{m.description}</span>
+                    <div className="hp-hedis-bar-wrap">
+                      <div className="hp-hedis-bar" style={{ width: `${m.rate || 0}%` }} />
+                    </div>
+                    <span className="hp-hedis-meta">{m.met} of {m.eligible} eligible patients</span>
+                    {m.gapPatients.length > 0 && (
+                      <details className="hp-hedis-gaps">
+                        <summary>{m.gapPatients.length} gap{m.gapPatients.length > 1 ? 's' : ''}</summary>
+                        <ul>{m.gapPatients.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                      </details>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="hp-an-empty-text">No eligible patients for HEDIS measures</p>
+            )}
           </div>
         </div>
       )}

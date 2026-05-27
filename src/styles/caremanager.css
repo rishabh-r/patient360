@@ -496,6 +496,32 @@
 }
 .cm-profile-signout:hover { background: #FEF2F2; }
 
+/* ── HEDIS Quality Measures ── */
+.cm-hedis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cm-hedis-card {
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 4px;
+}
+.cm-hedis-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.cm-hedis-domain { font-size: 10px; font-weight: 600; color: #6366F1; text-transform: uppercase; letter-spacing: 0.5px; }
+.cm-hedis-rate { font-size: 22px; font-weight: 700; }
+.cm-hedis-rate.good { color: #16A34A; }
+.cm-hedis-rate.fair { color: #D97706; }
+.cm-hedis-rate.poor { color: #DC2626; }
+.cm-hedis-inverted .cm-hedis-rate.good { color: #16A34A; }
+.cm-hedis-inverted .cm-hedis-rate.fair { color: #D97706; }
+.cm-hedis-inverted .cm-hedis-rate.poor { color: #DC2626; }
+.cm-hedis-name { font-size: 14px; font-weight: 600; color: #1E293B; }
+.cm-hedis-desc { font-size: 11px; color: #64748B; line-height: 1.4; }
+.cm-hedis-bar-wrap { height: 6px; background: #E2E8F0; border-radius: 4px; overflow: hidden; margin: 6px 0 4px; }
+.cm-hedis-bar { height: 100%; background: #3B82F6; border-radius: 4px; transition: width 0.5s; }
+.cm-hedis-card.cm-hedis-inverted .cm-hedis-bar { background: #DC2626; }
+.cm-hedis-meta { font-size: 11px; color: #94A3B8; }
+.cm-hedis-gaps { margin-top: 6px; }
+.cm-hedis-gaps summary { font-size: 11px; font-weight: 600; color: #DC2626; cursor: pointer; }
+.cm-hedis-gaps ul { margin: 4px 0 0 16px; padding: 0; }
+.cm-hedis-gaps li { font-size: 11px; color: #64748B; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .cm-content { grid-template-columns: 1fr; padding: 16px; }

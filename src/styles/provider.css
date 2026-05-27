@@ -539,6 +539,32 @@
 /* Charts */
 .hp-an-chart-wrap { height: 260px; margin-top: 12px; }
 
+/* ── HEDIS Quality Measures ── */
+.hp-hedis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+.hp-hedis-card {
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 4px;
+}
+.hp-hedis-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.hp-hedis-domain { font-size: 10px; font-weight: 600; color: #6366F1; text-transform: uppercase; letter-spacing: 0.5px; }
+.hp-hedis-rate { font-size: 22px; font-weight: 700; }
+.hp-hedis-rate.good { color: #16A34A; }
+.hp-hedis-rate.fair { color: #D97706; }
+.hp-hedis-rate.poor { color: #DC2626; }
+.hp-hedis-inverted .hp-hedis-rate.good { color: #16A34A; }
+.hp-hedis-inverted .hp-hedis-rate.fair { color: #D97706; }
+.hp-hedis-inverted .hp-hedis-rate.poor { color: #DC2626; }
+.hp-hedis-name { font-size: 14px; font-weight: 600; color: #1E293B; }
+.hp-hedis-desc { font-size: 11px; color: #64748B; line-height: 1.4; }
+.hp-hedis-bar-wrap { height: 6px; background: #E2E8F0; border-radius: 4px; overflow: hidden; margin: 6px 0 4px; }
+.hp-hedis-bar { height: 100%; background: #3B82F6; border-radius: 4px; transition: width 0.5s; }
+.hp-hedis-card.hp-hedis-inverted .hp-hedis-bar { background: #DC2626; }
+.hp-hedis-meta { font-size: 11px; color: #94A3B8; }
+.hp-hedis-gaps { margin-top: 6px; }
+.hp-hedis-gaps summary { font-size: 11px; font-weight: 600; color: #DC2626; cursor: pointer; }
+.hp-hedis-gaps ul { margin: 4px 0 0 16px; padding: 0; }
+.hp-hedis-gaps li { font-size: 11px; color: #64748B; }
+
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .hp-analytics, .hp-panel { padding: 16px; }
