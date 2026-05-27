@@ -36,15 +36,49 @@ const OBS_PER_PAGE = 5;
 const ALL_OBS_GROUPS = [
   { key: 'bp', label: 'BP', codes: ['8480-6', '8462-4'], colors: ['#EF4444', '#3B82F6'], targets: [120, 80], targetLabels: ['Systolic (120)', 'Diastolic (80)'] },
   { key: 'glucose', label: 'Glucose', codes: ['2345-7'], colors: ['#8B5CF6'], targets: [130], targetLabels: ['Target: 70-130 mg/dL'], fill: true },
+  { key: 'glucosepoc', label: 'Glucose POC', codes: ['2339-0'], colors: ['#8B5CF6'], targets: [140], targetLabels: ['Target: 70-140 mg/dL'] },
   { key: 'heartrate', label: 'Heart Rate', codes: ['8867-4'], colors: ['#F59E0B'], targets: null, targetLabels: ['Normal: 60-100 bpm'] },
   { key: 'hba1c', label: 'HbA1c', codes: ['4548-4'], colors: ['#22C55E'], targets: [7.0], targetLabels: ['Target: < 7.0%'] },
+  { key: 'hba1cifcc', label: 'HbA1c IFCC', codes: ['17856-6'], colors: ['#22C55E'], targets: [42], targetLabels: ['Target: < 42 mmol/mol'] },
   { key: 'creatinine', label: 'Creatinine', codes: ['2160-0'], colors: ['#EF4444'], targets: [1.3], targetLabels: ['Upper: 1.3 mg/dL'] },
   { key: 'ntprobnp', label: 'NT-proBNP', codes: ['33762-6'], colors: ['#EC4899'], targets: [125], targetLabels: ['Upper: 125 pg/mL'] },
   { key: 'potassium', label: 'Potassium', codes: ['2823-3'], colors: ['#F59E0B'], targets: null, targetLabels: ['Normal: 3.5-5.0 mEq/L'] },
-  { key: 'ldl', label: 'LDL', codes: ['2090-9'], colors: ['#3B82F6'], targets: [100], targetLabels: ['Target: < 100 mg/dL'] },
+  { key: 'ldl', label: 'LDL', codes: ['2089-1'], colors: ['#3B82F6'], targets: [100], targetLabels: ['Target: < 100 mg/dL'] },
+  { key: 'ldlcalc', label: 'LDL Calc', codes: ['2090-9'], colors: ['#3B82F6'], targets: [100], targetLabels: ['Target: < 100 mg/dL'] },
   { key: 'cholesterol', label: 'Cholesterol', codes: ['2093-3'], colors: ['#6366F1'], targets: [200], targetLabels: ['Upper: 200 mg/dL'] },
-  { key: 'triglycerides', label: 'Triglycerides', codes: ['1644-4'], colors: ['#F97316'], targets: [150], targetLabels: ['Upper: 150 mg/dL'] },
+  { key: 'hdl', label: 'HDL', codes: ['2085-9'], colors: ['#14B8A6'], targets: null, targetLabels: ['Normal: 40-60 mg/dL'] },
+  { key: 'triglycerides', label: 'Triglycerides', codes: ['2571-8', '1644-4'], colors: ['#F97316'], targets: [150], targetLabels: ['Upper: 150 mg/dL'] },
   { key: 'sodium', label: 'Sodium', codes: ['2951-2'], colors: ['#14B8A6'], targets: null, targetLabels: ['Normal: 136-145 mEq/L'] },
+  { key: 'hemoglobin', label: 'Hemoglobin', codes: ['718-7'], colors: ['#DC2626'], targets: null, targetLabels: ['Normal: 12-17.5 g/dL'] },
+  { key: 'wbc', label: 'WBC', codes: ['6690-2'], colors: ['#8B5CF6'], targets: null, targetLabels: ['Normal: 4.5-11 10*3/uL'] },
+  { key: 'platelet', label: 'Platelets', codes: ['777-3'], colors: ['#F59E0B'], targets: null, targetLabels: ['Normal: 150-400 10*3/uL'] },
+  { key: 'hematocrit', label: 'Hematocrit', codes: ['4544-3'], colors: ['#3B82F6'], targets: null, targetLabels: ['Normal: 36-54%'] },
+  { key: 'albumin', label: 'Albumin', codes: ['1751-7'], colors: ['#14B8A6'], targets: null, targetLabels: ['Normal: 3.5-5.5 g/dL'] },
+  { key: 'bun', label: 'BUN', codes: ['3094-0'], colors: ['#F97316'], targets: [20], targetLabels: ['Upper: 20 mg/dL'] },
+  { key: 'egfr', label: 'eGFR', codes: ['48642-3'], colors: ['#22C55E'], targets: [90], targetLabels: ['Normal: > 90 mL/min'] },
+  { key: 'ast', label: 'AST', codes: ['1920-8'], colors: ['#EF4444'], targets: [40], targetLabels: ['Upper: 40 U/L'] },
+  { key: 'alt', label: 'ALT', codes: ['1742-6'], colors: ['#F59E0B'], targets: [56], targetLabels: ['Upper: 56 U/L'] },
+  { key: 'bilirubin', label: 'Bilirubin', codes: ['1975-2'], colors: ['#8B5CF6'], targets: [1.2], targetLabels: ['Upper: 1.2 mg/dL'] },
+  { key: 'calcium', label: 'Calcium', codes: ['2000-8'], colors: ['#14B8A6'], targets: null, targetLabels: ['Normal: 8.5-10.5 mg/dL'] },
+  { key: 'phosphate', label: 'Phosphate', codes: ['2777-1'], colors: ['#3B82F6'], targets: null, targetLabels: ['Normal: 2.5-4.5 mg/dL'] },
+  { key: 'magnesium', label: 'Magnesium', codes: ['2601-3'], colors: ['#6366F1'], targets: null, targetLabels: ['Normal: 1.7-2.2 mg/dL'] },
+  { key: 'uricacid', label: 'Uric Acid', codes: ['2947-0', '3084-1'], colors: ['#DC2626'], targets: [7.2], targetLabels: ['Upper: 7.2 mg/dL'] },
+  { key: 'ferritin', label: 'Ferritin', codes: ['2276-4'], colors: ['#F97316'], targets: null, targetLabels: ['Normal: 12-300 ng/mL'] },
+  { key: 'crp', label: 'CRP', codes: ['1988-5'], colors: ['#EF4444'], targets: [3], targetLabels: ['Upper: 3 mg/L'] },
+  { key: 'troponint', label: 'Troponin T', codes: ['6598-7'], colors: ['#DC2626'], targets: [0.04], targetLabels: ['Upper: 0.04 ng/mL'] },
+  { key: 'troponini', label: 'Troponin I', codes: ['10839-9'], colors: ['#DC2626'], targets: [0.04], targetLabels: ['Upper: 0.04 ng/mL'] },
+  { key: 'inr', label: 'INR', codes: ['6301-6', '5895-7'], colors: ['#8B5CF6'], targets: null, targetLabels: ['Normal: 0.8-1.1'] },
+  { key: 'procalcitonin', label: 'Procalcitonin', codes: ['33959-8'], colors: ['#EF4444'], targets: [0.1], targetLabels: ['Upper: 0.1 ng/mL'] },
+  { key: 'ldh', label: 'LDH', codes: ['14804-9', '2532-0'], colors: ['#6366F1'], targets: [280], targetLabels: ['Upper: 280 U/L'] },
+  { key: 'tsh', label: 'TSH', codes: ['3016-3'], colors: ['#14B8A6'], targets: null, targetLabels: ['Normal: 0.27-4.2 mIU/L'] },
+  { key: 'bodyweight', label: 'Weight', codes: ['29463-7'], colors: ['#64748B'], targets: null, targetLabels: [] },
+  { key: 'resprate', label: 'Resp Rate', codes: ['9279-1'], colors: ['#F59E0B'], targets: null, targetLabels: ['Normal: 12-20 /min'] },
+  { key: 'temp', label: 'Temperature', codes: ['8310-5'], colors: ['#EF4444'], targets: null, targetLabels: ['Normal: 36.1-37.2 °C'] },
+  { key: 'spo2', label: 'SpO2', codes: ['59408-5', '20564-1', '2708-6'], colors: ['#3B82F6'], targets: [95], targetLabels: ['Normal: 95-100%'] },
+  { key: 'co2', label: 'CO2', codes: ['2028-9'], colors: ['#14B8A6'], targets: null, targetLabels: ['Normal: 23-29 mEq/L'] },
+  { key: 'chloride', label: 'Chloride', codes: ['2075-0'], colors: ['#64748B'], targets: null, targetLabels: ['Normal: 98-106 mmol/L'] },
+  { key: 'iron', label: 'Iron', codes: ['2498-4'], colors: ['#F97316'], targets: null, targetLabels: ['Normal: 60-170 ug/dL'] },
+  { key: 'bicarbonate', label: 'Bicarbonate', codes: ['1963-8'], colors: ['#22C55E'], targets: null, targetLabels: ['Normal: 22-26 mmol/L'] },
 ];
 
 function parseObsForTrends(bundle) {
@@ -66,12 +100,29 @@ function parseObsForTrends(bundle) {
   return Object.keys(byCode).length ? byCode : null;
 }
 
+const DYNAMIC_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#DC2626'];
+
 function getTrendTabs(obsData) {
   if (!obsData) return [];
-  return ALL_OBS_GROUPS
+  const knownCodes = new Set(ALL_OBS_GROUPS.flatMap(g => g.codes));
+  const tabs = ALL_OBS_GROUPS
     .map(g => ({ ...g, totalPoints: g.codes.reduce((sum, c) => sum + (obsData[c]?.points?.length || 0), 0) }))
-    .filter(g => g.totalPoints > 0)
-    .sort((a, b) => b.totalPoints - a.totalPoints);
+    .filter(g => g.totalPoints > 0);
+
+  let colorIdx = 0;
+  for (const code of Object.keys(obsData)) {
+    if (knownCodes.has(code)) continue;
+    const info = obsData[code];
+    if (info.points.length < 2) continue;
+    tabs.push({
+      key: `dyn_${code}`, label: info.display || code, codes: [code],
+      colors: [DYNAMIC_COLORS[colorIdx % DYNAMIC_COLORS.length]],
+      targets: null, targetLabels: info.unit ? [`Unit: ${info.unit}`] : [],
+      totalPoints: info.points.length,
+    });
+    colorIdx++;
+  }
+  return tabs.sort((a, b) => b.totalPoints - a.totalPoints);
 }
 
 function statusColor(status) {
