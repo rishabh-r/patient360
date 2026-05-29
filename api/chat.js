@@ -1,6 +1,6 @@
 export const config = { runtime: 'edge' };
 
-const AZURE_ENDPOINT = 'https://care-coordination-project.openai.azure.com/openai/deployments/gpt-5.4-nano-2026-03-17/chat/completions?api-version=2025-01-01-preview';
+const AZURE_ENDPOINT = 'https://care-coordination-project.openai.azure.com/openai/deployments/gpt-4.1-mini/chat/completions?api-version=2025-01-01-preview';
 
 export default async function handler(req) {
   if (req.method === 'OPTIONS') {
