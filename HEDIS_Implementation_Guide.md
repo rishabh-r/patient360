@@ -135,6 +135,19 @@ src/styles/provider.css    — HEDIS card styling (Provider)
 
 ---
 
+### Measure 9: Breast Cancer Screening (BCS)
+- **Domain**: Preventive Care
+- **What it measures**: Did eligible women get a mammogram?
+- **Eligible (Denominator)**: Patient gender = `female` AND age between 50–74 (inclusive), calculated from `Patient.birthDate`
+- **Met (Numerator)**: Patient had a mammogram within the past **27 months** (per NCQA BCS specification). Checked via:
+  1. `GET /baseR4/Procedure?patient={id}` — looks for CPT codes `77051–77067` (Breast mammography range from `procedure_code_master.csv` row 84) OR procedure display containing "mammog" or "mammogram"
+  2. `GET /baseR4/DiagnosticReport?patient={id}` — looks for LOINC `24606-6` (mammography) OR report display containing "mammog", "mammogram", or "breast"
+- **Formula**: `Rate = (women 50-74 with mammogram in 27 months / women 50-74) × 100`
+- **Target**: ≥ 80% (green)
+- **Why 27 months**: NCQA uses 27 months (not 24) to account for scheduling variability — a woman who had a mammogram in January 2024 and schedules her next in March 2026 is still compliant.
+- **Where the CPT codes come from**: `procedure_code_master.csv` row 84: category "Radiology", section "70000-79999", subsection "77051-77059" labeled "Breast mammography". We extend to 77067 to include screening mammography (bilateral) per AMA CPT.
+- **Note**: If no female patients aged 50-74 exist in the population, this measure won't appear (0 eligible).
+
 ## 5. UI — How It Appears in Analytics
 
 ### Location
@@ -184,6 +197,8 @@ Clicking the "X gaps" expandable section reveals which specific patients did NOT
 | `GET /baseR4/Observation/search?patient={id}` | Lab results (LOINC codes) | HbA1c, LDL, eGFR, Cholesterol |
 | `GET /baseR4/Observation/vitals/search?patient={id}` | Vital signs | Systolic/Diastolic BP |
 | `GET /baseR4/MedicationRequest?patient={id}` | Medications + status | Stopped vs active medications |
+| `GET /baseR4/Procedure?patient={id}` | Procedures performed (CPT codes) | Mammogram screening (CPT 77051-77067) |
+| `GET /baseR4/DiagnosticReport?patient={id}` | Diagnostic reports | Mammogram reports (LOINC 24606-6) |
 
 ---
 

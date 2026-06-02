@@ -138,6 +138,29 @@ const HEDIS_MEASURES = [
       return latest != null && latest.value < 100;
     },
   },
+  {
+    id: 'bcs_screening',
+    name: 'Breast Cancer Screening',
+    description: 'Women 50–74 who had a mammogram in the past 27 months',
+    domain: 'Preventive Care',
+    eligible: (pt) => pt.gender === 'female' && (() => { const age = getPatientAge(pt.birthDate); return age >= 50 && age <= 74; })(),
+    met: (pt) => {
+      const cutoff = new Date(pt.now.getTime() - 27 * 30.44 * 24 * 60 * 60 * 1000);
+      return (pt.procedures || []).some(p => {
+        const code = p.code?.coding?.[0]?.code || '';
+        const display = (p.code?.coding?.[0]?.display || '').toLowerCase();
+        const date = new Date(p.performedDateTime || p.performedPeriod?.start || 0);
+        const isMammo = (parseInt(code) >= 77051 && parseInt(code) <= 77067) || display.includes('mammog') || display.includes('mammogram');
+        return isMammo && date >= cutoff;
+      }) || (pt.diagnosticReports || []).some(r => {
+        const code = r.code?.coding?.[0]?.code || '';
+        const display = (r.code?.coding?.[0]?.display || r.code?.text || '').toLowerCase();
+        const date = new Date(r.effectiveDateTime || r.issued || 0);
+        const isMammo = code === '24606-6' || display.includes('mammog') || display.includes('mammogram') || display.includes('breast');
+        return isMammo && date >= cutoff;
+      });
+    },
+  },
 ];
 
 /**
@@ -154,12 +177,14 @@ export async function calculateHedisScores(patientIds, callFhirApiFn, buildUrlFn
 
   for (const pid of patientIds) {
     try {
-      const [ptRes, condRes, obsRes, vitalsRes, medRes] = await Promise.all([
+      const [ptRes, condRes, obsRes, vitalsRes, medRes, procRes, drRes] = await Promise.all([
         callFhirApiFn(buildUrlFn('/baseR4/Patient/find', { id: pid })).catch(() => null),
         callFhirApiFn(buildUrlFn('/baseR4/Condition', { patient: pid, page: 0, size: 100 })).catch(() => null),
         callFhirApiFn(buildUrlFn('/baseR4/Observation/search', { patient: pid, page: 0, size: 200 })).catch(() => null),
         callFhirApiFn(`${fhirBase}/baseR4/Observation/vitals/search?patient=${pid}`).catch(() => null),
         callFhirApiFn(buildUrlFn('/baseR4/MedicationRequest', { patient: pid, page: 0, size: 200 })).catch(() => null),
+        callFhirApiFn(buildUrlFn('/baseR4/Procedure', { patient: pid, page: 0, size: 100 })).catch(() => null),
+        callFhirApiFn(buildUrlFn('/baseR4/DiagnosticReport', { patient: pid, page: 0, size: 100 })).catch(() => null),
       ]);
 
       const pt = ptRes?.entry?.[0]?.resource || ptRes || {};
@@ -170,10 +195,13 @@ export async function calculateHedisScores(patientIds, callFhirApiFn, buildUrlFn
         id: pid,
         name: `${given} ${family}`.trim(),
         birthDate: pt.birthDate || '',
+        gender: pt.gender || '',
         conditions: (condRes?.entry || []).map(e => e.resource).filter(Boolean),
         observations: (obsRes?.entry || []).map(e => e.resource).filter(Boolean),
         vitals: (vitalsRes?.entry || []).map(e => e.resource).filter(Boolean),
         medications: (medRes?.entry || []).map(e => e.resource).filter(Boolean),
+        procedures: (procRes?.entry || []).map(e => e.resource).filter(Boolean),
+        diagnosticReports: (drRes?.entry || []).map(e => e.resource).filter(Boolean),
         now,
       });
     } catch {}
