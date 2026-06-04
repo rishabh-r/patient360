@@ -3744,5 +3744,74 @@ Two tabs: **Patients** (existing detail view) + **Analytics** (new).
 110. `a26075d` — Med adherence: total meds formula across all patients
 111. `e700178` — ALOS: INP/IMP only, monthly window vs last month, both views
 112. `96733c3` — Add 35+ observation LOINC codes; dynamic trend tabs for any observation with 2+ points
+113. `c350d69` — Append notes2.md: May 25-27 session, commits 104-112
+
+---
+
+## Session: May 27 – Jun 4, 2026
+
+### HEDIS Quality Measures — Custom Implementation (Option 2)
+- New service: `src/services/hedis.js` — standalone HEDIS scoring engine
+- **9 measures** implemented with custom JavaScript logic using existing FHIR APIs:
+  1. **HbA1c Testing** — diabetic patients tested for HbA1c in past year (LOINC 4548-4, 17856-6)
+  2. **HbA1c Control (<7%)** — diabetic patients with HbA1c < 7.0%
+  3. **HbA1c Poor Control (>9%)** — inverted measure, lower is better (NCQA threshold)
+  4. **BP Control (<140/90)** — hypertensive patients with BP under control (LOINC 8480-6, 8462-4)
+  5. **Kidney Screening** — diabetic patients with eGFR/ACR tested (LOINC 48642-3, 14959-1, 33914-3)
+  6. **Medication Adherence** — patients with no stopped medications
+  7. **Cholesterol Screening** — adults 18+ with lipid panel in past year (LOINC 2093-3, 2085-9, 2089-1, 2090-9)
+  8. **LDL Control (<100)** — cardiovascular-risk patients with LDL < 100 mg/dL
+  9. **Breast Cancer Screening (BCS)** — women 50-74 with mammogram in past 27 months (CPT 77051-77067, LOINC 24606-6 via Procedure + DiagnosticReport APIs)
+- Fetches 7 parallel FHIR API calls per patient: Patient/find, Condition, Observation/search, Observation/vitals/search, MedicationRequest, Procedure, DiagnosticReport
+- Each measure card shows: domain tag, rate %, progress bar, eligible/met counts, expandable gap list with patient names
+- Color coding: ≥80% green, 60-79% orange, <60% red
+- Added to both **Care Manager** and **Provider** analytics tabs
+- `HEDIS_Implementation_Guide.md` created with full documentation
+- Was hidden from UI temporarily (`{false && ...}`), then unhidden
+- Commits: `41048f2`, `8595bd0`, `c7d5877`, `faa254a`
+
+### AI Model Switch (attempted + reverted)
+- Switched Patient 360 from `gpt-4.1-mini` to `gpt-5.4-nano-2026-03-17` in `api/chat.js`
+- Reverted back to `gpt-4.1-mini`
+- Commits: `8b0712e` (switch), `ddeede6` (revert)
+
+### Provider Analytics — Monthly Visits (attempted + reverted)
+- Changed Yearly Visits KPI to Monthly Visits (current month vs last month)
+- Reverted back to Yearly Visits
+- Commits: `a05dfb1` (monthly), `5549732` (revert to yearly)
+
+### Loading Spinners for KPI Cards
+- Added inline spinning circle (`22px`, blue) to all KPI cards while data loads
+- **Provider**: Today's Schedule, Yearly Visits, Avg LOS, Med Adherence
+- **Care Manager**: Recent Admissions, Discharges, ALOS, Readmission Rate
+- New CSS: `.hp-spinner-inline`, `.cm-spinner-inline`
+- Commit: `5549732`
+
+### Analytics — Background Loading + Run Once
+- **Provider**: analytics starts loading as soon as patient list is fetched (on login), not when Analytics tab clicked. Uses `analyticsLoaded` ref — runs only once per session.
+- **Care Manager**: analytics starts loading as soon as an org is selected, not when Analytics tab clicked. Uses `analyticsLoadedOrg` ref — runs only once per org. New org = fresh load.
+- Switching between Patients/Analytics tabs no longer re-triggers API calls.
+- Commit: `486e1a5`
+
+### Today's Schedule KPI — Remove "completed" count
+- Removed "0 completed" subtitle from Today's Schedule KPI card in Provider analytics. Now shows just the count.
+- Commit: `2a61258`
+
+### Knowledge Base (Time Traveller repo)
+- Added 17 ICD-10 condition codes, 45 medications with formulary codes, 8 CPT procedures, 3 LOINC codes
+- Commit: `e55fe79` (time-traveller repo)
+
+### Git Commits (May 27 – Jun 4)
+
+114. `41048f2` — HEDIS Quality Measures: 9 measures with custom logic, Care Manager + Provider analytics
+115. `8595bd0` — HEDIS: hide from UI, add HEDIS_Implementation_Guide.md
+116. `8b0712e` — Switch AI model to gpt-5.4-nano (reverted)
+117. `ddeede6` — Revert AI model back to gpt-4.1-mini
+118. `c7d5877` — Unhide HEDIS Quality Measures
+119. `faa254a` — Add HEDIS BCS Breast Cancer Screening measure
+120. `a05dfb1` — Provider: change Yearly Visits to Monthly Visits (reverted)
+121. `5549732` — Revert to Yearly Visits; add loading spinners to all KPI cards
+122. `486e1a5` — Analytics: load in background on mount/org-select, run only once
+123. `2a61258` — Remove completed count from Today's Schedule KPI
 
 ---
