@@ -68,6 +68,7 @@ export default function CareManagerView({ onLogout }) {
   const [encounterTrend, setEncounterTrend] = useState(null);
   const [hedisScores, setHedisScores] = useState(null);
   const [hedisLoading, setHedisLoading] = useState(false);
+  const [kpiLoading, setKpiLoading] = useState(false);
 
   useEffect(() => {
     function handleClick(e) {
@@ -188,6 +189,7 @@ export default function CareManagerView({ onLogout }) {
       return uniquePatients > 0 ? +((patientsReadmittedSameDisease / uniquePatients) * 100).toFixed(1) : 0;
     }
 
+    setKpiLoading(true);
     (async () => {
       try {
         const [currAdm, prevAdm] = await Promise.all([
@@ -258,6 +260,7 @@ export default function CareManagerView({ onLogout }) {
 
         setEncounterTrend({ labels, completed, cancelled: cancelledCounts });
       } catch {}
+      setKpiLoading(false);
     })();
 
     Promise.all(pts.map(async p => {
@@ -550,13 +553,17 @@ export default function CareManagerView({ onLogout }) {
                     <div className="cm-an-kpi-row">
                       <div className="cm-an-kpi">
                         <span className="cm-an-kpi-label">Recent Admissions</span>
+                        {kpiLoading ? <span className="cm-an-kpi-val"><div className="cm-spinner-inline" /></span> : <>
                         <span className="cm-an-kpi-val">{admissions.count}</span>
                         <span className={`cm-an-kpi-change ${admissions.pctChange <= 0 ? 'down' : 'up'}`}>{admissions.pctChange <= 0 ? '↘' : '↗'} {Math.abs(admissions.pctChange)}% from last year</span>
+                        </>}
                       </div>
                       <div className="cm-an-kpi">
                         <span className="cm-an-kpi-label">Discharges</span>
+                        {kpiLoading ? <span className="cm-an-kpi-val"><div className="cm-spinner-inline" /></span> : <>
                         <span className="cm-an-kpi-val">{discharges.count}</span>
                         <span className={`cm-an-kpi-change ${discharges.pctChange <= 0 ? 'down' : 'up'}`}>{discharges.pctChange <= 0 ? '↘' : '↗'} {Math.abs(discharges.pctChange)}% from last year</span>
+                        </>}
                       </div>
                     </div>
 
@@ -579,13 +586,17 @@ export default function CareManagerView({ onLogout }) {
                     <div className="cm-an-kpi-row">
                       <div className="cm-an-kpi">
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">ALOS</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+                        {kpiLoading ? <span className="cm-an-kpi-val"><div className="cm-spinner-inline" /></span> : <>
                         <span className="cm-an-kpi-val">{alos.days} days</span>
                         <span className={`cm-an-kpi-change ${alos.pctChange <= 0 ? 'down' : 'up'}`}>{alos.pctChange <= 0 ? '↓' : '↑'} {alos.pctChange > 0 ? '+' : ''}{alos.pctChange} days vs last month</span>
+                        </>}
                       </div>
                       <div className="cm-an-kpi">
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">Readmission Rate</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></div>
+                        {kpiLoading ? <span className="cm-an-kpi-val"><div className="cm-spinner-inline" /></span> : <>
                         <span className="cm-an-kpi-val">{readmissionRate.rate}%</span>
                         <span className={`cm-an-kpi-change ${readmissionRate.pctChange <= 0 ? 'down' : 'up'}`}>{readmissionRate.pctChange <= 0 ? '↓' : '↑'} {Math.abs(readmissionRate.pctChange)}% vs last year</span>
+                        </>}
                       </div>
                     </div>
 

@@ -496,6 +496,15 @@
 }
 .cm-profile-signout:hover { background: #FEF2F2; }
 
+/* ── Inline Spinner ── */
+.cm-spinner-inline {
+  width: 22px; height: 22px; border: 3px solid #E2E8F0;
+  border-top-color: #3B82F6; border-radius: 50%;
+  animation: cm-spin 0.7s linear infinite;
+  display: inline-block; vertical-align: middle; margin: 4px 0;
+}
+@keyframes cm-spin { to { transform: rotate(360deg); } }
+
 /* ── HEDIS Quality Measures ── */
 .cm-hedis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .cm-hedis-card {

@@ -516,6 +516,12 @@
   animation: hp-spin 0.7s linear infinite;
 }
 @keyframes hp-spin { to { transform: rotate(360deg); } }
+.hp-spinner-inline {
+  width: 22px; height: 22px; border: 3px solid #E2E8F0;
+  border-top-color: #3B82F6; border-radius: 50%;
+  animation: hp-spin 0.7s linear infinite;
+  display: inline-block; vertical-align: middle; margin: 4px 0;
+}
 
 .hp-an-risk-card {
   padding: 16px; border: 1px solid #FECACA; border-radius: 10px;

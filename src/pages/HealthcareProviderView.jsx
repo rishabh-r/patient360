@@ -160,14 +160,14 @@ export default function HealthcareProviderView({ onLogout }) {
     (async () => {
       try {
         const [currEncs, prevEncs] = await Promise.all([
-          fetchAllFinished(oneMonthAgo, today),
-          fetchAllFinished(twoMonthsAgo, oneMonthAgo),
+          fetchAllFinished(oneYearAgo, today),
+          fetchAllFinished(twoYearsAgo, oneYearAgo),
         ]);
 
         const currCount = currEncs.length;
         const prevCount = prevEncs.length;
-        const mPct = prevCount > 0 ? Math.round(((currCount - prevCount) / prevCount) * 100) : 0;
-        setYearlyVisits({ count: currCount, pctChange: mPct });
+        const yPct = prevCount > 0 ? Math.round(((currCount - prevCount) / prevCount) * 100) : 0;
+        setYearlyVisits({ count: currCount, pctChange: yPct });
 
         function calcAlos(encounters) {
           let totalDays = 0, count = 0;
@@ -781,26 +781,33 @@ export default function HealthcareProviderView({ onLogout }) {
           <div className="hp-an-kpi-row">
             <div className="hp-an-kpi">
               <span className="hp-an-kpi-label">Today's Schedule</span>
+              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
               <span className="hp-an-kpi-val">{todayAppts.length}</span>
               <span className="hp-an-kpi-sub">{todayAppts.filter(a => a.completed).length} completed</span>
+              </>}
             </div>
             <div className="hp-an-kpi">
-              <span className="hp-an-kpi-label">Monthly Visits</span>
+              <span className="hp-an-kpi-label">Yearly Visits</span>
+              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
               <span className="hp-an-kpi-val">{yearlyVisits.count}</span>
               <span className={`hp-an-kpi-change ${yearlyVisits.pctChange >= 0 ? 'up-green' : 'down-red'}`}>
-                {yearlyVisits.pctChange >= 0 ? '↗' : '↘'} {yearlyVisits.pctChange >= 0 ? '+' : ''}{yearlyVisits.pctChange}% vs last month
-              </span>
+                {yearlyVisits.pctChange >= 0 ? '↗' : '↘'} {yearlyVisits.pctChange >= 0 ? '+' : ''}{yearlyVisits.pctChange}% vs last year
+              </span></>}
             </div>
             <div className="hp-an-kpi">
               <span className="hp-an-kpi-label">Avg LOS</span>
+              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
               <span className="hp-an-kpi-val">{avgLos.days} days</span>
               <span className={`hp-an-kpi-change ${avgLos.pctChange <= 0 ? 'up-green' : 'down-red'}`}>
                 {avgLos.pctChange <= 0 ? '↘' : '↗'} {avgLos.pctChange > 0 ? '+' : ''}{avgLos.pctChange} days vs last month
               </span>
+              </>}
             </div>
             <div className="hp-an-kpi">
               <span className="hp-an-kpi-label">Med Adherence</span>
+              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
               <span className="hp-an-kpi-val">{medAdherence.pct}%</span>
+              </>}
             </div>
           </div>
 
