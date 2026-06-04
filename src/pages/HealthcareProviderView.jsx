@@ -785,7 +785,6 @@ export default function HealthcareProviderView({ onLogout }) {
               <span className="hp-an-kpi-label">Today's Schedule</span>
               {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
               <span className="hp-an-kpi-val">{todayAppts.length}</span>
-              <span className="hp-an-kpi-sub">{todayAppts.filter(a => a.completed).length} completed</span>
               </>}
             </div>
             <div className="hp-an-kpi">
