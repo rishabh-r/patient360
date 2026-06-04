@@ -69,6 +69,7 @@ export default function CareManagerView({ onLogout }) {
   const [hedisScores, setHedisScores] = useState(null);
   const [hedisLoading, setHedisLoading] = useState(false);
   const [kpiLoading, setKpiLoading] = useState(false);
+  const analyticsLoadedOrg = useRef(null);
 
   useEffect(() => {
     function handleClick(e) {
@@ -125,9 +126,11 @@ export default function CareManagerView({ onLogout }) {
   }, [visibleOrgs.map(o => o.id).join(','), orgPage]);
 
   useEffect(() => {
-    if (!selectedOrg || mainTab !== 'analytics') return;
+    if (!selectedOrg) return;
     const pts = orgPatients[selectedOrg] || [];
     if (!pts.length) { setRiskPatients([]); return; }
+    if (analyticsLoadedOrg.current === selectedOrg) return;
+    analyticsLoadedOrg.current = selectedOrg;
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().split('T')[0];
@@ -322,18 +325,19 @@ export default function CareManagerView({ onLogout }) {
         setCareGaps(gaps);
       });
     });
-  }, [selectedOrg, mainTab, orgPatients[selectedOrg]?.length]);
+  }, [selectedOrg, orgPatients[selectedOrg]?.length]);
 
   useEffect(() => {
-    if (!selectedOrg || mainTab !== 'analytics') return;
+    if (!selectedOrg) return;
     const pts = orgPatients[selectedOrg] || [];
     if (!pts.length) return;
+    if (analyticsLoadedOrg.current !== selectedOrg) return;
     setHedisLoading(true);
     calculateHedisScores(pts.map(p => p.id), callFhirApi, buildUrl, FHIR_BASE)
       .then(result => setHedisScores(result))
       .catch(() => setHedisScores(null))
       .finally(() => setHedisLoading(false));
-  }, [selectedOrg, mainTab, orgPatients[selectedOrg]?.length]);
+  }, [selectedOrg, orgPatients[selectedOrg]?.length]);
 
   const selectedOrgData = orgs.find(o => o.id === selectedOrg);
   const patients = selectedOrg ? (orgPatients[selectedOrg] || []) : [];

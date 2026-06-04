@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend, Filler } from 'chart.js';
 import { Bar, Line } from 'react-chartjs-2';
@@ -57,6 +57,7 @@ export default function HealthcareProviderView({ onLogout }) {
   const [hedisScores, setHedisScores] = useState(null);
   const [hedisLoading, setHedisLoading] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const analyticsLoaded = useRef(false);
 
   useEffect(() => {
     function handleClick(e) {
@@ -109,7 +110,8 @@ export default function HealthcareProviderView({ onLogout }) {
   }, [practId]);
 
   useEffect(() => {
-    if (tab !== 'analytics' || !patients.length) return;
+    if (!patients.length || analyticsLoaded.current) return;
+    analyticsLoaded.current = true;
     setAnalyticsLoading(true);
     const now = new Date();
     const today = now.toISOString().split('T')[0];
@@ -445,7 +447,7 @@ export default function HealthcareProviderView({ onLogout }) {
       .then(result => setHedisScores(result))
       .catch(() => setHedisScores(null))
       .finally(() => setHedisLoading(false));
-  }, [tab, patients.length]);
+  }, [patients.length]);
 
   async function loadPatientDetail(pid) {
     setDetailLoading(true);
