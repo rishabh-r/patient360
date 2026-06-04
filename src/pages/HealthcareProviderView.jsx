@@ -160,14 +160,14 @@ export default function HealthcareProviderView({ onLogout }) {
     (async () => {
       try {
         const [currEncs, prevEncs] = await Promise.all([
-          fetchAllFinished(oneYearAgo, today),
-          fetchAllFinished(twoYearsAgo, oneYearAgo),
+          fetchAllFinished(oneMonthAgo, today),
+          fetchAllFinished(twoMonthsAgo, oneMonthAgo),
         ]);
 
         const currCount = currEncs.length;
         const prevCount = prevEncs.length;
-        const yPct = prevCount > 0 ? Math.round(((currCount - prevCount) / prevCount) * 100) : 0;
-        setYearlyVisits({ count: currCount, pctChange: yPct });
+        const mPct = prevCount > 0 ? Math.round(((currCount - prevCount) / prevCount) * 100) : 0;
+        setYearlyVisits({ count: currCount, pctChange: mPct });
 
         function calcAlos(encounters) {
           let totalDays = 0, count = 0;
@@ -785,10 +785,10 @@ export default function HealthcareProviderView({ onLogout }) {
               <span className="hp-an-kpi-sub">{todayAppts.filter(a => a.completed).length} completed</span>
             </div>
             <div className="hp-an-kpi">
-              <span className="hp-an-kpi-label">Yearly Visits</span>
+              <span className="hp-an-kpi-label">Monthly Visits</span>
               <span className="hp-an-kpi-val">{yearlyVisits.count}</span>
               <span className={`hp-an-kpi-change ${yearlyVisits.pctChange >= 0 ? 'up-green' : 'down-red'}`}>
-                {yearlyVisits.pctChange >= 0 ? '↗' : '↘'} {yearlyVisits.pctChange >= 0 ? '+' : ''}{yearlyVisits.pctChange}% vs last year
+                {yearlyVisits.pctChange >= 0 ? '↗' : '↘'} {yearlyVisits.pctChange >= 0 ? '+' : ''}{yearlyVisits.pctChange}% vs last month
               </span>
             </div>
             <div className="hp-an-kpi">
