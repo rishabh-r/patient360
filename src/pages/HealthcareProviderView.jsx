@@ -7,6 +7,7 @@ import { callAI } from '../services/ai';
 import { FHIR_BASE } from '../config/constants';
 import { HEALTH_STATUS_PROMPT } from '../config/prompts';
 import { calculateHedisScores } from '../services/hedis';
+import { runAllAgents } from '../services/agents';
 import '../styles/provider.css';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend, Filler);
@@ -39,6 +40,15 @@ export default function HealthcareProviderView({ onLogout }) {
   const [medPage, setMedPage] = useState(1);
   const [docPage, setDocPage] = useState(1);
   const [viewingDoc, setViewingDoc] = useState(null);
+  const [agentResults, setAgentResults] = useState(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [aiInstructions, setAiInstructions] = useState([]);
+  const [aiActions, setAiActions] = useState([]);
+  const [selectedInstr, setSelectedInstr] = useState([]);
+  const [selectedAct, setSelectedAct] = useState([]);
+  const [instrApproving, setInstrApproving] = useState(false);
+  const [actApproving, setActApproving] = useState(false);
+  const [approvalToast, setApprovalToast] = useState('');
   const ITEMS_PER_PAGE = 4;
   const DOCS_PER_PAGE = 5;
 
@@ -537,10 +547,62 @@ export default function HealthcareProviderView({ onLogout }) {
   }
 
   useEffect(() => {
-    if (selectedPatient) { setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null); loadPatientDetail(selectedPatient); }
+    if (selectedPatient) {
+      setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null);
+      setAgentResults(null); setAiInstructions([]); setAiActions([]); setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
+      loadPatientDetail(selectedPatient);
+      setAgentLoading(true);
+      runAllAgents(selectedPatient)
+        .then(res => {
+          setAgentResults(res.agents || {});
+          const recs = res.recommendations || {};
+          setAiInstructions(Array.isArray(recs.instructions) ? recs.instructions : []);
+          setAiActions(Array.isArray(recs.actions) ? recs.actions : []);
+        })
+        .catch(() => { setAgentResults({}); })
+        .finally(() => setAgentLoading(false));
+    }
   }, [selectedPatient]);
 
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+
+  async function handleApproveInstructions() {
+    const selected = aiInstructions.filter((_, i) => selectedInstr.includes(i));
+    if (!selected.length) return;
+    setInstrApproving(true);
+    try {
+      await fetch(`${FHIR_BASE}/baseR4/Practitioner/ai-recommendation-instructions`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patientId: selectedPatient, practitionerId: localStorage.getItem('p360_ref_id') || '', payloads: selected }),
+      });
+      setApprovalToast('Instructions approved');
+      setTimeout(() => setApprovalToast(''), 2000);
+      setAiInstructions(prev => prev.filter((_, i) => !selectedInstr.includes(i)));
+      setSelectedInstr([]);
+    } catch {}
+    setInstrApproving(false);
+  }
+
+  async function handleApproveActions() {
+    const selected = aiActions.filter((_, i) => selectedAct.includes(i));
+    if (!selected.length) return;
+    setActApproving(true);
+    try {
+      for (const a of selected) {
+        await fetch(`${FHIR_BASE}/baseR4/Practitioner/ai-recommended-action`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patientId: selectedPatient, practitionerId: localStorage.getItem('p360_ref_id') || '', title: a.title, description: a.description, priority: a.priority, urgencyNote: a.timeframe }),
+        });
+      }
+      setApprovalToast('Actions approved');
+      setTimeout(() => setApprovalToast(''), 2000);
+      setAiActions(prev => prev.filter((_, i) => !selectedAct.includes(i)));
+      setSelectedAct([]);
+    } catch {}
+    setActApproving(false);
+  }
   const todayDate = new Date();
   const todayFormatted = todayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -770,6 +832,81 @@ export default function HealthcareProviderView({ onLogout }) {
                     </div>
                   </div>
                 )}
+
+                <div className="hp-detail-card">
+                  <h3 className="hp-detail-title">AI Agent Analysis</h3>
+                  {agentLoading ? (
+                    <div className="hp-agent-loading">
+                      <div className="hp-spinner" />
+                      <span>AI Agents analyzing patient data...</span>
+                    </div>
+                  ) : agentResults ? (
+                    <div className="hp-agent-grid">
+                      {[
+                        { key: 'clinical', label: 'Clinical Agent', icon: '🏥', color: '#DC2626', items: [...(agentResults.clinical?.findings || []), ...(agentResults.clinical?.careGaps || []), ...(agentResults.clinical?.progressionAlerts || [])], badge: agentResults.clinical?.riskLevel },
+                        { key: 'financial', label: 'Financial Agent', icon: '💰', color: '#2563EB', items: [...(agentResults.financial?.costFindings || []), ...(agentResults.financial?.documentationGaps || []), ...(agentResults.financial?.highCostFlags || [])] },
+                        { key: 'ops', label: 'Ops Agent', icon: '⚙️', color: '#7C3AED', items: [...(agentResults.ops?.appointmentInsights || []), ...(agentResults.ops?.encounterEfficiency || []), ...(agentResults.ops?.referralStatus || [])] },
+                        { key: 'engagement', label: 'Engagement Agent', icon: '📱', color: '#059669', items: [...(agentResults.engagement?.adherencePatterns || []), ...(agentResults.engagement?.outreachNeeds || []), ...(agentResults.engagement?.educationTopics || [])], badge: agentResults.engagement?.urgencyLevel },
+                      ].map(agent => (
+                        <div className="hp-agent-card" key={agent.key} style={{ borderTopColor: agent.color }}>
+                          <div className="hp-agent-header">
+                            <span className="hp-agent-icon">{agent.icon}</span>
+                            <span className="hp-agent-label">{agent.label}</span>
+                            {agent.badge && <span className={`hp-agent-badge hp-agent-badge--${(agent.badge || '').toLowerCase()}`}>{agent.badge}</span>}
+                          </div>
+                          <ul className="hp-agent-items">
+                            {(agent.items.length > 0 ? agent.items : ['No significant findings']).slice(0, 5).map((item, i) => (
+                              <li key={i}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                {!agentLoading && aiInstructions.length > 0 && (
+                  <div className="hp-detail-card">
+                    <h3 className="hp-detail-title">AI Recommended Instructions <span className="hp-ai-badge">AI</span></h3>
+                    {aiInstructions.map((instr, i) => (
+                      <label className="hp-instr-item" key={i}>
+                        <input type="checkbox" checked={selectedInstr.includes(i)} onChange={() => setSelectedInstr(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} />
+                        <span>{instr}</span>
+                      </label>
+                    ))}
+                    {selectedInstr.length > 0 && (
+                      <button className="hp-approve-btn" onClick={handleApproveInstructions} disabled={instrApproving}>
+                        {instrApproving ? 'Approving...' : `Approve Selected (${selectedInstr.length})`}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {!agentLoading && aiActions.length > 0 && (
+                  <div className="hp-detail-card">
+                    <h3 className="hp-detail-title">AI Recommended Actions <span className="hp-ai-badge">AI</span></h3>
+                    {aiActions.map((action, i) => (
+                      <label className="hp-action-item" key={i}>
+                        <input type="checkbox" checked={selectedAct.includes(i)} onChange={() => setSelectedAct(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} />
+                        <div className="hp-action-content">
+                          <div className="hp-action-top">
+                            <span className="hp-action-title">{action.title}</span>
+                            <span className={`hp-action-priority ${(action.priority || '').includes('High') ? 'high' : (action.priority || '').includes('Medium') ? 'med' : 'low'}`}>{action.priority}</span>
+                          </div>
+                          <span className="hp-action-desc">{action.description}</span>
+                          <span className="hp-action-meta">{action.timeframe}{action.rationale ? ` · ${action.rationale}` : ''}</span>
+                        </div>
+                      </label>
+                    ))}
+                    {selectedAct.length > 0 && (
+                      <button className="hp-approve-btn" onClick={handleApproveActions} disabled={actApproving}>
+                        {actApproving ? 'Approving...' : `Approve Selected (${selectedAct.length})`}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {approvalToast && <div className="hp-approval-toast">{approvalToast}</div>}
               </div>
             ) : (
               <div className="hp-pp-empty"><p className="hp-pp-loading">Failed to load patient details</p></div>
