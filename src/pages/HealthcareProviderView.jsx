@@ -551,16 +551,17 @@ export default function HealthcareProviderView({ onLogout }) {
       setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null);
       setAgentResults(null); setAiInstructions([]); setAiActions([]); setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
       loadPatientDetail(selectedPatient);
-      setAgentLoading(true);
-      runAllAgents(selectedPatient)
-        .then(res => {
-          setAgentResults(res.agents || {});
-          const recs = res.recommendations || {};
-          setAiInstructions(Array.isArray(recs.instructions) ? recs.instructions : []);
-          setAiActions(Array.isArray(recs.actions) ? recs.actions : []);
-        })
-        .catch(() => { setAgentResults({}); })
-        .finally(() => setAgentLoading(false));
+      // AGENTS HIDDEN — uncomment to enable agent calls
+      // setAgentLoading(true);
+      // runAllAgents(selectedPatient)
+      //   .then(res => {
+      //     setAgentResults(res.agents || {});
+      //     const recs = res.recommendations || {};
+      //     setAiInstructions(Array.isArray(recs.instructions) ? recs.instructions : []);
+      //     setAiActions(Array.isArray(recs.actions) ? recs.actions : []);
+      //   })
+      //   .catch(() => { setAgentResults({}); })
+      //   .finally(() => setAgentLoading(false));
     }
   }, [selectedPatient]);
 
@@ -833,7 +834,8 @@ export default function HealthcareProviderView({ onLogout }) {
                   </div>
                 )}
 
-                <div className="hp-detail-card">
+                {/* AGENTS HIDDEN — remove {false && <>...</>} to show */}
+                {false && <><div className="hp-detail-card">
                   <h3 className="hp-detail-title">AI Agent Analysis</h3>
                   {agentLoading ? (
                     <div className="hp-agent-loading">
@@ -907,6 +909,7 @@ export default function HealthcareProviderView({ onLogout }) {
                 )}
 
                 {approvalToast && <div className="hp-approval-toast">{approvalToast}</div>}
+                </> /* end AGENTS HIDDEN */}
               </div>
             ) : (
               <div className="hp-pp-empty"><p className="hp-pp-loading">Failed to load patient details</p></div>
