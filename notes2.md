@@ -3815,3 +3815,77 @@ Two tabs: **Patients** (existing detail view) + **Analytics** (new).
 123. `2a61258` — Remove completed count from Today's Schedule KPI
 
 ---
+
+## Session: Jun 18–19, 2026
+
+### Multi-Agent AI System — Provider View
+
+#### Architecture
+- **4 specialized sub-agents** (Clinical, Financial, Ops, Engagement) + **1 Recommendation Agent**, running as LangChain.js tool-calling agents in a Vercel Edge Function.
+- Each agent has its own system prompt and set of FHIR API tools it can autonomously call.
+- Agent loop: GPT decides which tools to call → tools execute (FHIR API calls server-side) → GPT gets results → may call more tools → produces structured JSON analysis. Up to 5 iterations per agent.
+- All sub-agents run in **parallel** (`Promise.all`), then Recommendation Agent runs sequentially with combined outputs.
+
+#### Tech Stack
+- `langchain`, `@langchain/core`, `@langchain/openai`, `zod` — npm packages
+- `api/agents.js` — new Vercel Edge Function (handles agent creation, tool execution, FHIR calls server-side)
+- `src/config/agentConfigs.js` — agent system prompts and tool lists
+- `src/services/agents.js` — frontend service (`runAllAgents(patientId)`)
+
+#### Agent Tools (FHIR APIs each agent can call)
+- `fetchConditions`, `fetchObservations`, `fetchVitals`, `fetchMedications`, `fetchEncounters`, `fetchAppointments`, `fetchProcedures`, `fetchServiceRequests`, `fetchDocuments`
+- Each tool calls the FHIR API server-side and returns structured, summarized data to the LLM
+
+#### What Each Agent Does
+- **Clinical Agent**: risk analysis, care gap detection, disease progression, guideline compliance, treatment response
+- **Financial Agent**: cost saving recommendations, documentation gaps, high-cost patterns (REMOVED — kept in code but not called)
+- **Ops Agent**: appointment utilization, encounter efficiency, referral tracking (REMOVED — kept in code but not called)
+- **Engagement Agent**: adherence patterns, outreach needs, education recommendations, follow-up urgency (REMOVED — kept in code but not called)
+- **Recommendation Agent**: takes Clinical Agent output, produces AI Recommended Actions with priority/timeframe/rationale
+
+#### Manager Decision: Only Clinical Agent
+- Per manager request, only Clinical Agent runs. Financial, Ops, Engagement configs remain in code but are never called.
+- Recommendation Agent receives only Clinical Agent analysis.
+
+#### AI Agent Pipeline Visualization
+- When a patient is selected, a pipeline diagram shows the processing stages:
+  - Stage 1: Clinical Agent — ANALYZING → ✓ DONE
+  - Stage 2: Recommendation Agent — GENERATING → ✓ DONE
+- Connector line between nodes turns green when stage completes
+- Progress bar fills from 0% → 30% → 65% → 100%
+- "X / 2 STAGES COMPLETED" counter
+- Deliberate delays (2s between stage 1→2, 1.5s between stage 2→done) so user can see each transition
+- No emoji icons — text labels only
+
+#### Approval Flow
+- Provider sees AI Recommended Actions with checkboxes + Approve button in Provider Patients tab
+- Approved actions saved via existing `POST /baseR4/Practitioner/ai-recommended-action` API
+- AI Recommended Instructions removed from agent section (instructions still exist in Patient View via old prompt system)
+
+#### Patient View — Approved Actions Only
+- "AI Recommended Actions" section changed to **"Approved Actions"** for ALL roles (Patient, Provider, Care Manager, Admin)
+- Removed the provider-specific unapproved actions with checkboxes/approve button from Patient View
+- All roles now see only actions that have been approved by a provider
+- Shows "No approved actions yet" if nothing approved
+
+#### Code Pushed to patient360-demo
+- Full codebase pushed to `https://github.com/rishabh-r/patient360-demo` as a snapshot. Remote removed afterwards — all future work on original `patient360` repo only.
+
+#### Currently Hidden
+- Agent API calls block-commented (`/* ... */`)
+- Agent UI wrapped in `{false && <> ... </>}`
+- Say "unhide agents" to enable
+
+### Git Commits (Jun 18–19)
+
+124. `30f4a9a` — Append notes2.md: May 27 - Jun 4 session
+125. `ff66987` — Multi-agent AI system: 4 sub-agents + Recommendation agent with tool-calling
+126. `bb0bce2` — Hide multi-agent UI and API calls
+127. `3fbbcfa` — Keep only Clinical Agent, remove Financial/Ops/Engagement
+128. `17af8cd` — Unhide Clinical Agent + recommendations
+129. `bf35d6c` — Remove AI Instructions from agent section; Patient View shows only Approved Actions
+130. `1eaa2d3` — Add AI Agent Pipeline visualization
+131. `e417c59` — Remove emoji icons from pipeline; add stage delays
+132. `9463547` — Hide agents: API calls commented, UI wrapped in false block
+
+---
