@@ -552,6 +552,7 @@ export default function HealthcareProviderView({ onLogout }) {
       setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null);
       setAgentResults(null); setAiInstructions([]); setAiActions([]); setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
       loadPatientDetail(selectedPatient);
+      /* AGENTS HIDDEN — uncomment to enable
       setAgentLoading(true);
       setAgentStage(1);
       runAllAgents(selectedPatient)
@@ -567,6 +568,7 @@ export default function HealthcareProviderView({ onLogout }) {
           setAgentLoading(false);
         })
         .catch(() => { setAgentResults({}); setAgentStage(0); setAgentLoading(false); });
+      */
     }
   }, [selectedPatient]);
 
@@ -839,7 +841,8 @@ export default function HealthcareProviderView({ onLogout }) {
                   </div>
                 )}
 
-                <div className="hp-detail-card">
+                {/* AGENTS UI HIDDEN */}
+                {false && <><div className="hp-detail-card">
                   <h3 className="hp-detail-title">AI Agent Pipeline</h3>
                   {agentLoading && (
                     <div className="hp-pipeline">
@@ -921,6 +924,7 @@ export default function HealthcareProviderView({ onLogout }) {
                 )}
 
                 {approvalToast && <div className="hp-approval-toast">{approvalToast}</div>}
+                </>}
               </div>
             ) : (
               <div className="hp-pp-empty"><p className="hp-pp-loading">Failed to load patient details</p></div>
