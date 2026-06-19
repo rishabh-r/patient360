@@ -141,4 +141,4 @@ Timeframe must be: "Within 24 hours", "Within 48 hours", "Within 1 week", or "Wi
 Make recommendations specific to THIS patient based on the agent findings. Reference specific data points from the agent analyses. Do not give generic advice.`,
 };
 
-export const ALL_AGENTS = [CLINICAL_AGENT, FINANCIAL_AGENT, OPS_AGENT, ENGAGEMENT_AGENT];
+export const ALL_AGENTS = [CLINICAL_AGENT];

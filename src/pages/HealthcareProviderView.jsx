@@ -843,26 +843,25 @@ export default function HealthcareProviderView({ onLogout }) {
                       <span>AI Agents analyzing patient data...</span>
                     </div>
                   ) : agentResults ? (
-                    <div className="hp-agent-grid">
-                      {[
-                        { key: 'clinical', label: 'Clinical Agent', icon: '🏥', color: '#DC2626', items: [...(agentResults.clinical?.findings || []), ...(agentResults.clinical?.careGaps || []), ...(agentResults.clinical?.progressionAlerts || [])], badge: agentResults.clinical?.riskLevel },
-                        { key: 'financial', label: 'Financial Agent', icon: '💰', color: '#2563EB', items: [...(agentResults.financial?.costFindings || []), ...(agentResults.financial?.documentationGaps || []), ...(agentResults.financial?.highCostFlags || [])] },
-                        { key: 'ops', label: 'Ops Agent', icon: '⚙️', color: '#7C3AED', items: [...(agentResults.ops?.appointmentInsights || []), ...(agentResults.ops?.encounterEfficiency || []), ...(agentResults.ops?.referralStatus || [])] },
-                        { key: 'engagement', label: 'Engagement Agent', icon: '📱', color: '#059669', items: [...(agentResults.engagement?.adherencePatterns || []), ...(agentResults.engagement?.outreachNeeds || []), ...(agentResults.engagement?.educationTopics || [])], badge: agentResults.engagement?.urgencyLevel },
-                      ].map(agent => (
-                        <div className="hp-agent-card" key={agent.key} style={{ borderTopColor: agent.color }}>
+                    <div className="hp-agent-single">
+                      {agentResults.clinical && (() => {
+                        const items = [...(agentResults.clinical.findings || []), ...(agentResults.clinical.careGaps || []), ...(agentResults.clinical.progressionAlerts || [])];
+                        return (
+                        <div className="hp-agent-card" style={{ borderTopColor: '#DC2626' }}>
                           <div className="hp-agent-header">
-                            <span className="hp-agent-icon">{agent.icon}</span>
-                            <span className="hp-agent-label">{agent.label}</span>
-                            {agent.badge && <span className={`hp-agent-badge hp-agent-badge--${(agent.badge || '').toLowerCase()}`}>{agent.badge}</span>}
+                            <span className="hp-agent-icon">🏥</span>
+                            <span className="hp-agent-label">Clinical Agent</span>
+                            {agentResults.clinical.riskLevel && <span className={`hp-agent-badge hp-agent-badge--${agentResults.clinical.riskLevel.toLowerCase()}`}>{agentResults.clinical.riskLevel} Risk</span>}
                           </div>
+                          {agentResults.clinical.riskReason && <p className="hp-agent-reason">{agentResults.clinical.riskReason}</p>}
                           <ul className="hp-agent-items">
-                            {(agent.items.length > 0 ? agent.items : ['No significant findings']).slice(0, 5).map((item, i) => (
+                            {(items.length > 0 ? items : ['No significant findings']).map((item, i) => (
                               <li key={i}>{item}</li>
                             ))}
                           </ul>
                         </div>
-                      ))}
+                        );
+                      })()}
                     </div>
                   ) : null}
                 </div>
