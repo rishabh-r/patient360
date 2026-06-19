@@ -1179,65 +1179,23 @@ export default function PatientView({ onLogout }) {
             Care Plan & Tasks
           </h2>
 
-          {(role !== 'PROVIDER') ? (
-            <>
-              <h3 className="pv-section-label">Approved Actions</h3>
-              <div className="pv-care-scroll">
-                {approvedActions.length > 0 ? (
-                  approvedActions.map((a, i) => (
-                    <div className="pv-action-card" key={i}>
-                      <div className="pv-action-top">
-                        <span className="pv-action-title">{a.title}</span>
-                        <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
-                      </div>
-                      <p className="pv-action-desc">{a.description}</p>
-                      {a.timeframe && <p className="pv-action-meta">{a.timeframe}</p>}
-                    </div>
-                  ))
-                ) : (
-                  <p className="pv-empty-text">No approved actions yet</p>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <h3 className="pv-section-label">
-                AI Recommended Actions
-                <span className="pv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI Generated</span>
-              </h3>
-              <div className="pv-care-scroll">
-                {actionsLoading ? (
-                  <div className="pv-loading"><div className="pv-spinner"></div><span>Generating AI recommendations...</span></div>
-                ) : (
-                  <>
-                    {actToast && <div className="pv-instr-toast">Actions approved</div>}
-                    {displayActions.length > 0 ? (
-                      <>
-                        {displayActions.map((a, i) => (
-                          <div className="pv-action-card" key={i}>
-                            <div className="pv-action-top">
-                              <input type="checkbox" checked={selectedActIdx.includes(i)} onChange={() => setSelectedActIdx(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} style={{ width: 16, height: 16, accentColor: '#2563EB', cursor: 'pointer', flexShrink: 0 }} />
-                              <span className="pv-action-title">{a.title}</span>
-                              <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
-                            </div>
-                            <p className="pv-action-desc">{a.description}</p>
-                            <p className="pv-action-meta">{a.timeframe} · {a.rationale}</p>
-                          </div>
-                        ))}
-                        {selectedActIdx.length > 0 && (
-                          <button className="pv-approve-btn" onClick={handleApproveActions} disabled={actApproving}>
-                            {actApproving ? 'Approving...' : `Approve Selected (${selectedActIdx.length})`}
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <p className="pv-empty-text">All actions have been approved. No more recommendations at this time.</p>
-                    )}
-                  </>
-                )}
-              </div>
-            </>
-          )}
+          <h3 className="pv-section-label">Approved Actions</h3>
+          <div className="pv-care-scroll">
+            {approvedActions.length > 0 ? (
+              approvedActions.map((a, i) => (
+                <div className="pv-action-card" key={i}>
+                  <div className="pv-action-top">
+                    <span className="pv-action-title">{a.title}</span>
+                    <span className={`pv-pill pv-pri-${a.priority?.includes('High') ? 'high' : a.priority?.includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>
+                  </div>
+                  <p className="pv-action-desc">{a.description}</p>
+                  {a.timeframe && <p className="pv-action-meta">{a.timeframe}</p>}
+                </div>
+              ))
+            ) : (
+              <p className="pv-empty-text">No approved actions yet</p>
+            )}
+          </div>
 
 
           {/* Lifestyle Goals */}

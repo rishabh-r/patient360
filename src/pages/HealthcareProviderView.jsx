@@ -864,23 +864,6 @@ export default function HealthcareProviderView({ onLogout }) {
                   ) : null}
                 </div>
 
-                {!agentLoading && aiInstructions.length > 0 && (
-                  <div className="hp-detail-card">
-                    <h3 className="hp-detail-title">AI Recommended Instructions <span className="hp-ai-badge">AI</span></h3>
-                    {aiInstructions.map((instr, i) => (
-                      <label className="hp-instr-item" key={i}>
-                        <input type="checkbox" checked={selectedInstr.includes(i)} onChange={() => setSelectedInstr(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} />
-                        <span>{instr}</span>
-                      </label>
-                    ))}
-                    {selectedInstr.length > 0 && (
-                      <button className="hp-approve-btn" onClick={handleApproveInstructions} disabled={instrApproving}>
-                        {instrApproving ? 'Approving...' : `Approve Selected (${selectedInstr.length})`}
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 {!agentLoading && aiActions.length > 0 && (
                   <div className="hp-detail-card">
                     <h3 className="hp-detail-title">AI Recommended Actions <span className="hp-ai-badge">AI</span></h3>
