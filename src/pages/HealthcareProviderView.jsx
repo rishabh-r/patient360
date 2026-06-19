@@ -555,16 +555,18 @@ export default function HealthcareProviderView({ onLogout }) {
       setAgentLoading(true);
       setAgentStage(1);
       runAllAgents(selectedPatient)
-        .then(res => {
+        .then(async res => {
           setAgentStage(2);
           setAgentResults(res.agents || {});
+          await new Promise(r => setTimeout(r, 2000));
           const recs = res.recommendations || {};
           setAiInstructions(Array.isArray(recs.instructions) ? recs.instructions : []);
           setAiActions(Array.isArray(recs.actions) ? recs.actions : []);
           setAgentStage(3);
+          await new Promise(r => setTimeout(r, 1500));
+          setAgentLoading(false);
         })
-        .catch(() => { setAgentResults({}); setAgentStage(0); })
-        .finally(() => setAgentLoading(false));
+        .catch(() => { setAgentResults({}); setAgentStage(0); setAgentLoading(false); });
     }
   }, [selectedPatient]);
 
@@ -847,7 +849,6 @@ export default function HealthcareProviderView({ onLogout }) {
                       </div>
                       <div className="hp-pipeline-cards">
                         <div className={`hp-pipeline-node${agentStage >= 1 ? ' active' : ''}${agentStage >= 2 ? ' done' : ''}`}>
-                          <div className="hp-pipeline-icon">🏥</div>
                           <span className="hp-pipeline-name">Clinical Agent</span>
                           <span className="hp-pipeline-role">Risk Analysis</span>
                           <span className={`hp-pipeline-status${agentStage >= 2 ? ' done' : agentStage >= 1 ? ' analyzing' : ''}`}>
@@ -858,7 +859,6 @@ export default function HealthcareProviderView({ onLogout }) {
                           <div className={`hp-pipeline-line${agentStage >= 2 ? ' filled' : ''}`} />
                         </div>
                         <div className={`hp-pipeline-node${agentStage >= 2 ? ' active' : ''}${agentStage >= 3 ? ' done' : ''}`}>
-                          <div className="hp-pipeline-icon">🤖</div>
                           <span className="hp-pipeline-name">Recommendation Agent</span>
                           <span className="hp-pipeline-role">Actions Generator</span>
                           <span className={`hp-pipeline-status${agentStage >= 3 ? ' done' : agentStage >= 2 ? ' analyzing' : ''}`}>
