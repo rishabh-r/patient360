@@ -42,6 +42,7 @@ export default function HealthcareProviderView({ onLogout }) {
   const [viewingDoc, setViewingDoc] = useState(null);
   const [agentResults, setAgentResults] = useState(null);
   const [agentLoading, setAgentLoading] = useState(false);
+  const [agentStage, setAgentStage] = useState(0);
   const [aiInstructions, setAiInstructions] = useState([]);
   const [aiActions, setAiActions] = useState([]);
   const [selectedInstr, setSelectedInstr] = useState([]);
@@ -552,14 +553,17 @@ export default function HealthcareProviderView({ onLogout }) {
       setAgentResults(null); setAiInstructions([]); setAiActions([]); setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
       loadPatientDetail(selectedPatient);
       setAgentLoading(true);
+      setAgentStage(1);
       runAllAgents(selectedPatient)
         .then(res => {
+          setAgentStage(2);
           setAgentResults(res.agents || {});
           const recs = res.recommendations || {};
           setAiInstructions(Array.isArray(recs.instructions) ? recs.instructions : []);
           setAiActions(Array.isArray(recs.actions) ? recs.actions : []);
+          setAgentStage(3);
         })
-        .catch(() => { setAgentResults({}); })
+        .catch(() => { setAgentResults({}); setAgentStage(0); })
         .finally(() => setAgentLoading(false));
     }
   }, [selectedPatient]);
@@ -834,13 +838,41 @@ export default function HealthcareProviderView({ onLogout }) {
                 )}
 
                 <div className="hp-detail-card">
-                  <h3 className="hp-detail-title">AI Agent Analysis</h3>
-                  {agentLoading ? (
-                    <div className="hp-agent-loading">
-                      <div className="hp-spinner" />
-                      <span>AI Agents analyzing patient data...</span>
+                  <h3 className="hp-detail-title">AI Agent Pipeline</h3>
+                  {agentLoading && (
+                    <div className="hp-pipeline">
+                      <div className="hp-pipeline-header">
+                        <span className="hp-pipeline-stage">Stage {agentStage}/2: {agentStage === 1 ? 'Clinical Agent — Analyzing patient data' : 'Recommendation Agent — Generating actions'}</span>
+                        <span className="hp-pipeline-eta"><div className="hp-spinner-inline" style={{ width: 14, height: 14, borderWidth: 2 }} /> Processing...</span>
+                      </div>
+                      <div className="hp-pipeline-cards">
+                        <div className={`hp-pipeline-node${agentStage >= 1 ? ' active' : ''}${agentStage >= 2 ? ' done' : ''}`}>
+                          <div className="hp-pipeline-icon">🏥</div>
+                          <span className="hp-pipeline-name">Clinical Agent</span>
+                          <span className="hp-pipeline-role">Risk Analysis</span>
+                          <span className={`hp-pipeline-status${agentStage >= 2 ? ' done' : agentStage >= 1 ? ' analyzing' : ''}`}>
+                            {agentStage >= 2 ? '✓ DONE' : agentStage >= 1 ? 'ANALYZING...' : 'WAITING'}
+                          </span>
+                        </div>
+                        <div className="hp-pipeline-connector">
+                          <div className={`hp-pipeline-line${agentStage >= 2 ? ' filled' : ''}`} />
+                        </div>
+                        <div className={`hp-pipeline-node${agentStage >= 2 ? ' active' : ''}${agentStage >= 3 ? ' done' : ''}`}>
+                          <div className="hp-pipeline-icon">🤖</div>
+                          <span className="hp-pipeline-name">Recommendation Agent</span>
+                          <span className="hp-pipeline-role">Actions Generator</span>
+                          <span className={`hp-pipeline-status${agentStage >= 3 ? ' done' : agentStage >= 2 ? ' analyzing' : ''}`}>
+                            {agentStage >= 3 ? '✓ DONE' : agentStage >= 2 ? 'GENERATING...' : 'WAITING'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="hp-pipeline-progress">
+                        <div className="hp-pipeline-bar" style={{ width: `${agentStage >= 3 ? 100 : agentStage >= 2 ? 65 : agentStage >= 1 ? 30 : 0}%` }} />
+                      </div>
+                      <span className="hp-pipeline-count">{agentStage >= 3 ? '2' : agentStage >= 2 ? '1' : '0'} / 2 STAGES COMPLETED</span>
                     </div>
-                  ) : agentResults ? (
+                  )}
+                  {!agentLoading && agentResults ? (
                     <div className="hp-agent-single">
                       {agentResults.clinical && (() => {
                         const items = [...(agentResults.clinical.findings || []), ...(agentResults.clinical.careGaps || []), ...(agentResults.clinical.progressionAlerts || [])];

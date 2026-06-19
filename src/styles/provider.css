@@ -545,6 +545,43 @@
 /* Charts */
 .hp-an-chart-wrap { height: 260px; margin-top: 12px; }
 
+/* ── AI Agent Pipeline ── */
+.hp-pipeline { padding: 8px 0; }
+.hp-pipeline-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+}
+.hp-pipeline-stage { font-size: 12px; color: #475569; }
+.hp-pipeline-eta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94A3B8; }
+.hp-pipeline-cards {
+  display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 20px;
+}
+.hp-pipeline-node {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 18px 28px; border: 1px solid #E2E8F0; border-radius: 12px;
+  background: #F8FAFC; min-width: 150px; transition: all 0.3s;
+}
+.hp-pipeline-node.active { border-color: #3B82F6; background: #EFF6FF; }
+.hp-pipeline-node.done { border-color: #22C55E; background: #F0FDF4; }
+.hp-pipeline-icon { font-size: 28px; }
+.hp-pipeline-name { font-size: 13px; font-weight: 700; color: #1E293B; }
+.hp-pipeline-role { font-size: 11px; color: #6366F1; font-weight: 500; }
+.hp-pipeline-status { font-size: 10px; font-weight: 600; color: #94A3B8; margin-top: 4px; }
+.hp-pipeline-status.analyzing { color: #2563EB; }
+.hp-pipeline-status.done { color: #16A34A; }
+.hp-pipeline-connector { display: flex; align-items: center; width: 60px; }
+.hp-pipeline-line {
+  width: 100%; height: 2px; background: #E2E8F0; position: relative; transition: background 0.3s;
+}
+.hp-pipeline-line.filled { background: #22C55E; }
+.hp-pipeline-progress {
+  width: 100%; height: 4px; background: #E2E8F0; border-radius: 4px; overflow: hidden; margin-bottom: 8px;
+}
+.hp-pipeline-bar {
+  height: 100%; background: linear-gradient(90deg, #3B82F6, #22C55E); border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.hp-pipeline-count { display: block; text-align: right; font-size: 11px; color: #94A3B8; font-weight: 500; }
+
 /* ── AI Agent Analysis ── */
 .hp-agent-loading {
   display: flex; flex-direction: column; align-items: center;
