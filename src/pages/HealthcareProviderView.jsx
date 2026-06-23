@@ -579,8 +579,22 @@ export default function HealthcareProviderView({ onLogout }) {
         await new Promise(r => setTimeout(r, 2000));
         const recs = res.recommendations || {};
         const newActions = Array.isArray(recs.actions) ? recs.actions : [];
-        const approvedTitles = approvedActions.map(a => a.title.toLowerCase().trim());
-        const filtered = newActions.filter(a => !approvedTitles.includes((a.title || '').toLowerCase().trim()));
+        let filtered = newActions;
+        if (approvedActions.length > 0 && newActions.length > 0) {
+          try {
+            const dedupRes = await callAI(
+              `You are a semantic comparison AI. Compare new AI-generated actions against already-approved actions. Return ONLY the indices (0-based) of new actions that are genuinely DIFFERENT in meaning from ALL approved actions.\n\nIf a new action covers the same clinical intent, test, treatment, or intervention as any approved action — even if worded differently — it is a DUPLICATE and should be excluded.\n\nReturn ONLY a valid JSON array of integers, e.g. [0, 2, 4]. If all are duplicates, return [].`,
+              `APPROVED ACTIONS:\n${approvedActions.map((a, i) => `${i + 1}. ${a.title}: ${a.description}`).join('\n')}\n\nNEW ACTIONS:\n${newActions.map((a, i) => `${i}. ${a.title}: ${a.description}`).join('\n')}`
+            );
+            const keepIndices = JSON.parse(dedupRes);
+            if (Array.isArray(keepIndices)) {
+              filtered = newActions.filter((_, i) => keepIndices.includes(i));
+            }
+          } catch {
+            const approvedTitles = approvedActions.map(a => a.title.toLowerCase().trim());
+            filtered = newActions.filter(a => !approvedTitles.includes((a.title || '').toLowerCase().trim()));
+          }
+        }
         setAiActions(filtered);
         setAgentStage(3);
         await new Promise(r => setTimeout(r, 1500));
