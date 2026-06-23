@@ -554,7 +554,15 @@ export default function HealthcareProviderView({ onLogout }) {
       .then(res => {
         const completed = (res?.entry || [])
           .filter(e => e.resource?.status === 'completed')
-          .map(e => ({ title: e.resource?.code?.text || '', description: e.resource?.description || '', priority: e.resource?.priority || '', timeframe: e.resource?.extension?.find(x => x.url === 'urgencyNote')?.valueString || '' }));
+          .map(e => {
+            const ext = e.resource?.extension || [];
+            return {
+              title: ext.find(x => x.url?.includes('action-title'))?.valueString || '',
+              description: (e.resource?.payload || []).map(p => p.contentString).filter(Boolean).join(' '),
+              priority: ext.find(x => x.url?.includes('action-priority'))?.valueString || '',
+              timeframe: ext.find(x => x.url?.includes('action-urgency-note'))?.valueString || '',
+            };
+          });
         setApprovedActions(completed);
       }).catch(() => setApprovedActions([]));
   }
