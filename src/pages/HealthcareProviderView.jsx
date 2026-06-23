@@ -599,6 +599,7 @@ export default function HealthcareProviderView({ onLogout }) {
         setAgentStage(3);
         await new Promise(r => setTimeout(r, 1500));
         setAgentLoading(false);
+        try { sessionStorage.setItem(`p360_agent_${selectedPatient}`, JSON.stringify({ agents: res.agents, actions: filtered })); } catch {}
       })
       .catch(() => { setAgentResults({}); setAgentStage(0); setAgentLoading(false); });
   }
@@ -606,10 +607,20 @@ export default function HealthcareProviderView({ onLogout }) {
   useEffect(() => {
     if (selectedPatient) {
       setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null);
-      setAgentResults(null); setAiInstructions([]); setAiActions([]); setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
+      setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
       setAgentStage(0); setAgentLoading(false); setActionTab('recommended');
       loadPatientDetail(selectedPatient);
       fetchApprovedActions(selectedPatient);
+      try {
+        const cached = sessionStorage.getItem(`p360_agent_${selectedPatient}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setAgentResults(parsed.agents || {});
+          setAiActions(parsed.actions || []);
+          return;
+        }
+      } catch {}
+      setAgentResults(null); setAiInstructions([]); setAiActions([]);
     }
   }, [selectedPatient]);
 
@@ -647,9 +658,11 @@ export default function HealthcareProviderView({ onLogout }) {
       }
       setApprovalToast('Actions approved');
       setTimeout(() => setApprovalToast(''), 2000);
-      setAiActions(prev => prev.filter((_, i) => !selectedAct.includes(i)));
+      const remaining = aiActions.filter((_, i) => !selectedAct.includes(i));
+      setAiActions(remaining);
       setSelectedAct([]);
       fetchApprovedActions(selectedPatient);
+      try { sessionStorage.setItem(`p360_agent_${selectedPatient}`, JSON.stringify({ agents: agentResults, actions: remaining })); } catch {}
     } catch {}
     setActApproving(false);
   }
