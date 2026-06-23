@@ -582,6 +582,31 @@
 }
 .hp-pipeline-count { display: block; text-align: right; font-size: 11px; color: #94A3B8; font-weight: 500; }
 
+/* Start Analysis */
+.hp-pipeline-start { text-align: center; padding: 20px 0; }
+.hp-pipeline-start-text { font-size: 13px; color: #64748B; margin: 0 0 14px; }
+.hp-pipeline-start-btn {
+  padding: 10px 28px; background: #2563EB; color: #fff; border: none; border-radius: 8px;
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s;
+}
+.hp-pipeline-start-btn:hover { background: #1D4ED8; }
+
+/* Action Tabs */
+.hp-action-tabs { display: flex; border-bottom: 1px solid #E2E8F0; margin-bottom: 12px; }
+.hp-action-tab {
+  padding: 8px 16px; font-size: 13px; font-weight: 500; color: #64748B;
+  border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.hp-action-tab:hover { color: #1E293B; }
+.hp-action-tab.active { color: #2563EB; border-bottom-color: #2563EB; font-weight: 600; }
+.hp-action-tab-count {
+  font-size: 10px; font-weight: 700; color: #fff; background: #2563EB;
+  padding: 1px 7px; border-radius: 10px;
+}
+.hp-action-tab-count--green { background: #16A34A; }
+.hp-action-approved { border-left: 3px solid #16A34A; padding-left: 10px; margin-bottom: 8px; }
+
 /* ── AI Agent Analysis ── */
 .hp-agent-loading {
   display: flex; flex-direction: column; align-items: center;

@@ -50,6 +50,8 @@ export default function HealthcareProviderView({ onLogout }) {
   const [instrApproving, setInstrApproving] = useState(false);
   const [actApproving, setActApproving] = useState(false);
   const [approvalToast, setApprovalToast] = useState('');
+  const [approvedActions, setApprovedActions] = useState([]);
+  const [actionTab, setActionTab] = useState('recommended');
   const ITEMS_PER_PAGE = 4;
   const DOCS_PER_PAGE = 5;
 
@@ -547,26 +549,45 @@ export default function HealthcareProviderView({ onLogout }) {
     setDetailLoading(false);
   }
 
+  function fetchApprovedActions(pid) {
+    callFhirApi(buildUrl('/baseR4/Patient/ai-recommended-actions', { patientId: pid }))
+      .then(res => {
+        const completed = (res?.entry || [])
+          .filter(e => e.resource?.status === 'completed')
+          .map(e => ({ title: e.resource?.code?.text || '', description: e.resource?.description || '', priority: e.resource?.priority || '', timeframe: e.resource?.extension?.find(x => x.url === 'urgencyNote')?.valueString || '' }));
+        setApprovedActions(completed);
+      }).catch(() => setApprovedActions([]));
+  }
+
+  function startAgentAnalysis() {
+    if (!selectedPatient || agentLoading) return;
+    setAgentLoading(true);
+    setAgentStage(1);
+    setAgentResults(null); setAiActions([]); setSelectedAct([]);
+    runAllAgents(selectedPatient)
+      .then(async res => {
+        setAgentStage(2);
+        setAgentResults(res.agents || {});
+        await new Promise(r => setTimeout(r, 2000));
+        const recs = res.recommendations || {};
+        const newActions = Array.isArray(recs.actions) ? recs.actions : [];
+        const approvedTitles = approvedActions.map(a => a.title.toLowerCase().trim());
+        const filtered = newActions.filter(a => !approvedTitles.includes((a.title || '').toLowerCase().trim()));
+        setAiActions(filtered);
+        setAgentStage(3);
+        await new Promise(r => setTimeout(r, 1500));
+        setAgentLoading(false);
+      })
+      .catch(() => { setAgentResults({}); setAgentStage(0); setAgentLoading(false); });
+  }
+
   useEffect(() => {
     if (selectedPatient) {
       setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null);
       setAgentResults(null); setAiInstructions([]); setAiActions([]); setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
+      setAgentStage(0); setAgentLoading(false); setActionTab('recommended');
       loadPatientDetail(selectedPatient);
-      setAgentLoading(true);
-      setAgentStage(1);
-      runAllAgents(selectedPatient)
-        .then(async res => {
-          setAgentStage(2);
-          setAgentResults(res.agents || {});
-          await new Promise(r => setTimeout(r, 2000));
-          const recs = res.recommendations || {};
-          setAiInstructions(Array.isArray(recs.instructions) ? recs.instructions : []);
-          setAiActions(Array.isArray(recs.actions) ? recs.actions : []);
-          setAgentStage(3);
-          await new Promise(r => setTimeout(r, 1500));
-          setAgentLoading(false);
-        })
-        .catch(() => { setAgentResults({}); setAgentStage(0); setAgentLoading(false); });
+      fetchApprovedActions(selectedPatient);
     }
   }, [selectedPatient]);
 
@@ -606,6 +627,7 @@ export default function HealthcareProviderView({ onLogout }) {
       setTimeout(() => setApprovalToast(''), 2000);
       setAiActions(prev => prev.filter((_, i) => !selectedAct.includes(i)));
       setSelectedAct([]);
+      fetchApprovedActions(selectedPatient);
     } catch {}
     setActApproving(false);
   }
@@ -841,6 +863,12 @@ export default function HealthcareProviderView({ onLogout }) {
 
                 <div className="hp-detail-card">
                   <h3 className="hp-detail-title">AI Agent Pipeline</h3>
+                  {!agentLoading && !agentResults && (
+                    <div className="hp-pipeline-start">
+                      <p className="hp-pipeline-start-text">Run AI Clinical Agent to analyze this patient's data and generate recommended actions.</p>
+                      <button className="hp-pipeline-start-btn" onClick={startAgentAnalysis}>Start Analysis</button>
+                    </div>
+                  )}
                   {agentLoading && (
                     <div className="hp-pipeline">
                       <div className="hp-pipeline-header">
@@ -896,26 +924,56 @@ export default function HealthcareProviderView({ onLogout }) {
                   ) : null}
                 </div>
 
-                {!agentLoading && aiActions.length > 0 && (
+                {(!agentLoading && (aiActions.length > 0 || approvedActions.length > 0)) && (
                   <div className="hp-detail-card">
-                    <h3 className="hp-detail-title">AI Recommended Actions <span className="hp-ai-badge">AI</span></h3>
-                    {aiActions.map((action, i) => (
-                      <label className="hp-action-item" key={i}>
-                        <input type="checkbox" checked={selectedAct.includes(i)} onChange={() => setSelectedAct(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} />
-                        <div className="hp-action-content">
-                          <div className="hp-action-top">
-                            <span className="hp-action-title">{action.title}</span>
-                            <span className={`hp-action-priority ${(action.priority || '').includes('High') ? 'high' : (action.priority || '').includes('Medium') ? 'med' : 'low'}`}>{action.priority}</span>
-                          </div>
-                          <span className="hp-action-desc">{action.description}</span>
-                          <span className="hp-action-meta">{action.timeframe}{action.rationale ? ` · ${action.rationale}` : ''}</span>
-                        </div>
-                      </label>
-                    ))}
-                    {selectedAct.length > 0 && (
-                      <button className="hp-approve-btn" onClick={handleApproveActions} disabled={actApproving}>
-                        {actApproving ? 'Approving...' : `Approve Selected (${selectedAct.length})`}
+                    <div className="hp-action-tabs">
+                      <button className={`hp-action-tab${actionTab === 'recommended' ? ' active' : ''}`} onClick={() => setActionTab('recommended')}>
+                        AI Recommended Actions {aiActions.length > 0 && <span className="hp-action-tab-count">{aiActions.length}</span>}
                       </button>
+                      <button className={`hp-action-tab${actionTab === 'approved' ? ' active' : ''}`} onClick={() => setActionTab('approved')}>
+                        Approved Actions {approvedActions.length > 0 && <span className="hp-action-tab-count hp-action-tab-count--green">{approvedActions.length}</span>}
+                      </button>
+                    </div>
+
+                    {actionTab === 'recommended' && (
+                      <>
+                        {aiActions.length > 0 ? aiActions.map((action, i) => (
+                          <label className="hp-action-item" key={i}>
+                            <input type="checkbox" checked={selectedAct.includes(i)} onChange={() => setSelectedAct(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])} />
+                            <div className="hp-action-content">
+                              <div className="hp-action-top">
+                                <span className="hp-action-title">{action.title}</span>
+                                <span className={`hp-action-priority ${(action.priority || '').includes('High') ? 'high' : (action.priority || '').includes('Medium') ? 'med' : 'low'}`}>{action.priority}</span>
+                              </div>
+                              <span className="hp-action-desc">{action.description}</span>
+                              <span className="hp-action-meta">{action.timeframe}{action.rationale ? ` · ${action.rationale}` : ''}</span>
+                            </div>
+                          </label>
+                        )) : <p className="hp-an-empty-text">No new recommendations. Run the agent analysis to generate actions.</p>}
+                        {selectedAct.length > 0 && (
+                          <button className="hp-approve-btn" onClick={handleApproveActions} disabled={actApproving}>
+                            {actApproving ? 'Approving...' : `Approve Selected (${selectedAct.length})`}
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {actionTab === 'approved' && (
+                      <>
+                        {approvedActions.length > 0 ? approvedActions.map((a, i) => (
+                          <div className="hp-action-item hp-action-approved" key={i}>
+                            <div className="hp-action-content">
+                              <div className="hp-action-top">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                                <span className="hp-action-title">{a.title}</span>
+                                {a.priority && <span className={`hp-action-priority ${(a.priority || '').includes('High') ? 'high' : (a.priority || '').includes('Medium') ? 'med' : 'low'}`}>{a.priority}</span>}
+                              </div>
+                              {a.description && <span className="hp-action-desc">{a.description}</span>}
+                              {a.timeframe && <span className="hp-action-meta">{a.timeframe}</span>}
+                            </div>
+                          </div>
+                        )) : <p className="hp-an-empty-text">No approved actions yet</p>}
+                      </>
                     )}
                   </div>
                 )}
