@@ -1031,7 +1031,7 @@ export default function HealthcareProviderView({ onLogout }) {
                               <span className="hp-past-heading">{pa.heading || 'Clinical Agent'}</span>
                               <span className="hp-past-summary-short">{pa.summary}</span>
                             </div>
-                            <span className="hp-past-date">{pa.createdAt ? new Date(pa.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
+                            <span className="hp-past-date">Analysis Date: {pa.createdAt ? new Date(pa.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
                           </summary>
                           <div className="hp-past-body">
                             {hasGroups ? Object.entries(grouped).map(([cat, items]) => (
