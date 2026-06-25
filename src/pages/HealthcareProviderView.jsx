@@ -52,6 +52,8 @@ export default function HealthcareProviderView({ onLogout }) {
   const [approvalToast, setApprovalToast] = useState('');
   const [approvedActions, setApprovedActions] = useState([]);
   const [actionTab, setActionTab] = useState('recommended');
+  const [pastAnalyses, setPastAnalyses] = useState([]);
+  const [pipelineTab, setPipelineTab] = useState('current');
   const ITEMS_PER_PAGE = 4;
   const DOCS_PER_PAGE = 5;
 
@@ -567,6 +569,30 @@ export default function HealthcareProviderView({ onLogout }) {
       }).catch(() => setApprovedActions([]));
   }
 
+  function fetchPastAnalyses(pid) {
+    callFhirApi(`${FHIR_BASE}/baseR4/agent/clinical-analysis/patient/${pid}`)
+      .then(res => { setPastAnalyses(Array.isArray(res) ? res : []); })
+      .catch(() => setPastAnalyses([]));
+  }
+
+  async function saveClinicalAnalysis(clinical, pid) {
+    try {
+      const findings = [...(clinical.findings || []), ...(clinical.careGaps || []), ...(clinical.progressionAlerts || [])];
+      await fetch(`${FHIR_BASE}/baseR4/agent/clinical-analysis`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          heading: 'Clinical Agent',
+          summary: clinical.riskReason || `Risk Level: ${clinical.riskLevel || 'Unknown'}`,
+          points: findings,
+          patientId: pid,
+          organizationId: '',
+        }),
+      });
+      fetchPastAnalyses(pid);
+    } catch {}
+  }
+
   function startAgentAnalysis() {
     if (!selectedPatient || agentLoading) return;
     setAgentLoading(true);
@@ -600,6 +626,7 @@ export default function HealthcareProviderView({ onLogout }) {
         await new Promise(r => setTimeout(r, 1500));
         setAgentLoading(false);
         try { sessionStorage.setItem(`p360_agent_${selectedPatient}`, JSON.stringify({ agents: res.agents, actions: filtered })); } catch {}
+        if (res.agents?.clinical) saveClinicalAnalysis(res.agents.clinical, selectedPatient);
       })
       .catch(() => { setAgentResults({}); setAgentStage(0); setAgentLoading(false); });
   }
@@ -608,9 +635,10 @@ export default function HealthcareProviderView({ onLogout }) {
     if (selectedPatient) {
       setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null);
       setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
-      setAgentStage(0); setAgentLoading(false); setActionTab('recommended');
+      setAgentStage(0); setAgentLoading(false); setActionTab('recommended'); setPipelineTab('current');
       loadPatientDetail(selectedPatient);
       fetchApprovedActions(selectedPatient);
+      fetchPastAnalyses(selectedPatient);
       try {
         const cached = sessionStorage.getItem(`p360_agent_${selectedPatient}`);
         if (cached) {
@@ -897,7 +925,15 @@ export default function HealthcareProviderView({ onLogout }) {
                 )}
 
                 <div className="hp-detail-card">
-                  <h3 className="hp-detail-title">AI Agent Pipeline</h3>
+                  <div className="hp-pipeline-tabs-header">
+                    <h3 className="hp-detail-title" style={{ margin: 0 }}>AI Agent Pipeline</h3>
+                    <div className="hp-pipeline-tab-btns">
+                      <button className={`hp-pipeline-tab-btn${pipelineTab === 'current' ? ' active' : ''}`} onClick={() => setPipelineTab('current')}>Current Analysis</button>
+                      <button className={`hp-pipeline-tab-btn${pipelineTab === 'past' ? ' active' : ''}`} onClick={() => setPipelineTab('past')}>Past Analysis {pastAnalyses.length > 0 && <span className="hp-action-tab-count">{pastAnalyses.length}</span>}</button>
+                    </div>
+                  </div>
+
+                  {pipelineTab === 'current' && <>
                   {!agentLoading && !agentResults && (
                     <div className="hp-pipeline-start">
                       <p className="hp-pipeline-start-text">Run AI Clinical Agent to analyze this patient's data and generate recommended actions.</p>
@@ -957,6 +993,24 @@ export default function HealthcareProviderView({ onLogout }) {
                       })()}
                     </div>
                   ) : null}
+                  </>}
+
+                  {pipelineTab === 'past' && (
+                    <div className="hp-past-analyses">
+                      {pastAnalyses.length > 0 ? pastAnalyses.map((pa, i) => (
+                        <div className="hp-past-card" key={pa.id || i}>
+                          <div className="hp-past-header">
+                            <span className="hp-past-heading">{pa.heading || 'Clinical Agent'}</span>
+                            <span className="hp-past-date">{pa.createdAt ? new Date(pa.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
+                          </div>
+                          <p className="hp-past-summary">{pa.summary}</p>
+                          <ul className="hp-agent-items">
+                            {(pa.points || []).map((pt, j) => <li key={j}>{pt}</li>)}
+                          </ul>
+                        </div>
+                      )) : <p className="hp-an-empty-text">No past analyses for this patient</p>}
+                    </div>
+                  )}
                 </div>
 
                 {(!agentLoading && (aiActions.length > 0 || approvedActions.length > 0)) && (

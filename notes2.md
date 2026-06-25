@@ -1,4 +1,4 @@
-﻿# Project Memory — Patient 360 Portal
+# Project Memory — Patient 360 Portal
 
 > This file contains the full project memory for both the **Time Traveller (CareBridge)** project (reference) and the **Patient 360 Portal** project (active).
 

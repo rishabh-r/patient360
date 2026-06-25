@@ -582,6 +582,29 @@
 }
 .hp-pipeline-count { display: block; text-align: right; font-size: 11px; color: #94A3B8; font-weight: 500; }
 
+/* Pipeline Tabs */
+.hp-pipeline-tabs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.hp-pipeline-tab-btns { display: flex; gap: 0; }
+.hp-pipeline-tab-btn {
+  padding: 6px 14px; font-size: 12px; font-weight: 500; color: #64748B;
+  border: 1px solid #E2E8F0; background: #fff; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; transition: all 0.15s;
+}
+.hp-pipeline-tab-btn:first-child { border-radius: 6px 0 0 6px; }
+.hp-pipeline-tab-btn:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.hp-pipeline-tab-btn.active { background: #2563EB; color: #fff; border-color: #2563EB; }
+
+/* Past Analysis */
+.hp-past-analyses { display: flex; flex-direction: column; gap: 12px; }
+.hp-past-card {
+  border: 1px solid #E2E8F0; border-radius: 10px; padding: 16px;
+  border-left: 3px solid #6366F1;
+}
+.hp-past-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.hp-past-heading { font-size: 13px; font-weight: 700; color: #1E293B; }
+.hp-past-date { font-size: 11px; color: #94A3B8; }
+.hp-past-summary { font-size: 12px; color: #475569; margin: 0 0 8px; font-style: italic; }
+
 /* Start Analysis */
 .hp-pipeline-start { text-align: center; padding: 20px 0; }
 .hp-pipeline-start-text { font-size: 13px; color: #64748B; margin: 0 0 14px; }
