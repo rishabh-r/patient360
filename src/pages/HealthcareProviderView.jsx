@@ -577,14 +577,22 @@ export default function HealthcareProviderView({ onLogout }) {
 
   async function saveClinicalAnalysis(clinical, pid) {
     try {
-      const findings = [...(clinical.findings || []), ...(clinical.careGaps || []), ...(clinical.progressionAlerts || [])];
+      const cats = clinical.categories || {};
+      const points = [];
+      for (const [cat, items] of Object.entries(cats)) {
+        points.push(`[${cat}]`);
+        if (Array.isArray(items)) items.forEach(item => points.push(item));
+      }
+      if (!points.length) {
+        [...(clinical.findings || []), ...(clinical.careGaps || []), ...(clinical.progressionAlerts || [])].forEach(f => points.push(f));
+      }
       await fetch(`${FHIR_BASE}/baseR4/agent/clinical-analysis`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           heading: 'Clinical Agent',
           summary: clinical.riskReason || `Risk Level: ${clinical.riskLevel || 'Unknown'}`,
-          points: findings,
+          points,
           patientId: pid,
           organizationId: '',
         }),
@@ -627,6 +635,7 @@ export default function HealthcareProviderView({ onLogout }) {
         setAgentLoading(false);
         try { sessionStorage.setItem(`p360_agent_${selectedPatient}`, JSON.stringify({ agents: res.agents, actions: filtered })); } catch {}
         if (res.agents?.clinical) saveClinicalAnalysis(res.agents.clinical, selectedPatient);
+        setTimeout(() => { setPipelineTab('past'); setAgentResults(null); setAgentStage(0); try { sessionStorage.removeItem(`p360_agent_${selectedPatient}`); } catch {} }, 30000);
       })
       .catch(() => { setAgentResults({}); setAgentStage(0); setAgentLoading(false); });
   }
@@ -974,20 +983,28 @@ export default function HealthcareProviderView({ onLogout }) {
                   {!agentLoading && agentResults ? (
                     <div className="hp-agent-single">
                       {agentResults.clinical && (() => {
-                        const items = [...(agentResults.clinical.findings || []), ...(agentResults.clinical.careGaps || []), ...(agentResults.clinical.progressionAlerts || [])];
+                        const cats = agentResults.clinical.categories || {};
+                        const hasCats = Object.keys(cats).length > 0;
+                        const fallbackItems = [...(agentResults.clinical.findings || []), ...(agentResults.clinical.careGaps || []), ...(agentResults.clinical.progressionAlerts || [])];
                         return (
                         <div className="hp-agent-card" style={{ borderTopColor: '#DC2626' }}>
                           <div className="hp-agent-header">
-                            <span className="hp-agent-icon">🏥</span>
                             <span className="hp-agent-label">Clinical Agent</span>
                             {agentResults.clinical.riskLevel && <span className={`hp-agent-badge hp-agent-badge--${agentResults.clinical.riskLevel.toLowerCase()}`}>{agentResults.clinical.riskLevel} Risk</span>}
                           </div>
                           {agentResults.clinical.riskReason && <p className="hp-agent-reason">{agentResults.clinical.riskReason}</p>}
-                          <ul className="hp-agent-items">
-                            {(items.length > 0 ? items : ['No significant findings']).map((item, i) => (
-                              <li key={i}>{item}</li>
-                            ))}
-                          </ul>
+                          {hasCats ? Object.entries(cats).map(([cat, items]) => (
+                            <div className="hp-agent-category" key={cat}>
+                              <h4 className="hp-agent-cat-title">{cat}</h4>
+                              <ul className="hp-agent-items">
+                                {(Array.isArray(items) ? items : []).map((item, i) => <li key={i}>{item}</li>)}
+                              </ul>
+                            </div>
+                          )) : (
+                            <ul className="hp-agent-items">
+                              {(fallbackItems.length > 0 ? fallbackItems : ['No significant findings']).map((item, i) => <li key={i}>{item}</li>)}
+                            </ul>
+                          )}
                         </div>
                         );
                       })()}
@@ -997,18 +1014,37 @@ export default function HealthcareProviderView({ onLogout }) {
 
                   {pipelineTab === 'past' && (
                     <div className="hp-past-analyses">
-                      {pastAnalyses.length > 0 ? pastAnalyses.map((pa, i) => (
-                        <div className="hp-past-card" key={pa.id || i}>
-                          <div className="hp-past-header">
-                            <span className="hp-past-heading">{pa.heading || 'Clinical Agent'}</span>
+                      {pastAnalyses.length > 0 ? pastAnalyses.map((pa, i) => {
+                        const pts = pa.points || [];
+                        const grouped = {};
+                        let currentCat = 'General';
+                        pts.forEach(p => {
+                          if (p.startsWith('[') && p.endsWith(']')) { currentCat = p.slice(1, -1); }
+                          else { if (!grouped[currentCat]) grouped[currentCat] = []; grouped[currentCat].push(p); }
+                        });
+                        const hasGroups = Object.keys(grouped).length > 1 || (Object.keys(grouped).length === 1 && !grouped['General']);
+                        return (
+                        <details className="hp-past-card" key={pa.id || i}>
+                          <summary className="hp-past-header">
+                            <div className="hp-past-header-left">
+                              <span className="hp-past-heading">{pa.heading || 'Clinical Agent'}</span>
+                              <span className="hp-past-summary-short">{pa.summary}</span>
+                            </div>
                             <span className="hp-past-date">{pa.createdAt ? new Date(pa.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
+                          </summary>
+                          <div className="hp-past-body">
+                            {hasGroups ? Object.entries(grouped).map(([cat, items]) => (
+                              <div className="hp-agent-category" key={cat}>
+                                <h4 className="hp-agent-cat-title">{cat}</h4>
+                                <ul className="hp-agent-items">{items.map((item, j) => <li key={j}>{item}</li>)}</ul>
+                              </div>
+                            )) : (
+                              <ul className="hp-agent-items">{(grouped['General'] || []).map((item, j) => <li key={j}>{item}</li>)}</ul>
+                            )}
                           </div>
-                          <p className="hp-past-summary">{pa.summary}</p>
-                          <ul className="hp-agent-items">
-                            {(pa.points || []).map((pt, j) => <li key={j}>{pt}</li>)}
-                          </ul>
-                        </div>
-                      )) : <p className="hp-an-empty-text">No past analyses for this patient</p>}
+                        </details>
+                        );
+                      }) : <p className="hp-an-empty-text">No past analyses for this patient</p>}
                     </div>
                   )}
                 </div>
