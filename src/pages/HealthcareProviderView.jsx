@@ -54,6 +54,8 @@ export default function HealthcareProviderView({ onLogout }) {
   const [actionTab, setActionTab] = useState('recommended');
   const [pastAnalyses, setPastAnalyses] = useState([]);
   const [pipelineTab, setPipelineTab] = useState('current');
+  const [pastPage, setPastPage] = useState(1);
+  const PAST_PER_PAGE = 4;
   const ITEMS_PER_PAGE = 4;
   const DOCS_PER_PAGE = 5;
 
@@ -645,7 +647,7 @@ export default function HealthcareProviderView({ onLogout }) {
     if (selectedPatient) {
       setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null);
       setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
-      setAgentStage(0); setAgentLoading(false); setActionTab('recommended'); setPipelineTab('current');
+      setAgentStage(0); setAgentLoading(false); setActionTab('recommended'); setPipelineTab('current'); setPastPage(1);
       loadPatientDetail(selectedPatient);
       fetchApprovedActions(selectedPatient);
       fetchPastAnalyses(selectedPatient);
@@ -1015,7 +1017,11 @@ export default function HealthcareProviderView({ onLogout }) {
 
                   {pipelineTab === 'past' && (
                     <div className="hp-past-analyses">
-                      {pastAnalyses.length > 0 ? pastAnalyses.map((pa, i) => {
+                      {pastAnalyses.length > 0 ? (() => {
+                        const totalPastPages = Math.ceil(pastAnalyses.length / PAST_PER_PAGE);
+                        const visiblePast = pastAnalyses.slice((pastPage - 1) * PAST_PER_PAGE, pastPage * PAST_PER_PAGE);
+                        return (<>
+                      {visiblePast.map((pa, i) => {
                         const pts = pa.points || [];
                         const grouped = {};
                         let currentCat = 'General';
@@ -1043,7 +1049,16 @@ export default function HealthcareProviderView({ onLogout }) {
                           </div>
                         </details>
                         );
-                      }) : <p className="hp-an-empty-text">No past analyses for this patient</p>}
+                      })}
+                      {totalPastPages > 1 && (
+                        <div className="hp-pagination" style={{ marginTop: 12 }}>
+                          <button className="hp-page-btn" disabled={pastPage <= 1} onClick={() => setPastPage(pastPage - 1)}>Prev</button>
+                          <span className="hp-page-info">{pastPage} / {totalPastPages}</span>
+                          <button className="hp-page-btn" disabled={pastPage >= totalPastPages} onClick={() => setPastPage(pastPage + 1)}>Next</button>
+                        </div>
+                      )}
+                      </>);
+                      })() : <p className="hp-an-empty-text">No past analyses for this patient</p>}
                     </div>
                   )}
                 </div>
