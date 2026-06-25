@@ -3889,3 +3889,57 @@ Two tabs: **Patients** (existing detail view) + **Analytics** (new).
 132. `9463547` — Hide agents: API calls commented, UI wrapped in false block
 
 ---
+
+## Session: Jun 23–25, 2026
+
+### Agent UX — Start Analysis Button + Recommended/Approved Tabs
+- Agents no longer auto-run on patient select. Provider must click **"Start Analysis"** button.
+- Actions section has two tabs: **"AI Recommended Actions"** (with count badge) and **"Approved Actions"** (green count badge).
+- Approved tab shows all previously approved actions fetched from `GET /baseR4/Patient/ai-recommended-actions`.
+- Approved actions mapping fixed: uses `extension[url contains 'action-title']`, `payload[].contentString`, `extension[url contains 'action-priority']`, `extension[url contains 'action-urgency-note']`.
+- **Approved Date** shown in green: reads from `extension[url contains 'verified-at'].valueDateTime`.
+- After approving, approved list auto-refreshes.
+- Commits: `e218d7b`, `95b28e7`, `79c8d14`, `6db220c`
+
+### Semantic Dedup — AI Meaning Comparison
+- After Recommendation Agent generates actions, an AI call compares them against approved actions **by meaning** (not just title match).
+- Prompt asks GPT to return indices of genuinely different actions; duplicates like "Schedule spirometry testing" vs "Perform Spirometry and Pulmonary Function Testing" are caught.
+- Falls back to simple title match if AI call fails.
+- Commit: `d1efd74`
+
+### Session Persistence
+- Agent results + actions saved to `sessionStorage` per patient (`p360_agent_{patientId}`).
+- Navigating away and back loads cached results instantly — no re-run needed.
+- Cache clears on logout (browser behavior) or after approval (updates remaining actions).
+- Commit: `3237c09`
+
+### Past Analysis — Save + Retrieve + Display
+- After Clinical Agent analysis completes, results saved to DB via `POST /baseR4/agent/clinical-analysis` with heading, summary, points, patientId.
+- **Pipeline tabs**: "Current Analysis" (start button / pipeline / results) and "Past Analysis" (history with count badge).
+- Past analyses fetched via `GET /baseR4/agent/clinical-analysis/patient/{patientId}`.
+- Commit: `90da917`
+
+### Past Analysis — UI Refinements
+- **Auto-switch**: 30 seconds after analysis completes, auto-switches to Past Analysis tab, clears current results, shows Start Analysis button again.
+- **Expandable cards**: Past analyses collapsed by default (shows heading + date), click to expand and see summary + findings.
+- **Grouped findings by category**: Clinical Agent prompt updated to return `categories` object (Risk Analysis, Care Gap Detection, Disease Progression, Guideline Compliance, Treatment Response). Each category shown with purple uppercase heading. Saved to DB with `[Category Name]` markers, parsed back on display.
+- **"Analysis Date:"** label — bold, on same row as "Clinical Agent" (left: heading, right: date).
+- **Summary** moves inside expandable body (italic).
+- **Pagination**: 4 past analyses per page with Prev/Next.
+- Commits: `d3a9318`, `6ee03cb`, `0342371`, `e51e103`
+
+### Git Commits (Jun 23–25)
+
+133. `e218d7b` — Unhide agents
+134. `95b28e7` — Start Analysis button, Recommended/Approved tabs, filter already-approved
+135. `79c8d14` — Fix approved actions mapping (extension fields + payload)
+136. `d1efd74` — Semantic dedup: AI compares actions by meaning
+137. `3237c09` — Persist agent results in sessionStorage per patient
+138. `90da917` — Past Analysis: save to DB via POST, show history via GET, pipeline tabs
+139. `d3a9318` — Auto-switch to Past Analysis after 30s, expandable cards, grouped categories
+140. `6db220c` — Show approved date from verified-at extension
+141. `6ee03cb` — Prefix date with "Analysis Date:"
+142. `0342371` — Clinical Agent and Analysis Date on same row
+143. `e51e103` — Bold date, paginate past analyses at 4 per page
+
+---
