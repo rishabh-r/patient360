@@ -1027,13 +1027,11 @@ export default function HealthcareProviderView({ onLogout }) {
                         return (
                         <details className="hp-past-card" key={pa.id || i}>
                           <summary className="hp-past-header">
-                            <div className="hp-past-header-left">
-                              <span className="hp-past-heading">{pa.heading || 'Clinical Agent'}</span>
-                              <span className="hp-past-summary-short">{pa.summary}</span>
-                            </div>
+                            <span className="hp-past-heading">{pa.heading || 'Clinical Agent'}</span>
                             <span className="hp-past-date">Analysis Date: {pa.createdAt ? new Date(pa.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
                           </summary>
                           <div className="hp-past-body">
+                            {pa.summary && <p className="hp-past-summary">{pa.summary}</p>}
                             {hasGroups ? Object.entries(grouped).map(([cat, items]) => (
                               <div className="hp-agent-category" key={cat}>
                                 <h4 className="hp-agent-cat-title">{cat}</h4>
