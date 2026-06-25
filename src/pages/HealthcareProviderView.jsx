@@ -563,6 +563,7 @@ export default function HealthcareProviderView({ onLogout }) {
               description: (e.resource?.payload || []).map(p => p.contentString).filter(Boolean).join(' '),
               priority: ext.find(x => x.url?.includes('action-priority'))?.valueString || '',
               timeframe: ext.find(x => x.url?.includes('action-urgency-note'))?.valueString || '',
+              approvedDate: ext.find(x => x.url?.includes('verified-at'))?.valueDateTime || '',
             };
           });
         setApprovedActions(completed);
@@ -1095,6 +1096,7 @@ export default function HealthcareProviderView({ onLogout }) {
                               </div>
                               {a.description && <span className="hp-action-desc">{a.description}</span>}
                               {a.timeframe && <span className="hp-action-meta">{a.timeframe}</span>}
+                              {a.approvedDate && <span className="hp-action-approved-date">Approved: {new Date(a.approvedDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>}
                             </div>
                           </div>
                         )) : <p className="hp-an-empty-text">No approved actions yet</p>}

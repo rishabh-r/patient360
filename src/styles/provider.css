@@ -646,6 +646,7 @@
 }
 .hp-action-tab-count--green { background: #16A34A; }
 .hp-action-approved { border-left: 3px solid #16A34A; padding-left: 10px; margin-bottom: 8px; }
+.hp-action-approved-date { font-size: 11px; color: #16A34A; font-weight: 500; }
 
 /* ── AI Agent Analysis ── */
 .hp-agent-loading {
