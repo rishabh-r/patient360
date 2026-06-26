@@ -132,12 +132,8 @@ export default function HealthcareProviderView({ onLogout }) {
     setAnalyticsLoading(true);
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()).toISOString().split('T')[0];
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()).toISOString().split('T')[0];
     const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().split('T')[0];
     const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate()).toISOString().split('T')[0];
-    const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).toISOString().split('T')[0];
-    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate()).toISOString().split('T')[0];
 
     Promise.all(patients.map(p =>
       callFhirApi(`${FHIR_BASE}/baseR4/Appointment?patient=${p.id}&page=0&size=100`)
@@ -202,14 +198,10 @@ export default function HealthcareProviderView({ onLogout }) {
           return count > 0 ? +(totalDays / count).toFixed(1) : 0;
         }
 
-        const [currAlosEncs, prevAlosEncs] = await Promise.all([
-          fetchAllFinished(oneMonthAgo, today),
-          fetchAllFinished(twoMonthsAgo, oneMonthAgo),
-        ]);
-        const currAlos = calcAlos(currAlosEncs);
-        const prevAlos = calcAlos(prevAlosEncs);
-        const alosDiff = prevAlos > 0 ? +((currAlos - prevAlos).toFixed(1)) : 0;
-        setAvgLos({ days: currAlos, pctChange: alosDiff });
+        const currAlos = calcAlos(currEncs);
+        const prevAlos = calcAlos(prevEncs);
+        const alosPct = prevAlos > 0 ? Math.round(((currAlos - prevAlos) / prevAlos) * 100) : 0;
+        setAvgLos({ days: currAlos, pctChange: alosPct });
 
         const allEncountersAllStatus = [];
         for (const p of patients) {
@@ -1149,7 +1141,7 @@ export default function HealthcareProviderView({ onLogout }) {
               {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
               <span className="hp-an-kpi-val">{avgLos.days} days</span>
               <span className={`hp-an-kpi-change ${avgLos.pctChange <= 0 ? 'up-green' : 'down-red'}`}>
-                {avgLos.pctChange <= 0 ? '↘' : '↗'} {avgLos.pctChange > 0 ? '+' : ''}{avgLos.pctChange} days vs last month
+                {avgLos.pctChange <= 0 ? '↘' : '↗'} {avgLos.pctChange > 0 ? '+' : ''}{avgLos.pctChange}% vs last year
               </span>
               </>}
             </div>

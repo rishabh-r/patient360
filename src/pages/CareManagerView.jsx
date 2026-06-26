@@ -135,9 +135,6 @@ export default function CareManagerView({ onLogout }) {
     const today = now.toISOString().split('T')[0];
     const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().split('T')[0];
     const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate()).toISOString().split('T')[0];
-    const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).toISOString().split('T')[0];
-    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate()).toISOString().split('T')[0];
-
     async function fetchEncounterCount(orgId, status, dateGt, dateLt) {
       const url = new URL(`${FHIR_BASE}/baseR4/Encounter/$count`);
       url.searchParams.append('organization', orgId);
@@ -209,22 +206,18 @@ export default function CareManagerView({ onLogout }) {
         const disPct = prevDis > 0 ? Math.round(((currDis - prevDis) / prevDis) * 100) : 0;
         setDischarges({ count: currDis, pctChange: disPct });
 
-        const [currAlosEncs, prevAlosEncs] = await Promise.all([
-          fetchFinishedEncounters(selectedOrg, oneMonthAgo, today),
-          fetchFinishedEncounters(selectedOrg, twoMonthsAgo, oneMonthAgo),
-        ]);
-
-        const currAlos = calcAlos(currAlosEncs);
-        const prevAlos = calcAlos(prevAlosEncs);
-        const alosDiff = prevAlos > 0 ? +((currAlos - prevAlos).toFixed(1)) : 0;
-        setAlos({ days: currAlos, pctChange: alosDiff });
-
-        const [currReadmEncs, prevReadmEncs] = await Promise.all([
+        const [currYearEncs, prevYearEncs] = await Promise.all([
           fetchFinishedEncounters(selectedOrg, oneYearAgo, today),
           fetchFinishedEncounters(selectedOrg, twoYearsAgo, oneYearAgo),
         ]);
-        const currReadm = calcReadmissionRate(currReadmEncs);
-        const prevReadm = calcReadmissionRate(prevReadmEncs);
+
+        const currAlos = calcAlos(currYearEncs);
+        const prevAlos = calcAlos(prevYearEncs);
+        const alosPct = prevAlos > 0 ? Math.round(((currAlos - prevAlos) / prevAlos) * 100) : 0;
+        setAlos({ days: currAlos, pctChange: alosPct });
+
+        const currReadm = calcReadmissionRate(currYearEncs);
+        const prevReadm = calcReadmissionRate(prevYearEncs);
         const readmPctPt = +(currReadm - prevReadm).toFixed(1);
         setReadmissionRate({ rate: currReadm, pctChange: readmPctPt });
 
@@ -592,7 +585,7 @@ export default function CareManagerView({ onLogout }) {
                         <div className="cm-an-kpi-head"><span className="cm-an-kpi-label">ALOS</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
                         {kpiLoading ? <span className="cm-an-kpi-val"><div className="cm-spinner-inline" /></span> : <>
                         <span className="cm-an-kpi-val">{alos.days} days</span>
-                        <span className={`cm-an-kpi-change ${alos.pctChange <= 0 ? 'down' : 'up'}`}>{alos.pctChange <= 0 ? '↓' : '↑'} {alos.pctChange > 0 ? '+' : ''}{alos.pctChange} days vs last month</span>
+                        <span className={`cm-an-kpi-change ${alos.pctChange <= 0 ? 'down' : 'up'}`}>{alos.pctChange <= 0 ? '↓' : '↑'} {alos.pctChange > 0 ? '+' : ''}{alos.pctChange}% vs last year</span>
                         </>}
                       </div>
                       <div className="cm-an-kpi">
