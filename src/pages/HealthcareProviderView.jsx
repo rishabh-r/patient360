@@ -42,7 +42,7 @@ export default function HealthcareProviderView({ onLogout }) {
   const [viewingDoc, setViewingDoc] = useState(null);
   const [agentResults, setAgentResults] = useState(null);
   const [agentLoading, setAgentLoading] = useState(false);
-  const [agentStage, setAgentStage] = useState(0);
+  const [agentProgress, setAgentProgress] = useState({ clinical: 0, financial: 0, ops: 0, recommendation: 0 });
   const [aiInstructions, setAiInstructions] = useState([]);
   const [aiActions, setAiActions] = useState([]);
   const [selectedInstr, setSelectedInstr] = useState([]);
@@ -54,6 +54,7 @@ export default function HealthcareProviderView({ onLogout }) {
   const [actionTab, setActionTab] = useState('recommended');
   const [pastAnalyses, setPastAnalyses] = useState([]);
   const [pipelineTab, setPipelineTab] = useState('current');
+  const [pastAgentTab, setPastAgentTab] = useState('clinical');
   const [pastPage, setPastPage] = useState(1);
   const PAST_PER_PAGE = 4;
   const ITEMS_PER_PAGE = 4;
@@ -570,28 +571,45 @@ export default function HealthcareProviderView({ onLogout }) {
       .catch(() => setPastAnalyses([]));
   }
 
-  async function saveClinicalAnalysis(clinical, pid) {
+  function extractPoints(agentData) {
+    const points = [];
+    const cats = agentData.categories || {};
+    for (const [cat, items] of Object.entries(cats)) {
+      points.push(`[${cat}]`);
+      if (Array.isArray(items)) items.forEach(item => points.push(item));
+    }
+    if (!points.length) {
+      const allFields = Object.values(agentData).filter(Array.isArray).flat();
+      const fallback = allFields.length ? allFields : [...(agentData.findings || []), ...(agentData.careGaps || []), ...(agentData.progressionAlerts || [])];
+      fallback.forEach(f => { if (typeof f === 'string') points.push(f); });
+    }
+    return points;
+  }
+
+  async function saveAllAnalyses(agents, pid) {
+    const configs = [
+      { key: 'clinical', heading: 'Clinical Agent', summary: a => a.riskReason || `Risk Level: ${a.riskLevel || 'Unknown'}` },
+      { key: 'financial', heading: 'Financial Agent', summary: a => a.costFindings?.[0] || 'Financial analysis complete' },
+      { key: 'ops', heading: 'Ops Agent', summary: a => a.appointmentInsights?.[0] || 'Operations analysis complete' },
+    ];
     try {
-      const cats = clinical.categories || {};
-      const points = [];
-      for (const [cat, items] of Object.entries(cats)) {
-        points.push(`[${cat}]`);
-        if (Array.isArray(items)) items.forEach(item => points.push(item));
+      for (const cfg of configs) {
+        const data = agents?.[cfg.key];
+        if (!data || data.error) continue;
+        const points = extractPoints(data);
+        if (!points.length) continue;
+        await fetch(`${FHIR_BASE}/baseR4/agent/clinical-analysis`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            heading: cfg.heading,
+            summary: cfg.summary(data),
+            points,
+            patientId: pid,
+            organizationId: '',
+          }),
+        });
       }
-      if (!points.length) {
-        [...(clinical.findings || []), ...(clinical.careGaps || []), ...(clinical.progressionAlerts || [])].forEach(f => points.push(f));
-      }
-      await fetch(`${FHIR_BASE}/baseR4/agent/clinical-analysis`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          heading: 'Clinical Agent',
-          summary: clinical.riskReason || `Risk Level: ${clinical.riskLevel || 'Unknown'}`,
-          points,
-          patientId: pid,
-          organizationId: '',
-        }),
-      });
       fetchPastAnalyses(pid);
     } catch {}
   }
@@ -599,13 +617,38 @@ export default function HealthcareProviderView({ onLogout }) {
   function startAgentAnalysis() {
     if (!selectedPatient || agentLoading) return;
     setAgentLoading(true);
-    setAgentStage(1);
+    setAgentProgress({ clinical: 0, financial: 0, ops: 0, recommendation: 0 });
     setAgentResults(null); setAiActions([]); setSelectedAct([]);
+
+    const progressIntervals = {};
+    ['clinical', 'financial', 'ops'].forEach(key => {
+      const base = 8 + Math.random() * 4;
+      progressIntervals[key] = setInterval(() => {
+        setAgentProgress(prev => {
+          if (prev[key] >= 90) return prev;
+          return { ...prev, [key]: Math.min(90, prev[key] + base + Math.random() * 5) };
+        });
+      }, 800);
+    });
+
     runAllAgents(selectedPatient)
       .then(async res => {
-        setAgentStage(2);
+        Object.values(progressIntervals).forEach(clearInterval);
+        setAgentProgress(prev => ({ ...prev, clinical: 100, financial: 100, ops: 100 }));
         setAgentResults(res.agents || {});
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 600));
+
+        const recInterval = setInterval(() => {
+          setAgentProgress(prev => {
+            if (prev.recommendation >= 90) return prev;
+            return { ...prev, recommendation: Math.min(90, prev.recommendation + 12 + Math.random() * 8) };
+          });
+        }, 500);
+
+        await new Promise(r => setTimeout(r, 1500));
+        clearInterval(recInterval);
+        setAgentProgress(prev => ({ ...prev, recommendation: 100 }));
+
         const recs = res.recommendations || {};
         const newActions = Array.isArray(recs.actions) ? recs.actions : [];
         let filtered = newActions;
@@ -625,21 +668,23 @@ export default function HealthcareProviderView({ onLogout }) {
           }
         }
         setAiActions(filtered);
-        setAgentStage(3);
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 800));
         setAgentLoading(false);
         try { sessionStorage.setItem(`p360_agent_${selectedPatient}`, JSON.stringify({ agents: res.agents, actions: filtered })); } catch {}
-        if (res.agents?.clinical) saveClinicalAnalysis(res.agents.clinical, selectedPatient);
-        setTimeout(() => { setPipelineTab('past'); setAgentResults(null); setAgentStage(0); try { sessionStorage.removeItem(`p360_agent_${selectedPatient}`); } catch {} }, 30000);
+        saveAllAnalyses(res.agents, selectedPatient);
+        setTimeout(() => { setPipelineTab('past'); setAgentResults(null); setAgentProgress({ clinical: 0, financial: 0, ops: 0, recommendation: 0 }); try { sessionStorage.removeItem(`p360_agent_${selectedPatient}`); } catch {} }, 30000);
       })
-      .catch(() => { setAgentResults({}); setAgentStage(0); setAgentLoading(false); });
+      .catch(() => {
+        Object.values(progressIntervals).forEach(clearInterval);
+        setAgentResults({}); setAgentProgress({ clinical: 0, financial: 0, ops: 0, recommendation: 0 }); setAgentLoading(false);
+      });
   }
 
   useEffect(() => {
     if (selectedPatient) {
       setVitalsPage(1); setLabPage(1); setMedPage(1); setDocPage(1); setViewingDoc(null);
       setSelectedInstr([]); setSelectedAct([]); setApprovalToast('');
-      setAgentStage(0); setAgentLoading(false); setActionTab('recommended'); setPipelineTab('current'); setPastPage(1);
+      setAgentProgress({ clinical: 0, financial: 0, ops: 0, recommendation: 0 }); setAgentLoading(false); setActionTab('recommended'); setPipelineTab('current'); setPastPage(1); setPastAgentTab('clinical');
       loadPatientDetail(selectedPatient);
       fetchApprovedActions(selectedPatient);
       fetchPastAnalyses(selectedPatient);
@@ -940,117 +985,167 @@ export default function HealthcareProviderView({ onLogout }) {
                   {pipelineTab === 'current' && <>
                   {!agentLoading && !agentResults && (
                     <div className="hp-pipeline-start">
-                      <p className="hp-pipeline-start-text">Run AI Clinical Agent to analyze this patient's data and generate recommended actions.</p>
+                      <p className="hp-pipeline-start-text">Run AI Agents to analyze this patient's clinical, financial, and operational data in parallel.</p>
                       <button className="hp-pipeline-start-btn" onClick={startAgentAnalysis}>Start Analysis</button>
                     </div>
                   )}
                   {agentLoading && (
                     <div className="hp-pipeline">
                       <div className="hp-pipeline-header">
-                        <span className="hp-pipeline-stage">Stage {agentStage}/2: {agentStage === 1 ? 'Clinical Agent — Analyzing patient data' : 'Recommendation Agent — Generating actions'}</span>
-                        <span className="hp-pipeline-eta"><div className="hp-spinner-inline" style={{ width: 14, height: 14, borderWidth: 2 }} /> Processing...</span>
+                        <span className="hp-pipeline-stage">
+                          {agentProgress.recommendation >= 100 ? 'All agents complete' : agentProgress.clinical >= 100 ? 'Recommendation Agent — Synthesizing' : 'Analyzing patient data in parallel...'}
+                        </span>
+                        <span className="hp-pipeline-eta"><div className="hp-spinner-inline" style={{ width: 14, height: 14, borderWidth: 2 }} /> {Math.round((agentProgress.clinical + agentProgress.financial + agentProgress.ops + agentProgress.recommendation) / 4)}%</span>
                       </div>
-                      <div className="hp-pipeline-cards">
-                        <div className={`hp-pipeline-node${agentStage >= 1 ? ' active' : ''}${agentStage >= 2 ? ' done' : ''}`}>
-                          <span className="hp-pipeline-name">Clinical Agent</span>
-                          <span className="hp-pipeline-role">Risk Analysis</span>
-                          <span className={`hp-pipeline-status${agentStage >= 2 ? ' done' : agentStage >= 1 ? ' analyzing' : ''}`}>
-                            {agentStage >= 2 ? '✓ DONE' : agentStage >= 1 ? 'ANALYZING...' : 'WAITING'}
-                          </span>
+
+                      <div className="hp-pipeline-parallel">
+                        {[
+                          { key: 'clinical', name: 'Clinical Agent', role: 'Risk & Care Gaps', color: '#DC2626' },
+                          { key: 'financial', name: 'Financial Agent', role: 'Cost & Documentation', color: '#2563EB' },
+                          { key: 'ops', name: 'Ops Agent', role: 'Scheduling & Efficiency', color: '#7C3AED' },
+                        ].map(agent => (
+                          <div className={`hp-pipeline-node${agentProgress[agent.key] > 0 ? ' active' : ''}${agentProgress[agent.key] >= 100 ? ' done' : ''}`} key={agent.key}>
+                            <span className="hp-pipeline-name">{agent.name}</span>
+                            <span className="hp-pipeline-role">{agent.role}</span>
+                            <div className="hp-agent-progress-bar">
+                              <div className="hp-agent-progress-fill" style={{ width: `${Math.round(agentProgress[agent.key])}%`, background: agent.color }} />
+                            </div>
+                            <span className={`hp-pipeline-status${agentProgress[agent.key] >= 100 ? ' done' : agentProgress[agent.key] > 0 ? ' analyzing' : ''}`}>
+                              {agentProgress[agent.key] >= 100 ? '✓ DONE' : agentProgress[agent.key] > 0 ? `${Math.round(agentProgress[agent.key])}%` : 'WAITING'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="hp-pipeline-merge">
+                        <div className="hp-pipeline-merge-lines">
+                          <div className={`hp-pipeline-vline${agentProgress.clinical >= 100 ? ' filled' : ''}`} />
+                          <div className={`hp-pipeline-vline${agentProgress.financial >= 100 ? ' filled' : ''}`} />
+                          <div className={`hp-pipeline-vline${agentProgress.ops >= 100 ? ' filled' : ''}`} />
                         </div>
-                        <div className="hp-pipeline-connector">
-                          <div className={`hp-pipeline-line${agentStage >= 2 ? ' filled' : ''}`} />
-                        </div>
-                        <div className={`hp-pipeline-node${agentStage >= 2 ? ' active' : ''}${agentStage >= 3 ? ' done' : ''}`}>
+                        <div className="hp-pipeline-merge-hline" />
+                        <div className={`hp-pipeline-vline-down${agentProgress.clinical >= 100 ? ' filled' : ''}`} />
+                      </div>
+
+                      <div className="hp-pipeline-rec-row">
+                        <div className={`hp-pipeline-node hp-pipeline-node-rec${agentProgress.recommendation > 0 ? ' active' : ''}${agentProgress.recommendation >= 100 ? ' done' : ''}`}>
                           <span className="hp-pipeline-name">Recommendation Agent</span>
-                          <span className="hp-pipeline-role">Actions Generator</span>
-                          <span className={`hp-pipeline-status${agentStage >= 3 ? ' done' : agentStage >= 2 ? ' analyzing' : ''}`}>
-                            {agentStage >= 3 ? '✓ DONE' : agentStage >= 2 ? 'GENERATING...' : 'WAITING'}
+                          <span className="hp-pipeline-role">Synthesizes all agent outputs</span>
+                          <div className="hp-agent-progress-bar">
+                            <div className="hp-agent-progress-fill" style={{ width: `${Math.round(agentProgress.recommendation)}%`, background: '#16A34A' }} />
+                          </div>
+                          <span className={`hp-pipeline-status${agentProgress.recommendation >= 100 ? ' done' : agentProgress.recommendation > 0 ? ' analyzing' : ''}`}>
+                            {agentProgress.recommendation >= 100 ? '✓ DONE' : agentProgress.recommendation > 0 ? `${Math.round(agentProgress.recommendation)}%` : 'WAITING'}
                           </span>
                         </div>
                       </div>
+
                       <div className="hp-pipeline-progress">
-                        <div className="hp-pipeline-bar" style={{ width: `${agentStage >= 3 ? 100 : agentStage >= 2 ? 65 : agentStage >= 1 ? 30 : 0}%` }} />
+                        <div className="hp-pipeline-bar" style={{ width: `${Math.round((agentProgress.clinical + agentProgress.financial + agentProgress.ops + agentProgress.recommendation) / 4)}%` }} />
                       </div>
-                      <span className="hp-pipeline-count">{agentStage >= 3 ? '2' : agentStage >= 2 ? '1' : '0'} / 2 STAGES COMPLETED</span>
+                      <span className="hp-pipeline-count">
+                        {[agentProgress.clinical, agentProgress.financial, agentProgress.ops, agentProgress.recommendation].filter(p => p >= 100).length} / 4 AGENTS COMPLETED
+                      </span>
                     </div>
                   )}
                   {!agentLoading && agentResults ? (
-                    <div className="hp-agent-single">
-                      {agentResults.clinical && (() => {
-                        const cats = agentResults.clinical.categories || {};
+                    <div className="hp-agent-results-grid">
+                      {[
+                        { key: 'clinical', label: 'Clinical Agent', color: '#DC2626', data: agentResults.clinical },
+                        { key: 'financial', label: 'Financial Agent', color: '#2563EB', data: agentResults.financial },
+                        { key: 'ops', label: 'Ops Agent', color: '#7C3AED', data: agentResults.ops },
+                      ].map(agent => {
+                        if (!agent.data) return null;
+                        const cats = agent.data.categories || {};
                         const hasCats = Object.keys(cats).length > 0;
-                        const fallbackItems = [...(agentResults.clinical.findings || []), ...(agentResults.clinical.careGaps || []), ...(agentResults.clinical.progressionAlerts || [])];
+                        const allArrayFields = Object.entries(agent.data).filter(([, v]) => Array.isArray(v)).flatMap(([, v]) => v);
+                        const fallbackItems = hasCats ? [] : (allArrayFields.length > 0 ? allArrayFields : [...(agent.data.findings || []), ...(agent.data.careGaps || []), ...(agent.data.progressionAlerts || [])]);
                         return (
-                        <div className="hp-agent-card" style={{ borderTopColor: '#DC2626' }}>
+                        <div className="hp-agent-card" style={{ borderTopColor: agent.color }} key={agent.key}>
                           <div className="hp-agent-header">
-                            <span className="hp-agent-label">Clinical Agent</span>
-                            {agentResults.clinical.riskLevel && <span className={`hp-agent-badge hp-agent-badge--${agentResults.clinical.riskLevel.toLowerCase()}`}>{agentResults.clinical.riskLevel} Risk</span>}
+                            <span className="hp-agent-label">{agent.label}</span>
+                            {agent.data.riskLevel && <span className={`hp-agent-badge hp-agent-badge--${agent.data.riskLevel.toLowerCase()}`}>{agent.data.riskLevel} Risk</span>}
                           </div>
-                          {agentResults.clinical.riskReason && <p className="hp-agent-reason">{agentResults.clinical.riskReason}</p>}
+                          {agent.data.riskReason && <p className="hp-agent-reason">{agent.data.riskReason}</p>}
                           {hasCats ? Object.entries(cats).map(([cat, items]) => (
                             <div className="hp-agent-category" key={cat}>
                               <h4 className="hp-agent-cat-title">{cat}</h4>
-                              <ul className="hp-agent-items">
-                                {(Array.isArray(items) ? items : []).map((item, i) => <li key={i}>{item}</li>)}
-                              </ul>
+                              <ul className="hp-agent-items">{(Array.isArray(items) ? items : []).map((item, i) => <li key={i}>{item}</li>)}</ul>
                             </div>
                           )) : (
-                            <ul className="hp-agent-items">
-                              {(fallbackItems.length > 0 ? fallbackItems : ['No significant findings']).map((item, i) => <li key={i}>{item}</li>)}
-                            </ul>
+                            <ul className="hp-agent-items">{(fallbackItems.length > 0 ? fallbackItems : ['No significant findings']).map((item, i) => <li key={i}>{typeof item === 'string' ? item : JSON.stringify(item)}</li>)}</ul>
                           )}
                         </div>
                         );
-                      })()}
+                      })}
                     </div>
                   ) : null}
                   </>}
 
                   {pipelineTab === 'past' && (
                     <div className="hp-past-analyses">
-                      {pastAnalyses.length > 0 ? (() => {
-                        const totalPastPages = Math.ceil(pastAnalyses.length / PAST_PER_PAGE);
-                        const visiblePast = pastAnalyses.slice((pastPage - 1) * PAST_PER_PAGE, pastPage * PAST_PER_PAGE);
-                        return (<>
-                      {visiblePast.map((pa, i) => {
-                        const pts = pa.points || [];
-                        const grouped = {};
-                        let currentCat = 'General';
-                        pts.forEach(p => {
-                          if (p.startsWith('[') && p.endsWith(']')) { currentCat = p.slice(1, -1); }
-                          else { if (!grouped[currentCat]) grouped[currentCat] = []; grouped[currentCat].push(p); }
+                      <div className="hp-past-agent-tabs">
+                        {[
+                          { key: 'clinical', label: 'Clinical' },
+                          { key: 'financial', label: 'Financial' },
+                          { key: 'ops', label: 'Ops' },
+                        ].map(t => {
+                          const count = pastAnalyses.filter(pa => (pa.heading || '').toLowerCase().includes(t.key) || (t.key === 'ops' && (pa.heading || '').toLowerCase().includes('ops'))).length;
+                          return (
+                          <button key={t.key} className={`hp-past-agent-tab${pastAgentTab === t.key ? ' active' : ''}`} onClick={() => { setPastAgentTab(t.key); setPastPage(1); }}>
+                            {t.label} {count > 0 && <span className="hp-action-tab-count">{count}</span>}
+                          </button>
+                          );
+                        })}
+                      </div>
+                      {(() => {
+                        const headingMap = { clinical: 'clinical', financial: 'financial', ops: 'ops' };
+                        const filtered = pastAnalyses.filter(pa => {
+                          const h = (pa.heading || '').toLowerCase();
+                          return h.includes(headingMap[pastAgentTab]);
                         });
-                        const hasGroups = Object.keys(grouped).length > 1 || (Object.keys(grouped).length === 1 && !grouped['General']);
-                        return (
-                        <details className="hp-past-card" key={pa.id || i}>
-                          <summary className="hp-past-header">
-                            <span className="hp-past-heading">{pa.heading || 'Clinical Agent'}</span>
-                            <span className="hp-past-date">Analysis Date: {pa.createdAt ? new Date(pa.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
-                          </summary>
-                          <div className="hp-past-body">
-                            {pa.summary && <p className="hp-past-summary">{pa.summary}</p>}
-                            {hasGroups ? Object.entries(grouped).map(([cat, items]) => (
-                              <div className="hp-agent-category" key={cat}>
-                                <h4 className="hp-agent-cat-title">{cat}</h4>
-                                <ul className="hp-agent-items">{items.map((item, j) => <li key={j}>{item}</li>)}</ul>
-                              </div>
-                            )) : (
-                              <ul className="hp-agent-items">{(grouped['General'] || []).map((item, j) => <li key={j}>{item}</li>)}</ul>
-                            )}
+                        if (!filtered.length) return <p className="hp-an-empty-text">No past {pastAgentTab} analyses for this patient</p>;
+                        const totalPastPages = Math.ceil(filtered.length / PAST_PER_PAGE);
+                        const visiblePast = filtered.slice((pastPage - 1) * PAST_PER_PAGE, pastPage * PAST_PER_PAGE);
+                        return (<>
+                        {visiblePast.map((pa, i) => {
+                          const pts = pa.points || [];
+                          const grouped = {};
+                          let currentCat = 'General';
+                          pts.forEach(p => {
+                            if (p.startsWith('[') && p.endsWith(']')) { currentCat = p.slice(1, -1); }
+                            else { if (!grouped[currentCat]) grouped[currentCat] = []; grouped[currentCat].push(p); }
+                          });
+                          const hasGroups = Object.keys(grouped).length > 1 || (Object.keys(grouped).length === 1 && !grouped['General']);
+                          return (
+                          <details className="hp-past-card" key={pa.id || i}>
+                            <summary className="hp-past-header">
+                              <span className="hp-past-heading">{pa.heading || 'Agent'}</span>
+                              <span className="hp-past-date">Analysis Date: {pa.createdAt ? new Date(pa.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
+                            </summary>
+                            <div className="hp-past-body">
+                              {pa.summary && <p className="hp-past-summary">{pa.summary}</p>}
+                              {hasGroups ? Object.entries(grouped).map(([cat, items]) => (
+                                <div className="hp-agent-category" key={cat}>
+                                  <h4 className="hp-agent-cat-title">{cat}</h4>
+                                  <ul className="hp-agent-items">{items.map((item, j) => <li key={j}>{item}</li>)}</ul>
+                                </div>
+                              )) : (
+                                <ul className="hp-agent-items">{(grouped['General'] || []).map((item, j) => <li key={j}>{item}</li>)}</ul>
+                              )}
+                            </div>
+                          </details>
+                          );
+                        })}
+                        {totalPastPages > 1 && (
+                          <div className="hp-pagination" style={{ marginTop: 12 }}>
+                            <button className="hp-page-btn" disabled={pastPage <= 1} onClick={() => setPastPage(pastPage - 1)}>Prev</button>
+                            <span className="hp-page-info">{pastPage} / {totalPastPages}</span>
+                            <button className="hp-page-btn" disabled={pastPage >= totalPastPages} onClick={() => setPastPage(pastPage + 1)}>Next</button>
                           </div>
-                        </details>
-                        );
-                      })}
-                      {totalPastPages > 1 && (
-                        <div className="hp-pagination" style={{ marginTop: 12 }}>
-                          <button className="hp-page-btn" disabled={pastPage <= 1} onClick={() => setPastPage(pastPage - 1)}>Prev</button>
-                          <span className="hp-page-info">{pastPage} / {totalPastPages}</span>
-                          <button className="hp-page-btn" disabled={pastPage >= totalPastPages} onClick={() => setPastPage(pastPage + 1)}>Next</button>
-                        </div>
-                      )}
-                      </>);
-                      })() : <p className="hp-an-empty-text">No past analyses for this patient</p>}
+                        )}
+                        </>);
+                      })()}
                     </div>
                   )}
                 </div>

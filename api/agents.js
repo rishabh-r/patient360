@@ -232,10 +232,14 @@ export default async function handler(req) {
 
     let recommendations = null;
     try {
-      const orchContext = `Clinical Agent Analysis:\n${JSON.stringify(results.clinical)}`;
+      const contextParts = [];
+      if (results.clinical) contextParts.push(`Clinical Agent Analysis:\n${JSON.stringify(results.clinical)}`);
+      if (results.financial) contextParts.push(`Financial Agent Analysis:\n${JSON.stringify(results.financial)}`);
+      if (results.ops) contextParts.push(`Operations Agent Analysis:\n${JSON.stringify(results.ops)}`);
+      const orchContext = contextParts.join('\n\n');
 
       const recResponse = await callLLM([
-        { role: 'system', content: `You are the Recommendation AI Agent. You receive analysis from the Clinical Agent and synthesize it into actionable recommendations for the healthcare provider.\n\nReturn ONLY valid JSON:\n{"instructions":["instruction 1","instruction 2",...],"actions":[{"title":"...","priority":"High Priority|Medium Priority|Low Priority","timeframe":"Within 24 hours|Within 48 hours|Within 1 week|Within 1 month","description":"...","rationale":"..."},...]}\n\nMake 3-5 instructions and 3-5 actions. Be specific to this patient based on the clinical findings.` },
+        { role: 'system', content: `You are the Recommendation AI Agent. You receive analyses from multiple specialized agents (Clinical, Financial, Operations) and synthesize them into actionable recommendations for the healthcare provider.\n\nReturn ONLY valid JSON:\n{"instructions":["instruction 1","instruction 2",...],"actions":[{"title":"...","priority":"High Priority|Medium Priority|Low Priority","timeframe":"Within 24 hours|Within 48 hours|Within 1 week|Within 1 month","description":"...","rationale":"..."},...]}\n\nMake 3-5 instructions and 4-6 actions. Be specific to this patient based on ALL agent findings. Cross-reference clinical, financial, and operational insights to provide holistic recommendations.` },
         { role: 'user', content: orchContext },
       ]);
       const recContent = recResponse.choices?.[0]?.message?.content || '';

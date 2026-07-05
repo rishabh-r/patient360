@@ -11,7 +11,7 @@ export async function runAllAgents(patientId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       patientId,
-      agents: ['clinical'],
+      agents: ['clinical', 'financial', 'ops'],
       token,
     }),
   });
