@@ -3943,3 +3943,80 @@ Two tabs: **Patients** (existing detail view) + **Analytics** (new).
 143. `e51e103` — Bold date, paginate past analyses at 4 per page
 
 ---
+
+## Session: Jul 5, 2026
+
+### ALOS — Restored to Yearly Window
+- **Problem**: Avg LOS was showing 0 days in both Healthcare Provider and Care Manager dashboards because it was using a **monthly window** (last 30 days) — no inpatient encounters (`IMP`/`INP`) fell within that narrow range.
+- **Fix**: Changed ALOS to use the **same yearly window** as Yearly Visits (`oneYearAgo → today` vs `twoYearsAgo → oneYearAgo`).
+- **Provider**: Removed separate monthly `fetchAllFinished` calls; reuses `currEncs`/`prevEncs` from Yearly Visits.
+- **Care Manager**: Removed separate monthly `fetchFinishedEncounters` calls; shares `currYearEncs`/`prevYearEncs` with Readmission Rate (no extra API calls).
+- **Comparison label**: Changed from "X days vs last month" → "X% vs last year" (percentage, not absolute diff).
+- **Files changed**: `src/pages/HealthcareProviderView.jsx`, `src/pages/CareManagerView.jsx`
+- Commit: `c9beb5f`
+
+### Multi-Agent Pipeline — Clinical + Financial + Ops (Parallel)
+Previously only the Clinical Agent ran. Now all 3 agents run **in parallel**, followed by a Recommendation Agent that synthesizes all outputs.
+
+#### Architecture
+```
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│Clinical Agent│  │Finance Agent │  │  Ops Agent   │
+│ Risk & Gaps  │  │Cost & Docs   │  │Schedule & Eff│
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       └─────────────────┼─────────────────┘
+              ┌──────────▼──────────┐
+              │Recommendation Agent │
+              └────────────────────┘
+```
+
+#### Backend (`api/agents.js`)
+- `agents` param now receives `['clinical', 'financial', 'ops']`
+- All 3 run in parallel via `Promise.all`
+- Recommendation Agent receives combined context from all 3 agent outputs (was clinical only)
+- Recommendation prompt updated: "Cross-reference clinical, financial, and operational insights"
+
+#### Frontend Service (`src/services/agents.js`)
+- Changed `agents: ['clinical']` → `agents: ['clinical', 'financial', 'ops']`
+
+#### Pipeline UI — Parallel Progress with Percentages
+- **Replaced** single `agentStage` (1/2/3) with `agentProgress` object: `{ clinical: 0, financial: 0, ops: 0, recommendation: 0 }`
+- Each agent shows a **live percentage progress bar** during analysis (0% → 90% with random increments via `setInterval`, snaps to 100% on completion)
+- Overall progress shown in header: average of all 4 agents as percentage
+- Completion counter: "X / 4 AGENTS COMPLETED"
+- **Pipeline visualization**: 3 agents in a 3-column grid at top, visual merge lines connecting down to Recommendation Agent below
+- **Results**: displayed in 3-column grid with each agent's card (color-coded border tops: red=Clinical, blue=Financial, purple=Ops)
+
+#### Agent Output — Grouped by Categories
+- All 3 agents now return `{ "categories": { "Category Name": ["finding 1", ...] } }` format
+- **Clinical**: Risk Analysis, Care Gap Detection, Disease Progression, Guideline Compliance, Treatment Response
+- **Financial**: Cost Saving Recommendations, Documentation Gaps, High-Cost Patterns, Resource Utilization
+- **Ops**: Appointment Utilization, Encounter Efficiency, Referral Tracking, Workload Patterns
+- Frontend renders categories with purple uppercase headings + bullet items (same as Clinical already had)
+
+#### Past Analysis — Per-Agent Tabs
+- Added 3 tabs: **Clinical**, **Financial**, **Ops** — each filters past analyses by `heading` field
+- Tab badges show count per agent type
+- `saveAllAnalyses()` replaces `saveClinicalAnalysis()` — saves each agent's output separately with heading = "Clinical Agent" / "Financial Agent" / "Ops Agent"
+- New state: `pastAgentTab` (default: 'clinical')
+
+#### CSS (`src/styles/provider.css`)
+- `.hp-pipeline-parallel` — 3-column grid for parallel agents
+- `.hp-agent-progress-bar` + `.hp-agent-progress-fill` — per-agent progress bars
+- `.hp-pipeline-merge` + `.hp-pipeline-merge-lines` + `.hp-pipeline-vline` + `.hp-pipeline-merge-hline` + `.hp-pipeline-vline-down` — merge connector lines
+- `.hp-pipeline-rec-row` + `.hp-pipeline-node-rec` — centered Recommendation Agent below
+- `.hp-agent-results-grid` — 3-column results grid
+- `.hp-past-agent-tabs` + `.hp-past-agent-tab` — past analysis filter tabs
+- Responsive: collapses to 1 column at ≤1024px
+
+#### Config (`src/config/agentConfigs.js`)
+- `ALL_AGENTS` changed from `[CLINICAL_AGENT]` → `[CLINICAL_AGENT, FINANCIAL_AGENT, OPS_AGENT]`
+- Financial + Ops prompts updated to `categories` format matching Clinical
+
+### Git Commits (Jul 5)
+
+144. `c9beb5f` — Restore yearly ALOS window in provider and care manager dashboards
+145. `7da39c0` — Add Finance + Ops agents running in parallel with Clinical agent
+146. `909e2f3` — Group Financial and Ops agent output by categories like Clinical agent
+
+---
