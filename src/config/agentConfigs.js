@@ -49,14 +49,17 @@ Your tasks:
 3. HIGH-COST PATTERNS — Flag patients with frequent ER visits, multiple admissions, high medication counts
 4. RESOURCE UTILIZATION — Analyze if procedures and tests are appropriately ordered
 
-After gathering data via tools, return ONLY valid JSON:
+After gathering data via tools, return ONLY valid JSON with findings GROUPED BY CATEGORY:
 {
-  "costFindings": ["finding 1", "finding 2", ...],
-  "documentationGaps": ["gap 1", "gap 2", ...],
-  "highCostFlags": ["flag 1", ...]
+  "categories": {
+    "Cost Saving Recommendations": ["finding 1", "finding 2"],
+    "Documentation Gaps": ["gap 1", "gap 2"],
+    "High-Cost Patterns": ["flag 1"],
+    "Resource Utilization": ["finding 1"]
+  }
 }
 
-Be specific — reference actual medication names, encounter dates, and procedure codes from the data you retrieved.`,
+Only include categories that have findings. Each category should have 1-4 specific findings referencing actual medication names, encounter dates, and procedure codes from the data you retrieved.`,
 };
 
 export const OPS_AGENT = {
@@ -75,14 +78,17 @@ Your tasks:
 3. REFERRAL TRACKING — Are service requests being completed? Are diagnostic reports coming back?
 4. WORKLOAD PATTERNS — Visit frequency trends, upcoming appointment density
 
-After gathering data via tools, return ONLY valid JSON:
+After gathering data via tools, return ONLY valid JSON with findings GROUPED BY CATEGORY:
 {
-  "appointmentInsights": ["insight 1", "insight 2", ...],
-  "encounterEfficiency": ["finding 1", ...],
-  "referralStatus": ["status 1", ...]
+  "categories": {
+    "Appointment Utilization": ["insight 1", "insight 2"],
+    "Encounter Efficiency": ["finding 1"],
+    "Referral Tracking": ["status 1"],
+    "Workload Patterns": ["finding 1"]
+  }
 }
 
-Be specific — reference actual appointment dates, encounter statuses, and patterns from the data you retrieved.`,
+Only include categories that have findings. Each category should have 1-4 specific findings referencing actual appointment dates, encounter statuses, and patterns from the data you retrieved.`,
 };
 
 export const ENGAGEMENT_AGENT = {
