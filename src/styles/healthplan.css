@@ -167,6 +167,25 @@
 .hpv-condition-amount { font-size: 16px; font-weight: 700; color: #1E293B; display: block; }
 .hpv-condition-label { font-size: 11px; color: #94A3B8; display: block; }
 
+/* ── Pagination ── */
+.hpv-pagination {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 10px 0 0; margin-top: 4px;
+}
+.hpv-page-btn {
+  padding: 5px 14px; font-size: 12px; font-weight: 500;
+  border: 1px solid #E2E8F0; border-radius: 6px; background: #fff;
+  color: #475569; cursor: pointer; transition: all 0.15s;
+}
+.hpv-page-btn:hover:not(:disabled) { background: #F1F5F9; }
+.hpv-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.hpv-page-info { font-size: 12px; color: #94A3B8; font-weight: 500; }
+
+/* ── HEDIS Grid ── */
+.hpv-hedis-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px;
+}
+
 /* ── Profile dropdown ── */
 .hpv-profile-wrap { position: relative; }
 .hpv-profile-dropdown {

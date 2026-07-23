@@ -27,6 +27,9 @@ export default function HealthPlanView({ onLogout }) {
   const [dynClusters, setDynClusters] = useState([]);
   const [dynProviders, setDynProviders] = useState([]);
   const [dynConditions, setDynConditions] = useState([]);
+  const [clusterPage, setClusterPage] = useState(1);
+  const [conditionPage, setConditionPage] = useState(1);
+  const ITEMS_PER_PAGE = 4;
 
   useEffect(() => {
     (async () => {
@@ -94,7 +97,8 @@ export default function HealthPlanView({ onLogout }) {
         const provArr = Object.entries(providerMap).map(([name, data]) => {
           const avgCost = data.costs.reduce((s, c) => s + c, 0) / data.costs.length;
           const avgSat = data.ratings.reduce((s, r) => s + r, 0) / data.ratings.length;
-          return { name, patients: data.patients.size, cost: formatCost(avgCost), satisfaction: +avgSat.toFixed(1), perf: avgSat >= 4.5 ? 'good' : avgSat >= 4.0 ? 'med' : 'fair' };
+          const quality = Math.round((avgSat / 5) * 100);
+          return { name, patients: data.patients.size, quality, cost: formatCost(avgCost), satisfaction: +avgSat.toFixed(1), perf: avgSat >= 4.5 ? 'good' : avgSat >= 4.0 ? 'med' : 'fair' };
         }).sort((a, b) => b.patients - a.patients);
         setDynProviders(provArr);
 
@@ -209,13 +213,6 @@ export default function HealthPlanView({ onLogout }) {
     { name: 'CHF Symptoms', pct: 68, target: 70, status: 'Needs Focus' },
   ];
 
-  const sdohItems = [
-    { name: 'Food Insecurity', count: 1234, pct: 25 },
-    { name: 'Housing Instability', count: 987, pct: 20 },
-    { name: 'Transportation Barriers', count: 1456, pct: 30 },
-    { name: 'Social Isolation', count: 2345, pct: 48 },
-  ];
-
   const hedisGaps = [
     { name: 'HbA1c Testing', pct: 84, compliant: 1045, gap: 200 },
     { name: 'Eye Exams (Diabetes)', pct: 72, compliant: 892, gap: 353 },
@@ -282,7 +279,7 @@ export default function HealthPlanView({ onLogout }) {
             <span className="hpv-kpi-sub">20% of population</span>
           </div>
           <div className="hpv-kpi">
-            <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span className="hpv-kpi-label">PMPM Cost</span></div>
+            <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span className="hpv-kpi-label">Average PMPM Cost</span></div>
             <span className="hpv-kpi-val">{apiLoading ? '...' : `$${pmpmCost.toLocaleString()}`}</span>
           </div>
         </div>
@@ -329,13 +326,20 @@ export default function HealthPlanView({ onLogout }) {
           <div className="hpv-card">
             <h3 className="hpv-card-title">Chronic Condition Clusters</h3>
             <div className="hpv-cluster-list">
-              {apiLoading ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Loading...</p> : chronicClusters.length === 0 ? <p style={{ color: '#94A3B8', fontSize: 13 }}>No data</p> : chronicClusters.map((c, i) => (
+              {apiLoading ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Loading...</p> : chronicClusters.length === 0 ? <p style={{ color: '#94A3B8', fontSize: 13 }}>No data</p> : chronicClusters.slice((clusterPage - 1) * ITEMS_PER_PAGE, clusterPage * ITEMS_PER_PAGE).map((c, i) => (
                 <div className="hpv-cluster-row" key={i}>
                   <div><span className="hpv-cluster-name">{c.name}</span><span className="hpv-cluster-cost">Avg Cost: {c.cost}</span></div>
                   <span className="hpv-cluster-members">{c.members} members</span>
                 </div>
               ))}
             </div>
+            {chronicClusters.length > ITEMS_PER_PAGE && (
+              <div className="hpv-pagination">
+                <button className="hpv-page-btn" disabled={clusterPage <= 1} onClick={() => setClusterPage(clusterPage - 1)}>Prev</button>
+                <span className="hpv-page-info">{clusterPage} / {Math.ceil(chronicClusters.length / ITEMS_PER_PAGE)}</span>
+                <button className="hpv-page-btn" disabled={clusterPage >= Math.ceil(chronicClusters.length / ITEMS_PER_PAGE)} onClick={() => setClusterPage(clusterPage + 1)}>Next</button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -373,23 +377,10 @@ export default function HealthPlanView({ onLogout }) {
           </div>
         </div>
 
-        {/* 2-COL: SDOH + HEDIS */}
-        <div className="hpv-two-col">
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">SDOH Risk Indicators</h3>
-            <p className="hpv-card-sub">Social determinants of health affecting members</p>
-            {sdohItems.map((item, i) => (
-              <div className="hpv-sdoh-row" key={i}>
-                <span className="hpv-sdoh-name">{item.name}</span>
-                <div className="hpv-sdoh-bar-wrap">
-                  <div className="hpv-sdoh-bar" style={{ width: `${item.pct}%` }} />
-                </div>
-                <span className="hpv-sdoh-count">{item.count.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">HEDIS / Care Gaps Summary</h3>
+        {/* HEDIS */}
+        <div className="hpv-card hpv-full">
+          <h3 className="hpv-card-title">HEDIS / Care Gaps Summary</h3>
+          <div className="hpv-hedis-grid">
             {hedisGaps.map((item, i) => (
               <div className="hpv-hedis-row" key={i}>
                 <div className="hpv-hedis-left">
@@ -413,7 +404,7 @@ export default function HealthPlanView({ onLogout }) {
           <table className="hpv-table">
             <thead>
               <tr>
-                <th>PROVIDER</th><th>PATIENTS</th><th>AVG COST PMPM</th><th>SATISFACTION</th><th>PERFORMANCE</th>
+                <th>PROVIDER</th><th>PATIENTS</th><th>QUALITY SCORE</th><th>AVG COST PMPM</th><th>SATISFACTION</th><th>PERFORMANCE</th>
               </tr>
             </thead>
             <tbody>
@@ -421,6 +412,7 @@ export default function HealthPlanView({ onLogout }) {
                 <tr key={i}>
                   <td className="hpv-table-name">{pr.name}</td>
                   <td>{pr.patients}</td>
+                  <td><span className={`hpv-quality-pill ${pr.quality >= 92 ? 'high' : pr.quality >= 90 ? 'med' : 'low'}`}>{pr.quality}%</span></td>
                   <td>{pr.cost}</td>
                   <td>{pr.satisfaction} <span className="hpv-star">★</span></td>
                   <td><div className="hpv-perf-bar-wrap"><div className={`hpv-perf-bar ${pr.perf}`} /></div></td>
@@ -467,7 +459,7 @@ export default function HealthPlanView({ onLogout }) {
         {/* TOP CONDITIONS BY COST */}
         <div className="hpv-card hpv-full">
           <h3 className="hpv-card-title">Top Conditions by Cost</h3>
-          {apiLoading ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Loading conditions data...</p> : topConditions.length === 0 ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No conditions data available</p> : topConditions.map((c, i) => (
+          {apiLoading ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Loading conditions data...</p> : topConditions.length === 0 ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No conditions data available</p> : topConditions.slice((conditionPage - 1) * ITEMS_PER_PAGE, conditionPage * ITEMS_PER_PAGE).map((c, i) => (
             <div className="hpv-condition-row" key={i}>
               <div>
                 <span className="hpv-condition-name">{c.name}</span>
@@ -479,6 +471,13 @@ export default function HealthPlanView({ onLogout }) {
               </div>
             </div>
           ))}
+          {topConditions.length > ITEMS_PER_PAGE && (
+            <div className="hpv-pagination">
+              <button className="hpv-page-btn" disabled={conditionPage <= 1} onClick={() => setConditionPage(conditionPage - 1)}>Prev</button>
+              <span className="hpv-page-info">{conditionPage} / {Math.ceil(topConditions.length / ITEMS_PER_PAGE)}</span>
+              <button className="hpv-page-btn" disabled={conditionPage >= Math.ceil(topConditions.length / ITEMS_PER_PAGE)} onClick={() => setConditionPage(conditionPage + 1)}>Next</button>
+            </div>
+          )}
         </div>
 
       </div>
