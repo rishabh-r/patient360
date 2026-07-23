@@ -197,14 +197,6 @@ export default function HealthPlanView({ onLogout }) {
     scales: { y: { beginAtZero: true, max: 320000, ticks: { stepSize: 80000, callback: v => v.toLocaleString() } } },
   };
 
-  const preventiveItems = [
-    { name: 'Mammography', pct: 78, target: 75, status: 'On Target' },
-    { name: 'Colorectal Screening', pct: 72, target: 70, status: 'On Target' },
-    { name: 'Flu Vaccination', pct: 85, target: 80, status: 'On Target' },
-    { name: 'Diabetes Screening', pct: 88, target: 85, status: 'On Target' },
-    { name: 'Depression Screening', pct: 65, target: 70, status: 'Below Target' },
-  ];
-
   const hedisGaps = [
     { name: 'HbA1c Testing', pct: 84, compliant: 1045, gap: 200 },
     { name: 'Eye Exams (Diabetes)', pct: 72, compliant: 892, gap: 353 },
@@ -253,59 +245,36 @@ export default function HealthPlanView({ onLogout }) {
 
       <div className="hpv-content">
 
-        {/* KPI ROW 1: 3 cards */}
-        <div className="hpv-kpi-row hpv-kpi-row-3">
-          <div className="hpv-kpi">
-            <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span className="hpv-kpi-label">Total Members</span></div>
-            <span className="hpv-kpi-val">24,567</span>
-          </div>
-          <div className="hpv-kpi">
-            <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span className="hpv-kpi-label">High-Risk Members</span></div>
-            <span className="hpv-kpi-val" style={{ color: '#EF4444' }}>2,456</span>
-            <span className="hpv-kpi-sub">10% of population</span>
-          </div>
-          <div className="hpv-kpi">
-            <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg><span className="hpv-kpi-label">Rising-Risk Members</span></div>
-            <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>4,912</span>
-            <span className="hpv-kpi-sub">20% of population</span>
-          </div>
-        </div>
-
-        {/* KPI ROW 2: 3 cards */}
-        <div className="hpv-kpi-row hpv-kpi-row-3">
-          <div className="hpv-kpi">
-            <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span className="hpv-kpi-label">Average PMPM Cost</span></div>
-            <span className="hpv-kpi-val">{apiLoading ? '...' : `$${pmpmCost.toLocaleString()}`}</span>
-          </div>
-          <div className="hpv-kpi">
-            <span className="hpv-kpi-label">HEDIS Score</span>
-            <span className="hpv-kpi-val">78%</span>
-          </div>
-          <div className="hpv-kpi">
-            <span className="hpv-kpi-label">Care Gaps</span>
-            <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>1,330</span>
-          </div>
-        </div>
-
-        {/* ROW: Risk Tiers + Predictive Risk Scores */}
-        <div className="hpv-two-col">
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">Risk Tiers Distribution</h3>
-            <div className="hpv-pie-wrap"><Pie data={riskPieData} options={riskPieOpts} /></div>
-            <div className="hpv-pie-legend">
-              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#EF4444' }} />High Risk<span className="hpv-pie-count">2,456</span></div>
-              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#F59E0B' }} />Rising Risk<span className="hpv-pie-count">4,912</span></div>
-              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#22C55E' }} />Low Risk<span className="hpv-pie-count">17,199</span></div>
+        {/* KPIs (left 2-col grid) + Chronic Condition Clusters (right) */}
+        <div className="hpv-kpi-cluster-row">
+          <div className="hpv-kpi-grid-left">
+            <div className="hpv-kpi">
+              <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span className="hpv-kpi-label">Total Members</span></div>
+              <span className="hpv-kpi-val">24,567</span>
+            </div>
+            <div className="hpv-kpi">
+              <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span className="hpv-kpi-label">High-Risk Members</span></div>
+              <span className="hpv-kpi-val" style={{ color: '#EF4444' }}>2,456</span>
+              <span className="hpv-kpi-sub">10% of population</span>
+            </div>
+            <div className="hpv-kpi">
+              <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg><span className="hpv-kpi-label">Rising-Risk Members</span></div>
+              <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>4,912</span>
+              <span className="hpv-kpi-sub">20% of population</span>
+            </div>
+            <div className="hpv-kpi">
+              <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span className="hpv-kpi-label">Average PMPM Cost</span></div>
+              <span className="hpv-kpi-val">{apiLoading ? '...' : `$${pmpmCost.toLocaleString()}`}</span>
+            </div>
+            <div className="hpv-kpi">
+              <span className="hpv-kpi-label">HEDIS Score</span>
+              <span className="hpv-kpi-val">78%</span>
+            </div>
+            <div className="hpv-kpi">
+              <span className="hpv-kpi-label">Care Gaps</span>
+              <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>1,330</span>
             </div>
           </div>
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">Predictive Risk Scores</h3>
-            <div className="hpv-chart-wrap"><Line data={predictiveData} options={predictiveOpts} /></div>
-          </div>
-        </div>
-
-        {/* ROW: Chronic Condition Clusters + Preventive Risk Assessment */}
-        <div className="hpv-two-col">
           <div className="hpv-card">
             <h3 className="hpv-card-title">Chronic Condition Clusters</h3>
             <div className="hpv-cluster-list">
@@ -324,20 +293,22 @@ export default function HealthPlanView({ onLogout }) {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ROW: Risk Tiers + Predictive Risk Scores */}
+        <div className="hpv-two-col">
           <div className="hpv-card">
-            <h3 className="hpv-card-title">Preventive Risk Assessment</h3>
-            {preventiveItems.map((item, i) => (
-              <div className="hpv-measure-row" key={i}>
-                <div className="hpv-measure-top">
-                  <span className="hpv-measure-name">{item.name}</span>
-                  <span className={`hpv-measure-badge ${item.status === 'On Target' ? 'on-target' : 'below'}`}>{item.status}</span>
-                </div>
-                <div className="hpv-measure-bar-wrap">
-                  <div className="hpv-measure-bar" style={{ width: `${item.pct}%`, background: item.status === 'On Target' ? '#22C55E' : '#F59E0B' }} />
-                </div>
-                <span className="hpv-measure-pct">{item.pct}% / {item.target}%</span>
-              </div>
-            ))}
+            <h3 className="hpv-card-title">Risk Tiers Distribution</h3>
+            <div className="hpv-pie-wrap"><Pie data={riskPieData} options={riskPieOpts} /></div>
+            <div className="hpv-pie-legend">
+              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#EF4444' }} />High Risk<span className="hpv-pie-count">2,456</span></div>
+              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#F59E0B' }} />Rising Risk<span className="hpv-pie-count">4,912</span></div>
+              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#22C55E' }} />Low Risk<span className="hpv-pie-count">17,199</span></div>
+            </div>
+          </div>
+          <div className="hpv-card">
+            <h3 className="hpv-card-title">Predictive Risk Scores</h3>
+            <div className="hpv-chart-wrap"><Line data={predictiveData} options={predictiveOpts} /></div>
           </div>
         </div>
 

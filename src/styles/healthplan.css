@@ -52,6 +52,14 @@
 .hpv-card-sub { font-size: 12px; color: #94A3B8; margin: -12px 0 16px; }
 .hpv-full { grid-column: 1 / -1; }
 
+/* ── KPI + Clusters row ── */
+.hpv-kpi-cluster-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+.hpv-kpi-grid-left {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+
 /* ── 3-col / 2-col grids ── */
 .hpv-three-col { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 16px; }
 .hpv-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -213,6 +221,8 @@
 @media (max-width: 1024px) {
   .hpv-content { padding: 16px; }
   .hpv-kpi-row { grid-template-columns: 1fr 1fr; }
+  .hpv-kpi-cluster-row { grid-template-columns: 1fr; }
+  .hpv-kpi-grid-left { grid-template-columns: 1fr 1fr; }
   .hpv-three-col { grid-template-columns: 1fr; }
   .hpv-two-col { grid-template-columns: 1fr; }
   .hpv-subheader { padding: 12px 16px; }
