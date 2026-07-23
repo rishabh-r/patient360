@@ -205,14 +205,6 @@ export default function HealthPlanView({ onLogout }) {
     { name: 'Depression Screening', pct: 65, target: 70, status: 'Below Target' },
   ];
 
-  const chronicItems = [
-    { name: 'Diabetes (HbA1c <8%)', pct: 82, target: 80, status: 'Controlled' },
-    { name: 'Hypertension (<140/90)', pct: 78, target: 75, status: 'Controlled' },
-    { name: 'Asthma Control', pct: 85, target: 80, status: 'Controlled' },
-    { name: 'COPD Exacerbations', pct: 72, target: 75, status: 'Needs Focus' },
-    { name: 'CHF Symptoms', pct: 68, target: 70, status: 'Needs Focus' },
-  ];
-
   const hedisGaps = [
     { name: 'HbA1c Testing', pct: 84, compliant: 1045, gap: 200 },
     { name: 'Eye Exams (Diabetes)', pct: 72, compliant: 892, gap: 353 },
@@ -266,7 +258,6 @@ export default function HealthPlanView({ onLogout }) {
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span className="hpv-kpi-label">Total Members</span></div>
             <span className="hpv-kpi-val">24,567</span>
-            <span className="hpv-kpi-change up">↗ +3.2% from last month</span>
           </div>
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span className="hpv-kpi-label">High-Risk Members</span></div>
@@ -285,26 +276,14 @@ export default function HealthPlanView({ onLogout }) {
         </div>
 
         {/* KPI ROW 2 */}
-        <div className="hpv-kpi-row">
-          <div className="hpv-kpi">
-            <span className="hpv-kpi-label">Readmission Rate</span>
-            <span className="hpv-kpi-val">8.2%</span>
-            <span className="hpv-kpi-change down">↘ Below benchmark</span>
-          </div>
-          <div className="hpv-kpi">
-            <span className="hpv-kpi-label">ED Utilization Rate</span>
-            <span className="hpv-kpi-val">142 / 1000</span>
-            <span className="hpv-kpi-change down">↘ 5% reduction</span>
-          </div>
+        <div className="hpv-kpi-row hpv-kpi-row-2">
           <div className="hpv-kpi">
             <span className="hpv-kpi-label">HEDIS Score</span>
             <span className="hpv-kpi-val">78%</span>
-            <span className="hpv-kpi-change up">↗ +2% this quarter</span>
           </div>
           <div className="hpv-kpi">
             <span className="hpv-kpi-label">Care Gaps</span>
             <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>1,330</span>
-            <span className="hpv-kpi-change down">↘ -12% reduction</span>
           </div>
         </div>
 
@@ -343,10 +322,10 @@ export default function HealthPlanView({ onLogout }) {
           </div>
         </div>
 
-        {/* 2-COL: Preventive + Chronic */}
-        <div className="hpv-two-col">
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">Preventive Risk Assessment</h3>
+        {/* Preventive Risk Assessment */}
+        <div className="hpv-card hpv-full">
+          <h3 className="hpv-card-title">Preventive Risk Assessment</h3>
+          <div className="hpv-preventive-grid">
             {preventiveItems.map((item, i) => (
               <div className="hpv-measure-row" key={i}>
                 <div className="hpv-measure-top">
@@ -355,21 +334,6 @@ export default function HealthPlanView({ onLogout }) {
                 </div>
                 <div className="hpv-measure-bar-wrap">
                   <div className="hpv-measure-bar" style={{ width: `${item.pct}%`, background: item.status === 'On Target' ? '#22C55E' : '#F59E0B' }} />
-                </div>
-                <span className="hpv-measure-pct">{item.pct}% / {item.target}%</span>
-              </div>
-            ))}
-          </div>
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">Chronic Condition Control</h3>
-            {chronicItems.map((item, i) => (
-              <div className="hpv-measure-row" key={i}>
-                <div className="hpv-measure-top">
-                  <span className="hpv-measure-name">{item.name}</span>
-                  <span className={`hpv-measure-badge ${item.status === 'Controlled' ? 'on-target' : 'needs-focus'}`}>{item.status}</span>
-                </div>
-                <div className="hpv-measure-bar-wrap">
-                  <div className="hpv-measure-bar" style={{ width: `${item.pct}%`, background: item.status === 'Controlled' ? '#22C55E' : '#EF4444' }} />
                 </div>
                 <span className="hpv-measure-pct">{item.pct}% / {item.target}%</span>
               </div>
@@ -432,7 +396,6 @@ export default function HealthPlanView({ onLogout }) {
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">Total Members</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
             <span className="hpv-kpi-val">24,567</span>
-            <span className="hpv-kpi-change up">↗ +3.2% from last month</span>
           </div>
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">Avg PMPM</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
@@ -441,7 +404,6 @@ export default function HealthPlanView({ onLogout }) {
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">High Risk Members</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
             <span className="hpv-kpi-val">2,134</span>
-            <span className="hpv-kpi-change up-red">↗ +1.2% from last month</span>
           </div>
         </div>
 
