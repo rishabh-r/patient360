@@ -147,7 +147,7 @@
 .hpv-perf-bar-wrap {
   width: 120px; height: 10px; background: #E2E8F0; border-radius: 6px; overflow: hidden;
 }
-.hpv-perf-bar { height: 100%; border-radius: 6px; width: 85%; }
+.hpv-perf-bar { height: 100%; border-radius: 6px; }
 .hpv-perf-bar.good { background: #22C55E; }
 .hpv-perf-bar.fair { background: #F59E0B; }
 

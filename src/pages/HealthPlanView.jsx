@@ -98,7 +98,7 @@ export default function HealthPlanView({ onLogout }) {
           const avgCost = data.costs.reduce((s, c) => s + c, 0) / data.costs.length;
           const avgSat = data.ratings.reduce((s, r) => s + r, 0) / data.ratings.length;
           const quality = Math.round((avgSat / 5) * 100);
-          return { name, patients: data.patients.size, quality, cost: formatCost(avgCost), satisfaction: +avgSat.toFixed(1), perf: avgSat >= 4.5 ? 'good' : avgSat >= 4.0 ? 'med' : 'fair' };
+          return { name, patients: data.patients.size, quality, cost: formatCost(avgCost), satisfaction: +avgSat.toFixed(1), perf: quality >= 90 ? 'good' : quality >= 80 ? 'med' : 'fair' };
         }).sort((a, b) => b.patients - a.patients);
         setDynProviders(provArr);
 
@@ -415,7 +415,7 @@ export default function HealthPlanView({ onLogout }) {
                   <td><span className={`hpv-quality-pill ${pr.quality >= 92 ? 'high' : pr.quality >= 90 ? 'med' : 'low'}`}>{pr.quality}%</span></td>
                   <td>{pr.cost}</td>
                   <td>{pr.satisfaction} <span className="hpv-star">★</span></td>
-                  <td><div className="hpv-perf-bar-wrap"><div className={`hpv-perf-bar ${pr.perf}`} /></div></td>
+                  <td><div className="hpv-perf-bar-wrap"><div className={`hpv-perf-bar ${pr.perf}`} style={{ width: `${pr.quality}%` }} /></div></td>
                 </tr>
               ))}
             </tbody>
