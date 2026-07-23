@@ -37,7 +37,20 @@ export default function HealthPlanView({ onLogout }) {
   };
   const predictiveOpts = {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#fff', titleColor: '#1E293B', bodyColor: '#64748B',
+        borderColor: '#E2E8F0', borderWidth: 1, cornerRadius: 8, padding: 12,
+        titleFont: { size: 13, weight: '700' }, bodyFont: { size: 12 },
+        usePointStyle: true,
+        callbacks: {
+          labelTextColor: (ctx) => ctx.dataset.borderColor,
+          label: (ctx) => `${ctx.dataset.label} : ${ctx.parsed.y}`,
+        },
+      },
+    },
     scales: { y: { min: 0, max: 10, ticks: { stepSize: 2 } } },
   };
 
