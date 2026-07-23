@@ -27,6 +27,7 @@ export default function HealthPlanView({ onLogout }) {
   const [dynClusters, setDynClusters] = useState([]);
   const [dynProviders, setDynProviders] = useState([]);
   const [dynConditions, setDynConditions] = useState([]);
+  const [dynCostTrend, setDynCostTrend] = useState(null);
   const [clusterPage, setClusterPage] = useState(1);
   const [conditionPage, setConditionPage] = useState(1);
   const ITEMS_PER_PAGE = 4;
@@ -47,6 +48,8 @@ export default function HealthPlanView({ onLogout }) {
             disease: get('disease')?.valueString || '',
             averageCost: get('average-cost')?.valueDecimal || 0,
             satisfaction: get('satisfaction-rating')?.valueDecimal || 0,
+            qualityScore: get('quality-score')?.valueDecimal || 0,
+            ratingDateTime: get('rating-date-time')?.valueString || '',
           };
         }).filter(e => e.patientId);
         setApiData(entries);
@@ -89,15 +92,16 @@ export default function HealthPlanView({ onLogout }) {
         for (const e of entries) {
           const name = e.doctorName.trim();
           if (!name) continue;
-          if (!providerMap[name]) providerMap[name] = { patients: new Set(), costs: [], ratings: [] };
+          if (!providerMap[name]) providerMap[name] = { patients: new Set(), costs: [], ratings: [], qualityScores: [] };
           providerMap[name].patients.add(e.patientId);
           providerMap[name].costs.push(e.averageCost);
           providerMap[name].ratings.push(e.satisfaction);
+          if (e.qualityScore > 0) providerMap[name].qualityScores.push(e.qualityScore);
         }
         const provArr = Object.entries(providerMap).map(([name, data]) => {
           const avgCost = data.costs.reduce((s, c) => s + c, 0) / data.costs.length;
           const avgSat = data.ratings.reduce((s, r) => s + r, 0) / data.ratings.length;
-          const quality = Math.round((avgSat / 5) * 100);
+          const quality = data.qualityScores.length > 0 ? Math.round(data.qualityScores.reduce((s, q) => s + q, 0) / data.qualityScores.length) : 0;
           return { name, patients: data.patients.size, quality, cost: formatCost(avgCost), satisfaction: +avgSat.toFixed(1), perf: quality >= 90 ? 'good' : quality >= 80 ? 'med' : 'fair' };
         }).sort((a, b) => b.patients - a.patients);
         setDynProviders(provArr);
@@ -116,6 +120,29 @@ export default function HealthPlanView({ onLogout }) {
           return { name, members: data.patients.size, cost: avgCost, costDisplay: formatCost(avgCost) };
         }).sort((a, b) => b.cost - a.cost);
         setDynConditions(condArr);
+
+        // 6) Cost Trend — group by month from ratingDateTime
+        const monthCosts = {};
+        for (const e of entries) {
+          if (!e.ratingDateTime || !e.averageCost) continue;
+          const d = new Date(e.ratingDateTime);
+          if (isNaN(d.getTime())) continue;
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (!monthCosts[key]) monthCosts[key] = [];
+          monthCosts[key].push(e.averageCost);
+        }
+        const sortedMonths = Object.keys(monthCosts).sort();
+        if (sortedMonths.length > 0) {
+          const labels = sortedMonths.map(k => {
+            const [y, m] = k.split('-');
+            return new Date(+y, +m - 1).toLocaleString('en-US', { month: 'short' });
+          });
+          const data = sortedMonths.map(k => {
+            const costs = monthCosts[k];
+            return Math.round(costs.reduce((s, c) => s + c, 0) / costs.length);
+          });
+          setDynCostTrend({ labels, data });
+        }
       } catch (err) {
         console.error('[HealthPlan] CostAndSatisfaction API error:', err);
       }
@@ -178,11 +205,14 @@ export default function HealthPlanView({ onLogout }) {
     scales: { y: { beginAtZero: true, max: 600, ticks: { stepSize: 150 } } },
   };
 
+  const costTrendLabels = dynCostTrend?.labels || months;
+  const costTrendValues = dynCostTrend?.data || [295000, 310000, 320000, 289000, 305000, 298000];
+  const costMax = Math.ceil(Math.max(...costTrendValues) * 1.15);
   const costTrendData = {
-    labels: months,
+    labels: costTrendLabels,
     datasets: [{
       label: 'Cost',
-      data: [295000, 310000, 320000, 289000, 305000, 298000],
+      data: costTrendValues,
       borderColor: '#22C55E',
       backgroundColor: 'transparent',
       pointRadius: 6,
@@ -193,8 +223,17 @@ export default function HealthPlanView({ onLogout }) {
   };
   const costTrendOpts = {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: { y: { beginAtZero: true, max: 320000, ticks: { stepSize: 80000, callback: v => v.toLocaleString() } } },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#fff', titleColor: '#1E293B', bodyColor: '#16A34A',
+        borderColor: '#E2E8F0', borderWidth: 1, cornerRadius: 8, padding: 12,
+        titleFont: { size: 13, weight: '700' }, bodyFont: { size: 12 },
+        callbacks: { label: (ctx) => `cost : ${formatCost(ctx.parsed.y)}` },
+      },
+    },
+    scales: { y: { beginAtZero: true, max: costMax, ticks: { callback: v => v.toLocaleString() } } },
   };
 
   const hedisGaps = [
