@@ -22,7 +22,7 @@ const OUTCOMES = [
   { icon: 'patient', label: 'Patient View', desc: 'Personal health overview', route: '/patient-view' },
   { icon: 'provider', label: 'Healthcare Provider View', desc: 'Clinical care and treatment', route: '/healthcare-provider' },
   { icon: 'caremanager', label: 'Care Manager View', desc: 'Care coordination and tasks', route: '/care-manager' },
-  { icon: 'healthplans', label: 'Health Plans View', desc: 'Population health and analytics', route: null },
+  { icon: 'healthplans', label: 'Health Plans View', desc: 'Population health and analytics', route: '/health-plan' },
   { icon: 'regulators', label: 'Regulators View', desc: 'Compliance and reporting', route: null },
   { icon: 'itops', label: 'IT/Ops Administrators View', desc: 'System and data operations', route: null },
   { icon: 'dashboards', label: 'Dashboards', desc: 'KPIs and performance insights', route: null },

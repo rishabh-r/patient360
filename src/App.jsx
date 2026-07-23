@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import PatientView from './pages/PatientView';
 import CareManagerView from './pages/CareManagerView';
 import HealthcareProviderView from './pages/HealthcareProviderView';
+import HealthPlanView from './pages/HealthPlanView';
 import { clearSession } from './services/auth';
 import './index.css';
 
@@ -49,6 +50,7 @@ function App() {
         <Route path="/patient-view" element={<PatientView onLogout={handleLogout} />} />
         <Route path="/care-manager" element={<CareManagerView onLogout={handleLogout} />} />
         <Route path="/healthcare-provider" element={<HealthcareProviderView onLogout={handleLogout} />} />
+        <Route path="/health-plan" element={<HealthPlanView onLogout={handleLogout} />} />
       </Routes>
     </BrowserRouter>
   );
