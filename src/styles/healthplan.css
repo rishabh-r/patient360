@@ -20,6 +20,9 @@
 .hpv-kpi-row {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
 }
+.hpv-kpi-row-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
 .hpv-kpi {
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 18px 20px; display: flex; flex-direction: column; gap: 4px;

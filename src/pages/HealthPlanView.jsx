@@ -1,10 +1,18 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend, Filler } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
+import { callFhirApi } from '../services/fhir';
+import { FHIR_BASE } from '../config/constants';
 import '../styles/healthplan.css';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend, Filler);
+
+function formatCost(val) {
+  if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
+  if (val >= 1000) return `$${(val / 1000).toFixed(1)}K`;
+  return `$${Math.round(val).toLocaleString()}`;
+}
 
 export default function HealthPlanView({ onLogout }) {
   const navigate = useNavigate();
@@ -12,6 +20,104 @@ export default function HealthPlanView({ onLogout }) {
   const profileRef = useRef(null);
   const userName = localStorage.getItem('p360_user') || 'Admin';
   const userEmail = localStorage.getItem('p360_email') || '';
+
+  const [apiData, setApiData] = useState([]);
+  const [apiLoading, setApiLoading] = useState(true);
+  const [pmpmCost, setPmpmCost] = useState(0);
+  const [dynClusters, setDynClusters] = useState([]);
+  const [dynProviders, setDynProviders] = useState([]);
+  const [dynConditions, setDynConditions] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await callFhirApi(`${FHIR_BASE}/baseR4/CostAndSatisfaction?page=0&size=1000`);
+        const entries = (res?.entry || []).map(e => {
+          const ext = e.resource?.extension || [];
+          const get = (url) => ext.find(x => x.url === url);
+          return {
+            providerId: get('provider-id')?.valueString || '',
+            patientId: get('patient-id')?.valueString || '',
+            doctorName: get('doctor-name')?.valueString || '',
+            patientName: get('patient-name')?.valueString || '',
+            patientAge: get('patient-age')?.valueInteger || 0,
+            disease: get('disease')?.valueString || '',
+            averageCost: get('average-cost')?.valueDecimal || 0,
+            satisfaction: get('satisfaction-rating')?.valueDecimal || 0,
+          };
+        }).filter(e => e.patientId);
+        setApiData(entries);
+
+        // 1) PMPM Cost
+        if (entries.length) {
+          const totalCost = entries.reduce((s, e) => s + e.averageCost, 0);
+          setPmpmCost(Math.round(totalCost / entries.length));
+        }
+
+        // 2) Chronic Condition Clusters — pair diseases alphabetically
+        const diseaseMap = {};
+        for (const e of entries) {
+          const d = e.disease.trim();
+          if (!d) continue;
+          if (!diseaseMap[d]) diseaseMap[d] = { costs: [], members: new Set() };
+          diseaseMap[d].costs.push(e.averageCost);
+          diseaseMap[d].members.add(e.patientId);
+        }
+        const diseaseNames = Object.keys(diseaseMap).sort();
+        const clusters = [];
+        for (let i = 0; i < diseaseNames.length; i += 2) {
+          if (i + 1 < diseaseNames.length) {
+            const d1 = diseaseNames[i], d2 = diseaseNames[i + 1];
+            const allCosts = [...diseaseMap[d1].costs, ...diseaseMap[d2].costs];
+            const allMembers = new Set([...diseaseMap[d1].members, ...diseaseMap[d2].members]);
+            const avgCost = allCosts.reduce((s, c) => s + c, 0) / allCosts.length;
+            clusters.push({ name: `${d1} + ${d2}`, members: allMembers.size, cost: formatCost(avgCost) });
+          } else {
+            const d1 = diseaseNames[i];
+            const avgCost = diseaseMap[d1].costs.reduce((s, c) => s + c, 0) / diseaseMap[d1].costs.length;
+            clusters.push({ name: d1, members: diseaseMap[d1].members.size, cost: formatCost(avgCost) });
+          }
+        }
+        clusters.sort((a, b) => b.members - a.members);
+        setDynClusters(clusters);
+
+        // 3) Provider Scorecard
+        const providerMap = {};
+        for (const e of entries) {
+          const name = e.doctorName.trim();
+          if (!name) continue;
+          if (!providerMap[name]) providerMap[name] = { patients: new Set(), costs: [], ratings: [] };
+          providerMap[name].patients.add(e.patientId);
+          providerMap[name].costs.push(e.averageCost);
+          providerMap[name].ratings.push(e.satisfaction);
+        }
+        const provArr = Object.entries(providerMap).map(([name, data]) => {
+          const avgCost = data.costs.reduce((s, c) => s + c, 0) / data.costs.length;
+          const avgSat = data.ratings.reduce((s, r) => s + r, 0) / data.ratings.length;
+          return { name, patients: data.patients.size, cost: formatCost(avgCost), satisfaction: +avgSat.toFixed(1), perf: avgSat >= 4.5 ? 'good' : avgSat >= 4.0 ? 'med' : 'fair' };
+        }).sort((a, b) => b.patients - a.patients);
+        setDynProviders(provArr);
+
+        // 5) Top Conditions by Cost
+        const condMap = {};
+        for (const e of entries) {
+          const d = e.disease.trim();
+          if (!d) continue;
+          if (!condMap[d]) condMap[d] = { patients: new Set(), costs: [] };
+          condMap[d].patients.add(e.patientId);
+          condMap[d].costs.push(e.averageCost);
+        }
+        const condArr = Object.entries(condMap).map(([name, data]) => {
+          const avgCost = data.costs.reduce((s, c) => s + c, 0) / data.costs.length;
+          return { name, members: data.patients.size, cost: avgCost, costDisplay: formatCost(avgCost) };
+        }).sort((a, b) => b.cost - a.cost);
+        setDynConditions(condArr);
+      } catch (err) {
+        console.error('[HealthPlan] CostAndSatisfaction API error:', err);
+      }
+      setApiLoading(false);
+    })();
+  }, []);
 
   const riskPieData = {
     labels: ['High Risk', 'Rising Risk', 'Low Risk'],
@@ -117,28 +223,9 @@ export default function HealthPlanView({ onLogout }) {
     { name: 'Statin Therapy', pct: 79, compliant: 1234, gap: 321 },
   ];
 
-  const providers = [
-    { name: 'Dr. Anderson', patients: 245, quality: 92, cost: '$8,500', satisfaction: 4.8, perf: 'good' },
-    { name: 'Dr. Chen', patients: 198, quality: 95, cost: '$7,800', satisfaction: 4.9, perf: 'good' },
-    { name: 'Dr. Roberts', patients: 312, quality: 88, cost: '$9,200', satisfaction: 4.6, perf: 'fair' },
-    { name: 'Dr. Wilson', patients: 156, quality: 94, cost: '$7,500', satisfaction: 4.7, perf: 'good' },
-    { name: 'Dr. Martinez', patients: 223, quality: 90, cost: '$8,800', satisfaction: 4.8, perf: 'good' },
-  ];
-
-  const topConditions = [
-    { name: 'Diabetes', members: '1,245', cost: '$2.8M' },
-    { name: 'Hypertension', members: '2,134', cost: '$1.9M' },
-    { name: 'COPD', members: '876', cost: '$3.2M' },
-    { name: 'CHF', members: '543', cost: '$4.1M' },
-    { name: 'Asthma', members: '1,567', cost: '$1.2M' },
-  ];
-
-  const chronicClusters = [
-    { name: 'Diabetes + HTN', members: 856, cost: '$12,500' },
-    { name: 'COPD + CHF', members: 412, cost: '$18,200' },
-    { name: 'Multiple Chronic', members: 623, cost: '$15,800' },
-    { name: 'Single Condition', members: 3245, cost: '$6,200' },
-  ];
+  const providers = dynProviders;
+  const topConditions = dynConditions;
+  const chronicClusters = dynClusters;
 
   return (
     <div className="hp-page">
@@ -196,8 +283,7 @@ export default function HealthPlanView({ onLogout }) {
           </div>
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span className="hpv-kpi-label">PMPM Cost</span></div>
-            <span className="hpv-kpi-val">$113</span>
-            <span className="hpv-kpi-change down">↘ -8.5% vs last month</span>
+            <span className="hpv-kpi-val">{apiLoading ? '...' : `$${pmpmCost.toLocaleString()}`}</span>
           </div>
         </div>
 
@@ -243,7 +329,7 @@ export default function HealthPlanView({ onLogout }) {
           <div className="hpv-card">
             <h3 className="hpv-card-title">Chronic Condition Clusters</h3>
             <div className="hpv-cluster-list">
-              {chronicClusters.map((c, i) => (
+              {apiLoading ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Loading...</p> : chronicClusters.length === 0 ? <p style={{ color: '#94A3B8', fontSize: 13 }}>No data</p> : chronicClusters.map((c, i) => (
                 <div className="hpv-cluster-row" key={i}>
                   <div><span className="hpv-cluster-name">{c.name}</span><span className="hpv-cluster-cost">Avg Cost: {c.cost}</span></div>
                   <span className="hpv-cluster-members">{c.members} members</span>
@@ -323,10 +409,11 @@ export default function HealthPlanView({ onLogout }) {
         <div className="hpv-card hpv-full">
           <h3 className="hpv-card-title">Provider Scorecard</h3>
           <p className="hpv-card-sub">Performance metrics by provider</p>
+          {apiLoading ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Loading provider data...</p> : providers.length === 0 ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No provider data available</p> : (
           <table className="hpv-table">
             <thead>
               <tr>
-                <th>PROVIDER</th><th>PATIENTS</th><th>QUALITY SCORE</th><th>AVG COST PMPM</th><th>SATISFACTION</th><th>PERFORMANCE</th>
+                <th>PROVIDER</th><th>PATIENTS</th><th>AVG COST PMPM</th><th>SATISFACTION</th><th>PERFORMANCE</th>
               </tr>
             </thead>
             <tbody>
@@ -334,7 +421,6 @@ export default function HealthPlanView({ onLogout }) {
                 <tr key={i}>
                   <td className="hpv-table-name">{pr.name}</td>
                   <td>{pr.patients}</td>
-                  <td><span className={`hpv-quality-pill ${pr.quality >= 92 ? 'high' : pr.quality >= 90 ? 'med' : 'low'}`}>{pr.quality}%</span></td>
                   <td>{pr.cost}</td>
                   <td>{pr.satisfaction} <span className="hpv-star">★</span></td>
                   <td><div className="hpv-perf-bar-wrap"><div className={`hpv-perf-bar ${pr.perf}`} /></div></td>
@@ -342,6 +428,7 @@ export default function HealthPlanView({ onLogout }) {
               ))}
             </tbody>
           </table>
+          )}
         </div>
 
         {/* UTILIZATION & COST ANALYTICS */}
@@ -349,21 +436,15 @@ export default function HealthPlanView({ onLogout }) {
           <h2 className="hpv-section-title">Utilization & Cost Analytics</h2>
         </div>
 
-        <div className="hpv-kpi-row">
+        <div className="hpv-kpi-row hpv-kpi-row-3">
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">Total Members</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
             <span className="hpv-kpi-val">24,567</span>
             <span className="hpv-kpi-change up">↗ +3.2% from last month</span>
           </div>
           <div className="hpv-kpi">
-            <div className="hpv-kpi-top"><span className="hpv-kpi-label">Monthly Cost</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <span className="hpv-kpi-val">$2.78M</span>
-            <span className="hpv-kpi-change down">↘ -5.8% from last month</span>
-          </div>
-          <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">Avg PMPM</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-            <span className="hpv-kpi-val">$113</span>
-            <span className="hpv-kpi-change down">↘ -8.5% from last month</span>
+            <span className="hpv-kpi-val">{apiLoading ? '...' : `$${pmpmCost.toLocaleString()}`}</span>
           </div>
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">High Risk Members</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
@@ -386,15 +467,15 @@ export default function HealthPlanView({ onLogout }) {
         {/* TOP CONDITIONS BY COST */}
         <div className="hpv-card hpv-full">
           <h3 className="hpv-card-title">Top Conditions by Cost</h3>
-          {topConditions.map((c, i) => (
+          {apiLoading ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Loading conditions data...</p> : topConditions.length === 0 ? <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No conditions data available</p> : topConditions.map((c, i) => (
             <div className="hpv-condition-row" key={i}>
               <div>
                 <span className="hpv-condition-name">{c.name}</span>
                 <span className="hpv-condition-members">{c.members} members affected</span>
               </div>
               <div className="hpv-condition-cost">
-                <span className="hpv-condition-amount">{c.cost}</span>
-                <span className="hpv-condition-label">Total cost</span>
+                <span className="hpv-condition-amount">{c.costDisplay}</span>
+                <span className="hpv-condition-label">Avg cost</span>
               </div>
             </div>
           ))}
