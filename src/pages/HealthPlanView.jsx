@@ -135,7 +135,7 @@ export default function HealthPlanView({ onLogout }) {
         if (sortedMonths.length > 0) {
           const labels = sortedMonths.map(k => {
             const [y, m] = k.split('-');
-            return new Date(+y, +m - 1).toLocaleString('en-US', { month: 'short' });
+            return new Date(+y, +m - 1).toLocaleString('en-US', { month: 'short', year: 'numeric' });
           });
           const data = sortedMonths.map(k => {
             const costs = monthCosts[k];
