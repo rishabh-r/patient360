@@ -358,11 +358,11 @@ export default function HealthPlanView({ onLogout }) {
             </div>
             <div className="hpv-kpi">
               <span className="hpv-kpi-label">HEDIS Score</span>
-              {hedisScore !== null ? <span className="hpv-kpi-val">{hedisScore}%</span> : hedisLoading ? <span className="hpv-kpi-val hpv-kpi-loading">{hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%<span className="hpv-kpi-loading-label">calculating</span></span> : <span className="hpv-kpi-val">—</span>}
+              {hedisScore !== null ? <span className="hpv-kpi-val">{hedisScore}%</span> : hedisLoading ? <span className="hpv-kpi-val"><div className="hp-spinner-inline" style={{ width: 16, height: 16, borderWidth: 2 }} /><span className="hpv-kpi-loading-pct">{hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%</span></span> : <span className="hpv-kpi-val">—</span>}
             </div>
             <div className="hpv-kpi">
               <span className="hpv-kpi-label">Care Gaps</span>
-              {hedisCareGaps !== null ? <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>{hedisCareGaps.toLocaleString()}</span> : hedisLoading ? <span className="hpv-kpi-val hpv-kpi-loading">{hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%<span className="hpv-kpi-loading-label">calculating</span></span> : <span className="hpv-kpi-val">—</span>}
+              {hedisCareGaps !== null ? <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>{hedisCareGaps.toLocaleString()}</span> : hedisLoading ? <span className="hpv-kpi-val"><div className="hp-spinner-inline" style={{ width: 16, height: 16, borderWidth: 2 }} /><span className="hpv-kpi-loading-pct">{hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%</span></span> : <span className="hpv-kpi-val">—</span>}
             </div>
           </div>
           <div className="hpv-card">
