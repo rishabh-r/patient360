@@ -34,6 +34,7 @@ export default function HealthPlanView({ onLogout }) {
   const [riskScoresByMonth, setRiskScoresByMonth] = useState(null);
   const [dynUtilization, setDynUtilization] = useState(null);
   const [utilLoading, setUtilLoading] = useState(false);
+  const [utilProgress, setUtilProgress] = useState({ done: 0, total: 0 });
   const [hedisScore, setHedisScore] = useState(null);
   const [hedisCareGaps, setHedisCareGaps] = useState(null);
   const [hedisMeasures, setHedisMeasures] = useState([]);
@@ -225,96 +226,74 @@ export default function HealthPlanView({ onLogout }) {
 
       setApiLoading(false);
 
-      // HEDIS calculation — check cache first
-      const cached = sessionStorage.getItem('p360_hedis_cache');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          setHedisScore(parsed.hedisScore);
-          setHedisCareGaps(parsed.careGaps);
-          setHedisMeasures(parsed.measures);
-          return;
-        } catch {}
-      }
-
-      // No cache — calculate from patient data
-      const allEntries = apiEntriesRef.current;
-      const uniquePatientIds = [...new Set(allEntries.map(e => e.patientId))];
-      if (uniquePatientIds.length > 0) {
+      // Run HEDIS + Utilization in PARALLEL
+      const hedisTask = (async () => {
+        const cached = sessionStorage.getItem('p360_hedis_cache');
+        if (cached) {
+          try { const parsed = JSON.parse(cached); setHedisScore(parsed.hedisScore); setHedisCareGaps(parsed.careGaps); setHedisMeasures(parsed.measures); return; } catch {}
+        }
+        const allEntries = apiEntriesRef.current;
+        const uniquePatientIds = [...new Set(allEntries.map(e => e.patientId))];
+        if (!uniquePatientIds.length) return;
         setHedisLoading(true);
         setHedisProgress({ done: 0, total: uniquePatientIds.length });
         try {
-          console.log('[HEDIS] Unique patient IDs:', uniquePatientIds.length, uniquePatientIds.slice(0, 3));
-          const result = await calculateHedisScores(
-            uniquePatientIds, callFhirApi, buildUrl, FHIR_BASE,
-            (done, total) => setHedisProgress({ done, total })
-          );
-          console.log('[HEDIS] Raw result:', JSON.stringify(result, null, 2));
+          const result = await calculateHedisScores(uniquePatientIds, callFhirApi, buildUrl, FHIR_BASE, (done, total) => setHedisProgress({ done, total }));
           const measures = result.measures || [];
-          console.log('[HEDIS] Measures with eligible > 0:', measures.filter(m => m.eligible > 0).map(m => `${m.name}: ${m.eligible} eligible, ${m.met} met`));
           const ratesWithValues = measures.filter(m => m.rate !== null && !m.invertedMeasure);
           const avgScore = ratesWithValues.length > 0 ? Math.round(ratesWithValues.reduce((s, m) => s + m.rate, 0) / ratesWithValues.length) : 0;
           const totalGaps = measures.filter(m => !m.invertedMeasure).reduce((s, m) => s + (m.eligible - m.met), 0);
-          const summaryMeasures = measures.filter(m => !m.invertedMeasure && m.eligible > 0).map(m => ({
-            name: m.name, pct: m.rate, compliant: m.met, gap: m.eligible - m.met,
-          }));
-
-          setHedisScore(avgScore);
-          setHedisCareGaps(totalGaps);
-          setHedisMeasures(summaryMeasures);
-
+          const summaryMeasures = measures.filter(m => !m.invertedMeasure && m.eligible > 0).map(m => ({ name: m.name, pct: m.rate, compliant: m.met, gap: m.eligible - m.met }));
+          setHedisScore(avgScore); setHedisCareGaps(totalGaps); setHedisMeasures(summaryMeasures);
           try { sessionStorage.setItem('p360_hedis_cache', JSON.stringify({ hedisScore: avgScore, careGaps: totalGaps, measures: summaryMeasures })); } catch {}
-        } catch (err) {
-          console.error('[HealthPlan] HEDIS calculation error:', err);
-        }
+        } catch (err) { console.error('[HealthPlan] HEDIS error:', err); }
         setHedisLoading(false);
-      }
+      })();
 
-      // Utilization Trends — check cache first
-      const utilCached = sessionStorage.getItem('p360_util_cache');
-      if (utilCached) {
-        try { setDynUtilization(JSON.parse(utilCached)); } catch {}
-      } else {
+      const utilTask = (async () => {
+        const utilCached = sessionStorage.getItem('p360_util_cache');
+        if (utilCached) { try { setDynUtilization(JSON.parse(utilCached)); return; } catch {} }
         const pids = hsPatientIdsRef.current;
-        if (pids.length > 0) {
-          setUtilLoading(true);
-          try {
-            const monthUtil = {};
-            for (const pid of pids) {
-              try {
-                const encRes = await callFhirApi(buildUrl('/baseR4/Encounter', { patient: pid, page: 0, size: 200 }));
-                const encs = (encRes?.entry || []).map(e => e.resource).filter(Boolean);
-                for (const enc of encs) {
-                  const start = enc.period?.start;
-                  if (!start) continue;
-                  const d = new Date(start);
-                  if (isNaN(d.getTime())) continue;
-                  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                  if (!monthUtil[key]) monthUtil[key] = { outpatient: 0, er: 0, inpatient: 0 };
-                  const cls = (enc.class?.code || '').toUpperCase();
-                  if (cls === 'AMB') monthUtil[key].outpatient++;
-                  else if (cls === 'EMER') monthUtil[key].er++;
-                  else if (cls === 'IMP' || cls === 'INP') monthUtil[key].inpatient++;
-                }
-              } catch {}
-            }
-            const sortedKeys = Object.keys(monthUtil).sort();
-            if (sortedKeys.length > 0) {
-              const utilData = {
-                labels: sortedKeys.map(k => { const [y, m] = k.split('-'); return new Date(+y, +m - 1).toLocaleString('en-US', { month: 'short', year: 'numeric' }); }),
-                outpatient: sortedKeys.map(k => monthUtil[k].outpatient),
-                er: sortedKeys.map(k => monthUtil[k].er),
-                inpatient: sortedKeys.map(k => monthUtil[k].inpatient),
-              };
-              setDynUtilization(utilData);
-              try { sessionStorage.setItem('p360_util_cache', JSON.stringify(utilData)); } catch {}
-            }
-          } catch (err) {
-            console.error('[HealthPlan] Utilization calc error:', err);
+        if (!pids.length) return;
+        setUtilLoading(true);
+        setUtilProgress({ done: 0, total: pids.length });
+        try {
+          const monthUtil = {};
+          for (let i = 0; i < pids.length; i++) {
+            try {
+              const encRes = await callFhirApi(buildUrl('/baseR4/Encounter', { patient: pids[i], page: 0, size: 200 }));
+              const encs = (encRes?.entry || []).map(e => e.resource).filter(Boolean);
+              for (const enc of encs) {
+                const start = enc.period?.start;
+                if (!start) continue;
+                const d = new Date(start);
+                if (isNaN(d.getTime())) continue;
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthUtil[key]) monthUtil[key] = { outpatient: 0, er: 0, inpatient: 0 };
+                const cls = (enc.class?.code || '').toUpperCase();
+                if (cls === 'AMB') monthUtil[key].outpatient++;
+                else if (cls === 'EMER') monthUtil[key].er++;
+                else if (cls === 'IMP' || cls === 'INP') monthUtil[key].inpatient++;
+              }
+            } catch {}
+            setUtilProgress({ done: i + 1, total: pids.length });
           }
-          setUtilLoading(false);
-        }
-      }
+          const sortedKeys = Object.keys(monthUtil).sort();
+          if (sortedKeys.length > 0) {
+            const utilData = {
+              labels: sortedKeys.map(k => { const [y, m] = k.split('-'); return new Date(+y, +m - 1).toLocaleString('en-US', { month: 'short', year: 'numeric' }); }),
+              outpatient: sortedKeys.map(k => monthUtil[k].outpatient),
+              er: sortedKeys.map(k => monthUtil[k].er),
+              inpatient: sortedKeys.map(k => monthUtil[k].inpatient),
+            };
+            setDynUtilization(utilData);
+            try { sessionStorage.setItem('p360_util_cache', JSON.stringify(utilData)); } catch {}
+          }
+        } catch (err) { console.error('[HealthPlan] Utilization error:', err); }
+        setUtilLoading(false);
+      })();
+
+      await Promise.all([hedisTask, utilTask]);
     })();
   }, []);
 
@@ -375,7 +354,7 @@ export default function HealthPlanView({ onLogout }) {
   const utilizationOpts = {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } } },
-    scales: { y: { beginAtZero: true, max: 600, ticks: { stepSize: 150 } } },
+    scales: { y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 } } },
   };
 
   const costTrendLabels = dynCostTrend?.labels || months;
@@ -629,7 +608,7 @@ export default function HealthPlanView({ onLogout }) {
             {utilLoading ? (
               <div className="hpv-hedis-loading" style={{ height: 280 }}>
                 <span className="hpv-spinner" />
-                <span>Loading utilization data...</span>
+                <span>Loading utilization data... {utilProgress.total > 0 ? Math.round((utilProgress.done / utilProgress.total) * 100) : 0}%</span>
               </div>
             ) : (
               <div className="hpv-chart-wrap hpv-chart-tall"><Bar data={utilizationData} options={utilizationOpts} /></div>
