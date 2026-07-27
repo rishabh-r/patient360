@@ -75,6 +75,7 @@ export default function HealthcareProviderView({ onLogout }) {
   const [hedisScores, setHedisScores] = useState(null);
   const [hedisLoading, setHedisLoading] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsProgress, setAnalyticsProgress] = useState(0);
   const analyticsLoaded = useRef(false);
 
   useEffect(() => {
@@ -184,6 +185,7 @@ export default function HealthcareProviderView({ onLogout }) {
         const prevCount = prevEncs.length;
         const yPct = prevCount > 0 ? Math.round(((currCount - prevCount) / prevCount) * 100) : 0;
         setYearlyVisits({ count: currCount, pctChange: yPct });
+        setAnalyticsProgress(25);
 
         function calcAlos(encounters) {
           let totalDays = 0, count = 0;
@@ -203,6 +205,7 @@ export default function HealthcareProviderView({ onLogout }) {
         const prevAlos = calcAlos(prevEncs);
         const alosPct = prevAlos > 0 ? Math.round(((currAlos - prevAlos) / prevAlos) * 100) : 0;
         setAvgLos({ days: currAlos, pctChange: alosPct });
+        setAnalyticsProgress(40);
 
         const allEncountersAllStatus = [];
         for (const p of patients) {
@@ -235,6 +238,7 @@ export default function HealthcareProviderView({ onLogout }) {
             return { name: e._patientName, age: e._patientAge, mrn: '', diagnosis, date: dateStr, status: 'Completed' };
           });
         setErVisits(erList);
+        setAnalyticsProgress(60);
 
         const patientLatestAdm = {};
         for (const e of allEncountersAllStatus) {
@@ -256,6 +260,7 @@ export default function HealthcareProviderView({ onLogout }) {
             return { name: e._patientName, age: e._patientAge, mrn: '', diagnosis, department: dept, physician: practRef.replace('Practitioner/', ''), date: dateStr };
           });
         setRecentAdmissions(admList);
+        setAnalyticsProgress(75);
 
         const patientLatestDis = {};
         for (const e of allEncountersAllStatus) {
@@ -303,6 +308,7 @@ export default function HealthcareProviderView({ onLogout }) {
             return { name: e._patientName, age: e._patientAge, mrn: '', diagnosis, los: `${los} days`, disposition, followUp, date: dateStr };
           });
         setRecentDischarges(disList);
+        setAnalyticsProgress(100);
       } catch {}
       setAnalyticsLoading(false);
     })();
@@ -1219,13 +1225,13 @@ export default function HealthcareProviderView({ onLogout }) {
           <div className="hp-an-kpi-row">
             <div className="hp-an-kpi">
               <span className="hp-an-kpi-label">Today's Schedule</span>
-              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
+              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /><span className="hp-an-kpi-pct">{analyticsProgress}%</span></span> : <>
               <span className="hp-an-kpi-val">{todayAppts.length}</span>
               </>}
             </div>
             <div className="hp-an-kpi">
               <span className="hp-an-kpi-label">Yearly Visits</span>
-              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
+              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /><span className="hp-an-kpi-pct">{analyticsProgress}%</span></span> : <>
               <span className="hp-an-kpi-val">{yearlyVisits.count}</span>
               <span className={`hp-an-kpi-change ${yearlyVisits.pctChange >= 0 ? 'up-green' : 'down-red'}`}>
                 {yearlyVisits.pctChange >= 0 ? '↗' : '↘'} {yearlyVisits.pctChange >= 0 ? '+' : ''}{yearlyVisits.pctChange}% vs last year
@@ -1233,7 +1239,7 @@ export default function HealthcareProviderView({ onLogout }) {
             </div>
             <div className="hp-an-kpi">
               <span className="hp-an-kpi-label">Avg LOS</span>
-              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
+              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /><span className="hp-an-kpi-pct">{analyticsProgress}%</span></span> : <>
               <span className="hp-an-kpi-val">{avgLos.days} days</span>
               <span className={`hp-an-kpi-change ${avgLos.pctChange <= 0 ? 'up-green' : 'down-red'}`}>
                 {avgLos.pctChange <= 0 ? '↘' : '↗'} {avgLos.pctChange > 0 ? '+' : ''}{avgLos.pctChange}% vs last year
@@ -1242,7 +1248,7 @@ export default function HealthcareProviderView({ onLogout }) {
             </div>
             <div className="hp-an-kpi">
               <span className="hp-an-kpi-label">Med Adherence</span>
-              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /></span> : <>
+              {analyticsLoading ? <span className="hp-an-kpi-val"><div className="hp-spinner-inline" /><span className="hp-an-kpi-pct">{analyticsProgress}%</span></span> : <>
               <span className="hp-an-kpi-val">{medAdherence.pct}%</span>
               </>}
             </div>
