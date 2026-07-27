@@ -44,4 +44,5 @@ export function isSessionExpired() {
 export function clearSession() {
   const keys = ['p360_token', 'p360_user', 'p360_email', 'p360_role', 'p360_user_id', 'p360_ref_id', 'p360_login_ts'];
   keys.forEach(k => localStorage.removeItem(k));
+  try { sessionStorage.removeItem('p360_hedis_cache'); } catch {}
 }
