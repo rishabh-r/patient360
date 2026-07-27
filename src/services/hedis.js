@@ -192,20 +192,38 @@ export async function calculateHedisScores(patientIds, callFhirApiFn, buildUrlFn
       const given = pt.name?.[0]?.given?.join(' ') || '';
       const family = pt.name?.[0]?.family || '';
 
+      const conditions = (condRes?.entry || []).map(e => e.resource).filter(Boolean);
+      const observations = (obsRes?.entry || []).map(e => e.resource).filter(Boolean);
+      const vitals = (vitalsRes?.entry || []).map(e => e.resource).filter(Boolean);
+      const medications = (medRes?.entry || []).map(e => e.resource).filter(Boolean);
+
+      if (idx < 3) {
+        console.log(`[HEDIS] Patient ${pid}:`, {
+          name: `${given} ${family}`.trim(),
+          birthDate: pt.birthDate,
+          gender: pt.gender,
+          conditionCount: conditions.length,
+          conditionCodes: conditions.slice(0, 5).map(c => ({ code: c.code?.coding?.[0]?.code, display: c.code?.coding?.[0]?.display })),
+          obsCount: observations.length,
+          vitalsCount: vitals.length,
+          medCount: medications.length,
+        });
+      }
+
       patientData.push({
         id: pid,
         name: `${given} ${family}`.trim(),
         birthDate: pt.birthDate || '',
         gender: pt.gender || '',
-        conditions: (condRes?.entry || []).map(e => e.resource).filter(Boolean),
-        observations: (obsRes?.entry || []).map(e => e.resource).filter(Boolean),
-        vitals: (vitalsRes?.entry || []).map(e => e.resource).filter(Boolean),
-        medications: (medRes?.entry || []).map(e => e.resource).filter(Boolean),
+        conditions,
+        observations,
+        vitals,
+        medications,
         procedures: (procRes?.entry || []).map(e => e.resource).filter(Boolean),
         diagnosticReports: (drRes?.entry || []).map(e => e.resource).filter(Boolean),
         now,
       });
-    } catch {}
+    } catch (err) { console.error(`[HEDIS] Error for patient ${pid}:`, err); }
     if (onProgress) onProgress(idx + 1, patientIds.length);
   }
 

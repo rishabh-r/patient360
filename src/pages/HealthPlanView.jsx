@@ -174,11 +174,14 @@ export default function HealthPlanView({ onLogout }) {
         setHedisLoading(true);
         setHedisProgress({ done: 0, total: uniquePatientIds.length });
         try {
+          console.log('[HEDIS] Unique patient IDs:', uniquePatientIds.length, uniquePatientIds.slice(0, 3));
           const result = await calculateHedisScores(
             uniquePatientIds, callFhirApi, buildUrl, FHIR_BASE,
             (done, total) => setHedisProgress({ done, total })
           );
+          console.log('[HEDIS] Raw result:', JSON.stringify(result, null, 2));
           const measures = result.measures || [];
+          console.log('[HEDIS] Measures with eligible > 0:', measures.filter(m => m.eligible > 0).map(m => `${m.name}: ${m.eligible} eligible, ${m.met} met`));
           const ratesWithValues = measures.filter(m => m.rate !== null && !m.invertedMeasure);
           const avgScore = ratesWithValues.length > 0 ? Math.round(ratesWithValues.reduce((s, m) => s + m.rate, 0) / ratesWithValues.length) : 0;
           const totalGaps = measures.filter(m => !m.invertedMeasure).reduce((s, m) => s + (m.eligible - m.met), 0);
