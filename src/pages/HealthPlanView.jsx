@@ -160,7 +160,7 @@ export default function HealthPlanView({ onLogout }) {
       }
       // Fetch health statuses for risk tiers
       try {
-        const hsRes = await callFhirApi(`${FHIR_BASE}/baseR4/Patient/health-status`);
+        const hsRes = await callFhirApi(`${FHIR_BASE}/baseR4/Patient/health-status?page=0&size=50`);
         setTotalMembers(hsRes?.total || 0);
         const hsEntries = (hsRes?.entry || []).map(e => {
           const ext = e.resource?.extension || [];
