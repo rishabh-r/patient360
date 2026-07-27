@@ -188,6 +188,13 @@
   padding: 24px 0; justify-content: center;
   font-size: 13px; color: #64748B;
 }
+.hpv-spinner {
+  width: 18px; height: 18px; border: 2px solid #E2E8F0;
+  border-top-color: #3B82F6; border-radius: 50%;
+  animation: hpv-spin 0.7s linear infinite;
+  display: inline-block; vertical-align: middle;
+}
+@keyframes hpv-spin { to { transform: rotate(360deg); } }
 .hpv-kpi-loading-pct {
   font-size: 12px; color: #94A3B8; font-weight: 500; margin-left: 6px;
 }
