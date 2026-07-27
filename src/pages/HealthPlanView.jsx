@@ -38,6 +38,7 @@ export default function HealthPlanView({ onLogout }) {
   const [clusterPage, setClusterPage] = useState(1);
   const [conditionPage, setConditionPage] = useState(1);
   const ITEMS_PER_PAGE = 4;
+  const apiEntriesRef = useRef([]);
 
   useEffect(() => {
     (async () => {
@@ -60,6 +61,7 @@ export default function HealthPlanView({ onLogout }) {
           };
         }).filter(e => e.patientId);
         setApiData(entries);
+        apiEntriesRef.current = entries;
         setTotalMembers(res?.total || entries.length);
 
         // 1) PMPM Cost
@@ -169,7 +171,8 @@ export default function HealthPlanView({ onLogout }) {
       }
 
       // No cache — calculate from patient data
-      const uniquePatientIds = [...new Set(entries.map(e => e.patientId))];
+      const allEntries = apiEntriesRef.current;
+      const uniquePatientIds = [...new Set(allEntries.map(e => e.patientId))];
       if (uniquePatientIds.length > 0) {
         setHedisLoading(true);
         setHedisProgress({ done: 0, total: uniquePatientIds.length });
@@ -193,7 +196,6 @@ export default function HealthPlanView({ onLogout }) {
           setHedisCareGaps(totalGaps);
           setHedisMeasures(summaryMeasures);
 
-          // Cache it
           try { sessionStorage.setItem('p360_hedis_cache', JSON.stringify({ hedisScore: avgScore, careGaps: totalGaps, measures: summaryMeasures })); } catch {}
         } catch (err) {
           console.error('[HealthPlan] HEDIS calculation error:', err);
