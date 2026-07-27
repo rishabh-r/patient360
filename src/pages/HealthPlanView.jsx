@@ -32,6 +32,8 @@ export default function HealthPlanView({ onLogout }) {
   const [dynCostTrend, setDynCostTrend] = useState(null);
   const [riskCounts, setRiskCounts] = useState({ high: 0, rising: 0, low: 0 });
   const [riskScoresByMonth, setRiskScoresByMonth] = useState(null);
+  const [dynUtilization, setDynUtilization] = useState(null);
+  const [utilLoading, setUtilLoading] = useState(false);
   const [hedisScore, setHedisScore] = useState(null);
   const [hedisCareGaps, setHedisCareGaps] = useState(null);
   const [hedisMeasures, setHedisMeasures] = useState([]);
@@ -42,6 +44,7 @@ export default function HealthPlanView({ onLogout }) {
   const [hedisPage, setHedisPage] = useState(1);
   const ITEMS_PER_PAGE = 4;
   const apiEntriesRef = useRef([]);
+  const hsPatientIdsRef = useRef([]);
 
   useEffect(() => {
     (async () => {
@@ -182,6 +185,7 @@ export default function HealthPlanView({ onLogout }) {
           }
         }
         const unique = Object.values(latestByPatient);
+        hsPatientIdsRef.current = unique.map(h => h.patientId);
 
         // Categorize
         let high = 0, rising = 0, low = 0;
@@ -265,6 +269,52 @@ export default function HealthPlanView({ onLogout }) {
         }
         setHedisLoading(false);
       }
+
+      // Utilization Trends — check cache first
+      const utilCached = sessionStorage.getItem('p360_util_cache');
+      if (utilCached) {
+        try { setDynUtilization(JSON.parse(utilCached)); } catch {}
+      } else {
+        const pids = hsPatientIdsRef.current;
+        if (pids.length > 0) {
+          setUtilLoading(true);
+          try {
+            const monthUtil = {};
+            for (const pid of pids) {
+              try {
+                const encRes = await callFhirApi(buildUrl('/baseR4/Encounter', { patient: pid, page: 0, size: 200 }));
+                const encs = (encRes?.entry || []).map(e => e.resource).filter(Boolean);
+                for (const enc of encs) {
+                  const start = enc.period?.start;
+                  if (!start) continue;
+                  const d = new Date(start);
+                  if (isNaN(d.getTime())) continue;
+                  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                  if (!monthUtil[key]) monthUtil[key] = { outpatient: 0, er: 0, inpatient: 0 };
+                  const cls = (enc.class?.code || '').toUpperCase();
+                  if (cls === 'AMB') monthUtil[key].outpatient++;
+                  else if (cls === 'EMER') monthUtil[key].er++;
+                  else if (cls === 'IMP' || cls === 'INP') monthUtil[key].inpatient++;
+                }
+              } catch {}
+            }
+            const sortedKeys = Object.keys(monthUtil).sort();
+            if (sortedKeys.length > 0) {
+              const utilData = {
+                labels: sortedKeys.map(k => { const [y, m] = k.split('-'); return new Date(+y, +m - 1).toLocaleString('en-US', { month: 'short', year: 'numeric' }); }),
+                outpatient: sortedKeys.map(k => monthUtil[k].outpatient),
+                er: sortedKeys.map(k => monthUtil[k].er),
+                inpatient: sortedKeys.map(k => monthUtil[k].inpatient),
+              };
+              setDynUtilization(utilData);
+              try { sessionStorage.setItem('p360_util_cache', JSON.stringify(utilData)); } catch {}
+            }
+          } catch (err) {
+            console.error('[HealthPlan] Utilization calc error:', err);
+          }
+          setUtilLoading(false);
+        }
+      }
     })();
   }, []);
 
@@ -313,12 +363,13 @@ export default function HealthPlanView({ onLogout }) {
     scales: { y: { min: 0, max: 10, ticks: { stepSize: 2 } } },
   };
 
+  const utilLabels = dynUtilization?.labels || months;
   const utilizationData = {
-    labels: months,
+    labels: utilLabels,
     datasets: [
-      { label: 'Outpatient', data: [510, 565, 520, 534, 480, 545], backgroundColor: '#3B82F6' },
-      { label: 'ER', data: [85, 130, 95, 142, 110, 90], backgroundColor: '#F59E0B' },
-      { label: 'Inpatient', data: [60, 75, 80, 87, 70, 55], backgroundColor: '#EF4444' },
+      { label: 'Outpatient', data: dynUtilization?.outpatient || [510, 565, 520, 534, 480, 545], backgroundColor: '#3B82F6' },
+      { label: 'ER', data: dynUtilization?.er || [85, 130, 95, 142, 110, 90], backgroundColor: '#F59E0B' },
+      { label: 'Inpatient', data: dynUtilization?.inpatient || [60, 75, 80, 87, 70, 55], backgroundColor: '#EF4444' },
     ],
   };
   const utilizationOpts = {
@@ -575,7 +626,14 @@ export default function HealthPlanView({ onLogout }) {
         <div className="hpv-two-col">
           <div className="hpv-card">
             <h3 className="hpv-card-title">Utilization Trends</h3>
-            <div className="hpv-chart-wrap hpv-chart-tall"><Bar data={utilizationData} options={utilizationOpts} /></div>
+            {utilLoading ? (
+              <div className="hpv-hedis-loading" style={{ height: 280 }}>
+                <span className="hpv-spinner" />
+                <span>Loading utilization data...</span>
+              </div>
+            ) : (
+              <div className="hpv-chart-wrap hpv-chart-tall"><Bar data={utilizationData} options={utilizationOpts} /></div>
+            )}
           </div>
           <div className="hpv-card">
             <h3 className="hpv-card-title">Cost Trend</h3>
