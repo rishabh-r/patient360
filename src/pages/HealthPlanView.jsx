@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend, Filler } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
-import { callFhirApi } from '../services/fhir';
+import { callFhirApi, buildUrl } from '../services/fhir';
 import { FHIR_BASE } from '../config/constants';
+import { calculateHedisScores } from '../services/hedis';
 import '../styles/healthplan.css';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend, Filler);
@@ -29,6 +30,11 @@ export default function HealthPlanView({ onLogout }) {
   const [dynProviders, setDynProviders] = useState([]);
   const [dynConditions, setDynConditions] = useState([]);
   const [dynCostTrend, setDynCostTrend] = useState(null);
+  const [hedisScore, setHedisScore] = useState(null);
+  const [hedisCareGaps, setHedisCareGaps] = useState(null);
+  const [hedisMeasures, setHedisMeasures] = useState([]);
+  const [hedisLoading, setHedisLoading] = useState(false);
+  const [hedisProgress, setHedisProgress] = useState({ done: 0, total: 0 });
   const [clusterPage, setClusterPage] = useState(1);
   const [conditionPage, setConditionPage] = useState(1);
   const ITEMS_PER_PAGE = 4;
@@ -149,6 +155,48 @@ export default function HealthPlanView({ onLogout }) {
         console.error('[HealthPlan] CostAndSatisfaction API error:', err);
       }
       setApiLoading(false);
+
+      // HEDIS calculation — check cache first
+      const cached = sessionStorage.getItem('p360_hedis_cache');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setHedisScore(parsed.hedisScore);
+          setHedisCareGaps(parsed.careGaps);
+          setHedisMeasures(parsed.measures);
+          return;
+        } catch {}
+      }
+
+      // No cache — calculate from patient data
+      const uniquePatientIds = [...new Set(entries.map(e => e.patientId))];
+      if (uniquePatientIds.length > 0) {
+        setHedisLoading(true);
+        setHedisProgress({ done: 0, total: uniquePatientIds.length });
+        try {
+          const result = await calculateHedisScores(
+            uniquePatientIds, callFhirApi, buildUrl, FHIR_BASE,
+            (done, total) => setHedisProgress({ done, total })
+          );
+          const measures = result.measures || [];
+          const ratesWithValues = measures.filter(m => m.rate !== null && !m.invertedMeasure);
+          const avgScore = ratesWithValues.length > 0 ? Math.round(ratesWithValues.reduce((s, m) => s + m.rate, 0) / ratesWithValues.length) : 0;
+          const totalGaps = measures.filter(m => !m.invertedMeasure).reduce((s, m) => s + (m.eligible - m.met), 0);
+          const summaryMeasures = measures.filter(m => !m.invertedMeasure && m.eligible > 0).map(m => ({
+            name: m.name, pct: m.rate, compliant: m.met, gap: m.eligible - m.met,
+          }));
+
+          setHedisScore(avgScore);
+          setHedisCareGaps(totalGaps);
+          setHedisMeasures(summaryMeasures);
+
+          // Cache it
+          try { sessionStorage.setItem('p360_hedis_cache', JSON.stringify({ hedisScore: avgScore, careGaps: totalGaps, measures: summaryMeasures })); } catch {}
+        } catch (err) {
+          console.error('[HealthPlan] HEDIS calculation error:', err);
+        }
+        setHedisLoading(false);
+      }
     })();
   }, []);
 
@@ -238,12 +286,7 @@ export default function HealthPlanView({ onLogout }) {
     scales: { y: { beginAtZero: true, max: costMax, ticks: { callback: v => v.toLocaleString() } } },
   };
 
-  const hedisGaps = [
-    { name: 'HbA1c Testing', pct: 84, compliant: 1045, gap: 200 },
-    { name: 'Eye Exams (Diabetes)', pct: 72, compliant: 892, gap: 353 },
-    { name: 'Blood Pressure Control', pct: 79, compliant: 1678, gap: 456 },
-    { name: 'Statin Therapy', pct: 79, compliant: 1234, gap: 321 },
-  ];
+  const hedisGaps = hedisMeasures;
 
   const providers = dynProviders;
   const topConditions = dynConditions;
@@ -309,11 +352,11 @@ export default function HealthPlanView({ onLogout }) {
             </div>
             <div className="hpv-kpi">
               <span className="hpv-kpi-label">HEDIS Score</span>
-              <span className="hpv-kpi-val">78%</span>
+              <span className="hpv-kpi-val">{hedisScore !== null ? `${hedisScore}%` : hedisLoading ? '...' : '—'}</span>
             </div>
             <div className="hpv-kpi">
               <span className="hpv-kpi-label">Care Gaps</span>
-              <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>1,330</span>
+              <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>{hedisCareGaps !== null ? hedisCareGaps.toLocaleString() : hedisLoading ? '...' : '—'}</span>
             </div>
           </div>
           <div className="hpv-card">
@@ -357,7 +400,14 @@ export default function HealthPlanView({ onLogout }) {
         <div className="hpv-two-col">
           <div className="hpv-card">
             <h3 className="hpv-card-title">HEDIS / Care Gaps Summary</h3>
-            {hedisGaps.map((item, i) => (
+            {hedisLoading ? (
+              <div className="hpv-hedis-loading">
+                <div className="hp-spinner-inline" style={{ width: 18, height: 18, borderWidth: 2 }} />
+                <span>Calculating HEDIS measures... {hedisProgress.done}/{hedisProgress.total} patients ({hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%)</span>
+              </div>
+            ) : hedisGaps.length === 0 ? (
+              <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No HEDIS data available</p>
+            ) : hedisGaps.map((item, i) => (
               <div className="hpv-hedis-row" key={i}>
                 <div className="hpv-hedis-left">
                   <span className="hpv-hedis-name">{item.name}</span>

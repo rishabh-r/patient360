@@ -171,11 +171,12 @@ const HEDIS_MEASURES = [
  * @param {string} fhirBase - FHIR base URL
  * @returns {Promise<{measures: Array, patientResults: Object}>}
  */
-export async function calculateHedisScores(patientIds, callFhirApiFn, buildUrlFn, fhirBase) {
+export async function calculateHedisScores(patientIds, callFhirApiFn, buildUrlFn, fhirBase, onProgress) {
   const now = new Date();
   const patientData = [];
 
-  for (const pid of patientIds) {
+  for (let idx = 0; idx < patientIds.length; idx++) {
+    const pid = patientIds[idx];
     try {
       const [ptRes, condRes, obsRes, vitalsRes, medRes, procRes, drRes] = await Promise.all([
         callFhirApiFn(buildUrlFn('/baseR4/Patient/find', { id: pid })).catch(() => null),
@@ -205,6 +206,7 @@ export async function calculateHedisScores(patientIds, callFhirApiFn, buildUrlFn
         now,
       });
     } catch {}
+    if (onProgress) onProgress(idx + 1, patientIds.length);
   }
 
   const measures = HEDIS_MEASURES.map(m => {
