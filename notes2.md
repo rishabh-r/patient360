@@ -4020,3 +4020,125 @@ Previously only the Clinical Agent ran. Now all 3 agents run **in parallel**, fo
 146. `909e2f3` — Group Financial and Ops agent output by categories like Clinical agent
 
 ---
+
+## Session: Jul 23–27, 2026
+
+### Health Plan Executive Dashboard — New View
+
+Created a full Health Plan Executive Dashboard at `/health-plan` route, accessible by Provider, Care Manager, and Admin roles.
+
+#### Static Sections (Figma-matched)
+- **Risk Tiers Distribution**: Pie chart (High Risk / Rising Risk / Low Risk)
+- **Predictive Risk Scores**: Line chart with 3 trend lines, custom tooltip showing all values on hover
+- **Preventive Risk Assessment**: Progress bars with On Target / Below Target badges — later removed
+- **Chronic Condition Control**: Progress bars with Controlled / Needs Focus — later removed
+- **SDOH Risk Indicators**: Horizontal gradient bars with counts — later removed
+- **Utilization Trends**: Grouped bar chart (Outpatient/ER/Inpatient by month)
+- **Cost Trend**: Line chart with custom tooltip
+
+#### Dynamic Sections (from CostAndSatisfaction API)
+- **API**: `GET /baseR4/CostAndSatisfaction?page=0&size=1000`
+- **Average PMPM Cost**: Average of all `average-cost` values across entries
+- **Chronic Condition Clusters**: Diseases sorted alphabetically, paired in groups of 2. Each cluster shows unique member count + avg cost
+- **Provider Scorecard**: Grouped by `doctor-name`, shows patient count, avg cost, avg satisfaction, quality score (from `quality-score` extension), performance bar based on quality score %
+- **Top Conditions by Cost**: Grouped by `disease`, counts unique patients, avg cost. Sorted by highest cost first
+- **Cost Trend**: Groups `average-cost` by month from `rating-date-time`, shows avg cost per month. X-axis: "Aug 2025", "May 2026" format
+
+#### Dynamic Sections (from health-status API)
+- **API**: `GET /baseR4/Patient/health-status?page=0&size=50`
+- **Total Members**: From API response `total` field
+- **Risk categorization** from `health-status` extension value:
+  - Poor, Critical → High Risk (red)
+  - Good, Fair → Low Risk (green)
+  - Everything else → Rising Risk (yellow)
+- **High-Risk Members KPI**: Count + % of population
+- **Rising-Risk Members KPI**: Count + % of population
+- **Risk Tiers Distribution**: Pie chart uses dynamic counts
+- **Predictive Risk Scores**: Line chart shows counts by category per month from `date-and-time`
+- **High Risk Members** (Utilization section): Same dynamic count
+
+#### Auto-POST Health Status (PatientView)
+- After AI generates health status + summary in PatientView, automatically POSTs:
+  ```
+  POST /baseR4/Patient/health-status
+  { patientId, patientName, healthStatus, healthSummary }
+  ```
+- Fire-and-forget, doesn't block UI
+
+#### HEDIS Score, Care Gaps, HEDIS/Care Gaps Summary — Dynamic
+- Calculated client-side using `calculateHedisScores()` from `hedis.js`
+- For each unique patient ID (from CostAndSatisfaction API), fetches 7 FHIR resources: Patient, Condition, Observation, Vitals, MedicationRequest, Procedure, DiagnosticReport
+- Runs HEDIS measures (HbA1c Testing, HbA1c Control, BP Control, Kidney Screening, Med Adherence, Cholesterol Screening, LDL Control, Breast Cancer Screening)
+- **HEDIS Score** = average of all non-inverted measure rates
+- **Care Gaps** = sum of (eligible - met) across all measures
+- **HEDIS/Care Gaps Summary** = each measure with name, compliant count, gap count, rate %
+- Loading shows spinner + percentage (e.g., "Calculating HEDIS measures... 42%")
+- **Cached in sessionStorage** (`p360_hedis_cache`) — only recalculates on fresh login
+- `clearSession()` clears cache on logout
+
+#### Utilization Trends — Dynamic
+- For each patient from health-status API, fetches encounters: `GET /baseR4/Encounter?patient={id}&page=0&size=200`
+- Groups by `class.code` (AMB=Outpatient, EMER=ER, IMP/INP=Inpatient) and month from `period.start`
+- Shows loading spinner + percentage
+- **Cached in sessionStorage** (`p360_util_cache`) — clears on logout
+- Runs in **parallel** with HEDIS calculation via `Promise.all`
+- Y-axis: 0–100, step size 20
+
+#### Provider Analytics — Loading Percentage
+- Added `analyticsProgress` state tracking 5 milestones: 25% (visits), 40% (ALOS), 60% (ER), 75% (admissions), 100% (discharges)
+- All 4 KPI cards (Today's Schedule, Yearly Visits, Avg LOS, Med Adherence) show spinner + small grey percentage while loading
+
+#### Layout Changes (multiple iterations)
+- **Final KPI layout**: 3+3 grid — Row 1: Total Members, High-Risk, Rising-Risk; Row 2: Avg PMPM Cost, HEDIS Score, Care Gaps
+- **KPIs + Clusters**: 2-column layout — left column has 6 KPIs in 2-col grid (2 per row × 3 rows), right column has Chronic Condition Clusters
+- **Row 2**: Risk Tiers Distribution (pie) + Predictive Risk Scores (line chart)
+- **Row 3**: HEDIS/Care Gaps Summary + Top Conditions by Cost
+- **Removed sections**: Preventive Risk Assessment, Chronic Condition Control, SDOH Risk Indicators, Readmission Rate KPI, ED Utilization Rate KPI, Monthly Cost KPI
+- **Renamed**: "PMPM Cost" → "Average PMPM Cost"
+- **Pagination**: Chronic Condition Clusters (4/page), Top Conditions (4/page), HEDIS Summary (4/page)
+
+#### Files Created
+- `src/pages/HealthPlanView.jsx` — Full dashboard component
+- `src/styles/healthplan.css` — All styling
+
+#### Files Modified
+- `src/App.jsx` — Added `/health-plan` route, imported HealthPlanView
+- `src/pages/HomePage.jsx` — Enabled Health Plans View card, added to ROLE_ALLOWED_ROUTES for Provider, Care Manager, Admin
+- `src/pages/PatientView.jsx` — Auto-POST health status after AI generates
+- `src/services/auth.js` — Clear HEDIS + utilization cache on logout
+- `src/services/hedis.js` — Added `onProgress` callback parameter to `calculateHedisScores()`
+- `src/styles/provider.css` — Added `.hp-an-kpi-pct` for analytics loading percentage
+- `src/pages/HealthcareProviderView.jsx` — Added analytics loading progress percentage
+
+### Git Commits (Jul 23–27)
+
+147. `cd59d9d` — Add Health Plan Executive Dashboard (static)
+148. `f74b4f2` — Enable Health Plans View for Provider, Care Manager, and Admin roles
+149. `21d4f30` — Predictive Risk Scores: custom tooltip showing all 3 lines on hover
+150. `f85f65d` — Health Plan: integrate CostAndSatisfaction API for PMPM, clusters, providers, conditions
+151. `1d25201` — Paginate clusters/conditions at 4, remove SDOH, restore quality score, rename PMPM
+152. `33c8a3d` — Performance bar width and color based on quality score percentage
+153. `5c032fb` — Fix: add missing .hpv-perf-bar.med CSS rule
+154. `0a0f4ca` — Remove comparison labels, Readmission/ED KPIs, Chronic Condition Control
+155. `0e98e19` — Rearrange layout: 3+3 KPI rows, 2-col pairings
+156. `d4020b6` — Remove Preventive Risk Assessment; KPIs 2x3 grid + Clusters in two-column layout
+157. `b717204` — Quality score from API, cost trend from rating-date-time grouped by month
+158. `7015133` — Cost Trend x-axis: show month + year
+159. `6cf18c4` — Total Members: dynamic from API response total count
+160. `7ef4265` — Dynamic HEDIS: calculate from patient data with progress %, session cache
+161. `8812d7e` — Debug: add HEDIS logging to diagnose empty data
+162. `17b17ce` — Fix: entries not defined - move HEDIS calc outside try block, use ref
+163. `40549e3` — HEDIS: paginate summary at 4, show % loading in KPIs, simplify loading text
+164. `e8b1ed4` — Clear HEDIS cache from sessionStorage on logout
+165. `36f8a82` — HEDIS KPIs: spinner icon + small percentage while loading
+166. `1356303` — Fix: use local hpv-spinner class instead of missing hp-spinner-inline
+167. `1aaf8be` — Provider analytics: add loading % next to spinner on all 4 KPI cards
+168. `b3b12f6` — Auto-POST health status from PatientView; GET health statuses for risk tiers
+169. `21c4a44` — Total Members from health-status API total
+170. `f28321b` — Add page=0&size=50 to health-status GET API call
+171. `dc26209` — Dynamic Utilization Trends: fetch encounters per patient, cached
+172. `04068e6` — HEDIS + Utilization run in parallel; utilization shows % progress; y-axis 0-100 step 20
+173. `66971bc` — Utilization Trends: wider bars with horizontal scroll (reverted)
+174. `a1c4cc4` — Revert wider bars
+
+---
