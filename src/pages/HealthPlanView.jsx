@@ -23,6 +23,7 @@ export default function HealthPlanView({ onLogout }) {
 
   const [apiData, setApiData] = useState([]);
   const [apiLoading, setApiLoading] = useState(true);
+  const [totalMembers, setTotalMembers] = useState(0);
   const [pmpmCost, setPmpmCost] = useState(0);
   const [dynClusters, setDynClusters] = useState([]);
   const [dynProviders, setDynProviders] = useState([]);
@@ -53,6 +54,7 @@ export default function HealthPlanView({ onLogout }) {
           };
         }).filter(e => e.patientId);
         setApiData(entries);
+        setTotalMembers(res?.total || entries.length);
 
         // 1) PMPM Cost
         if (entries.length) {
@@ -289,7 +291,7 @@ export default function HealthPlanView({ onLogout }) {
           <div className="hpv-kpi-grid-left">
             <div className="hpv-kpi">
               <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span className="hpv-kpi-label">Total Members</span></div>
-              <span className="hpv-kpi-val">24,567</span>
+              <span className="hpv-kpi-val">{apiLoading ? '...' : totalMembers.toLocaleString()}</span>
             </div>
             <div className="hpv-kpi">
               <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span className="hpv-kpi-label">High-Risk Members</span></div>
@@ -427,7 +429,7 @@ export default function HealthPlanView({ onLogout }) {
         <div className="hpv-kpi-row hpv-kpi-row-3">
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">Total Members</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-            <span className="hpv-kpi-val">24,567</span>
+            <span className="hpv-kpi-val">{apiLoading ? '...' : totalMembers.toLocaleString()}</span>
           </div>
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">Avg PMPM</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
