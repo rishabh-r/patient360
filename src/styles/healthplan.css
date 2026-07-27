@@ -77,13 +77,6 @@
 /* ── Chart wraps ── */
 .hpv-chart-wrap { height: 200px; }
 .hpv-chart-tall { height: 280px; }
-.hpv-chart-scroll {
-  overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: thin; scrollbar-color: #CBD5E1 transparent;
-}
-.hpv-chart-scroll::-webkit-scrollbar { height: 6px; }
-.hpv-chart-scroll::-webkit-scrollbar-track { background: transparent; }
-.hpv-chart-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
 
 /* ── Chronic Clusters ── */
 .hpv-cluster-list { display: flex; flex-direction: column; gap: 0; }

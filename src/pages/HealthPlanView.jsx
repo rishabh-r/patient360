@@ -351,13 +351,10 @@ export default function HealthPlanView({ onLogout }) {
       { label: 'Inpatient', data: dynUtilization?.inpatient || [60, 75, 80, 87, 70, 55], backgroundColor: '#EF4444' },
     ],
   };
-  const utilBarCount = utilLabels.length;
   const utilizationOpts = {
-    responsive: false, maintainAspectRatio: false,
+    responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } } },
-    scales: { y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 } }, x: { ticks: { font: { size: 11 } } } },
-    barPercentage: 0.7,
-    categoryPercentage: 0.6,
+    scales: { y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 } } },
   };
 
   const costTrendLabels = dynCostTrend?.labels || months;
@@ -614,11 +611,7 @@ export default function HealthPlanView({ onLogout }) {
                 <span>Loading utilization data... {utilProgress.total > 0 ? Math.round((utilProgress.done / utilProgress.total) * 100) : 0}%</span>
               </div>
             ) : (
-              <div className="hpv-chart-scroll">
-                <div style={{ width: Math.max(500, utilBarCount * 80), height: 280 }}>
-                  <Bar data={utilizationData} options={utilizationOpts} width={Math.max(500, utilBarCount * 80)} height={280} />
-                </div>
-              </div>
+              <div className="hpv-chart-wrap hpv-chart-tall"><Bar data={utilizationData} options={utilizationOpts} /></div>
             )}
           </div>
           <div className="hpv-card">
