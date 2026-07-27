@@ -537,6 +537,20 @@ export default function PatientView({ onLogout }) {
 
       setAiLoading(false);
 
+      // Auto-POST health status to backend
+      try {
+        const hs = statusResult.status === 'fulfilled' ? JSON.parse(statusResult.value) : null;
+        const hsum = summaryResult.status === 'fulfilled' ? JSON.parse(summaryResult.value) : null;
+        const summaryText = Array.isArray(hsum) ? (hsum[0]?.summary || '') : (hsum?.summary || '');
+        if (hs && patientId) {
+          fetch(`${FHIR_BASE}/baseR4/Patient/health-status`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('p360_token')}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ patientId, patientName: patientName || 'Patient', healthStatus: hs.status || 'Fair', healthSummary: summaryText || hs.reason || '' }),
+          }).catch(() => {});
+        }
+      } catch {}
+
       if (past[0]?.description) {
         const apptContext = `Appointment: ${past[0].description}\nService: ${past[0].serviceType}\nReason: ${past[0].reasonCode}\nPatient conditions: ${condSummary}\nMedications: ${medSummary}`;
         const [sumRes, instrRes] = await Promise.allSettled([

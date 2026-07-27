@@ -30,6 +30,8 @@ export default function HealthPlanView({ onLogout }) {
   const [dynProviders, setDynProviders] = useState([]);
   const [dynConditions, setDynConditions] = useState([]);
   const [dynCostTrend, setDynCostTrend] = useState(null);
+  const [riskCounts, setRiskCounts] = useState({ high: 0, rising: 0, low: 0 });
+  const [riskScoresByMonth, setRiskScoresByMonth] = useState(null);
   const [hedisScore, setHedisScore] = useState(null);
   const [hedisCareGaps, setHedisCareGaps] = useState(null);
   const [hedisMeasures, setHedisMeasures] = useState([]);
@@ -157,6 +159,66 @@ export default function HealthPlanView({ onLogout }) {
       } catch (err) {
         console.error('[HealthPlan] CostAndSatisfaction API error:', err);
       }
+      // Fetch health statuses for risk tiers
+      try {
+        const hsRes = await callFhirApi(`${FHIR_BASE}/baseR4/Patient/health-status`);
+        const hsEntries = (hsRes?.entry || []).map(e => {
+          const ext = e.resource?.extension || [];
+          const get = (url) => ext.find(x => x.url === url);
+          return {
+            patientId: get('patient-id')?.valueString || '',
+            patientName: get('patient-name')?.valueString || '',
+            healthStatus: get('health-status')?.valueString || '',
+            dateTime: get('date-and-time')?.valueDateTime || '',
+          };
+        }).filter(e => e.patientId && e.healthStatus);
+
+        // Deduplicate — latest per patient
+        const latestByPatient = {};
+        for (const h of hsEntries) {
+          const existing = latestByPatient[h.patientId];
+          if (!existing || new Date(h.dateTime) > new Date(existing.dateTime)) {
+            latestByPatient[h.patientId] = h;
+          }
+        }
+        const unique = Object.values(latestByPatient);
+
+        // Categorize
+        let high = 0, rising = 0, low = 0;
+        for (const h of unique) {
+          const s = h.healthStatus.toLowerCase();
+          if (s === 'high' || s === 'critical' || s === 'poor') high++;
+          else if (s === 'low' || s === 'fair' || s === 'good') low++;
+          else rising++;
+        }
+        setRiskCounts({ high, rising, low });
+
+        // Predictive Risk Scores by month from dateTime
+        const monthMap = {};
+        for (const h of hsEntries) {
+          if (!h.dateTime) continue;
+          const d = new Date(h.dateTime);
+          if (isNaN(d.getTime())) continue;
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (!monthMap[key]) monthMap[key] = { high: [], rising: [], low: [] };
+          const s = h.healthStatus.toLowerCase();
+          if (s === 'high' || s === 'critical' || s === 'poor') monthMap[key].high.push(1);
+          else if (s === 'low' || s === 'fair' || s === 'good') monthMap[key].low.push(1);
+          else monthMap[key].rising.push(1);
+        }
+        const sortedMs = Object.keys(monthMap).sort();
+        if (sortedMs.length > 0) {
+          setRiskScoresByMonth({
+            labels: sortedMs.map(k => { const [y, m] = k.split('-'); return new Date(+y, +m - 1).toLocaleString('en-US', { month: 'short', year: 'numeric' }); }),
+            high: sortedMs.map(k => monthMap[k].high.length),
+            rising: sortedMs.map(k => monthMap[k].rising.length),
+            low: sortedMs.map(k => monthMap[k].low.length),
+          });
+        }
+      } catch (err) {
+        console.error('[HealthPlan] health-status API error:', err);
+      }
+
       setApiLoading(false);
 
       // HEDIS calculation — check cache first
@@ -209,7 +271,7 @@ export default function HealthPlanView({ onLogout }) {
   const riskPieData = {
     labels: ['High Risk', 'Rising Risk', 'Low Risk'],
     datasets: [{
-      data: [2456, 4912, 17199],
+      data: [riskCounts.high, riskCounts.rising, riskCounts.low],
       backgroundColor: ['#EF4444', '#F59E0B', '#22C55E'],
       borderWidth: 0,
     }],
@@ -220,12 +282,16 @@ export default function HealthPlanView({ onLogout }) {
   };
 
   const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+  const predLabels = riskScoresByMonth?.labels || months;
+  const predHigh = riskScoresByMonth?.high || [8, 9, 8, 9, 8, 9];
+  const predRising = riskScoresByMonth?.rising || [6, 6, 6, 6, 6, 6];
+  const predLow = riskScoresByMonth?.low || [5, 5, 5, 5, 5, 5];
   const predictiveData = {
-    labels: months,
+    labels: predLabels,
     datasets: [
-      { label: 'High Risk', data: [8.5, 8.7, 8.4, 8.6, 8.3, 8.5], borderColor: '#EF4444', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#EF4444', tension: 0.3 },
-      { label: 'Rising Risk', data: [5.8, 5.9, 6.0, 5.7, 5.8, 6.1], borderColor: '#3B82F6', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#3B82F6', tension: 0.3 },
-      { label: 'Low Risk', data: [5.2, 5.3, 5.1, 5.4, 5.2, 5.3], borderColor: '#22C55E', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#22C55E', tension: 0.3 },
+      { label: 'High Risk', data: predHigh, borderColor: '#EF4444', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#EF4444', tension: 0.3 },
+      { label: 'Rising Risk', data: predRising, borderColor: '#F59E0B', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#F59E0B', tension: 0.3 },
+      { label: 'Low Risk', data: predLow, borderColor: '#22C55E', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#22C55E', tension: 0.3 },
     ],
   };
   const predictiveOpts = {
@@ -344,13 +410,13 @@ export default function HealthPlanView({ onLogout }) {
             </div>
             <div className="hpv-kpi">
               <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span className="hpv-kpi-label">High-Risk Members</span></div>
-              <span className="hpv-kpi-val" style={{ color: '#EF4444' }}>2,456</span>
-              <span className="hpv-kpi-sub">10% of population</span>
+              <span className="hpv-kpi-val" style={{ color: '#EF4444' }}>{riskCounts.high.toLocaleString()}</span>
+            <span className="hpv-kpi-sub">{totalMembers > 0 ? Math.round((riskCounts.high / (riskCounts.high + riskCounts.rising + riskCounts.low || 1)) * 100) : 0}% of population</span>
             </div>
             <div className="hpv-kpi">
               <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg><span className="hpv-kpi-label">Rising-Risk Members</span></div>
-              <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>4,912</span>
-              <span className="hpv-kpi-sub">20% of population</span>
+              <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>{riskCounts.rising.toLocaleString()}</span>
+            <span className="hpv-kpi-sub">{totalMembers > 0 ? Math.round((riskCounts.rising / (riskCounts.high + riskCounts.rising + riskCounts.low || 1)) * 100) : 0}% of population</span>
             </div>
             <div className="hpv-kpi">
               <div className="hpv-kpi-top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span className="hpv-kpi-label">Average PMPM Cost</span></div>
@@ -391,9 +457,9 @@ export default function HealthPlanView({ onLogout }) {
             <h3 className="hpv-card-title">Risk Tiers Distribution</h3>
             <div className="hpv-pie-wrap"><Pie data={riskPieData} options={riskPieOpts} /></div>
             <div className="hpv-pie-legend">
-              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#EF4444' }} />High Risk<span className="hpv-pie-count">2,456</span></div>
-              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#F59E0B' }} />Rising Risk<span className="hpv-pie-count">4,912</span></div>
-              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#22C55E' }} />Low Risk<span className="hpv-pie-count">17,199</span></div>
+              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#EF4444' }} />High Risk<span className="hpv-pie-count">{riskCounts.high.toLocaleString()}</span></div>
+              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#F59E0B' }} />Rising Risk<span className="hpv-pie-count">{riskCounts.rising.toLocaleString()}</span></div>
+              <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#22C55E' }} />Low Risk<span className="hpv-pie-count">{riskCounts.low.toLocaleString()}</span></div>
             </div>
           </div>
           <div className="hpv-card">
@@ -502,7 +568,7 @@ export default function HealthPlanView({ onLogout }) {
           </div>
           <div className="hpv-kpi">
             <div className="hpv-kpi-top"><span className="hpv-kpi-label">High Risk Members</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
-            <span className="hpv-kpi-val">2,134</span>
+            <span className="hpv-kpi-val">{riskCounts.high.toLocaleString()}</span>
           </div>
         </div>
 
