@@ -188,6 +188,10 @@
   padding: 24px 0; justify-content: center;
   font-size: 13px; color: #64748B;
 }
+.hpv-kpi-loading { color: #3B82F6 !important; }
+.hpv-kpi-loading-label {
+  display: block; font-size: 11px; color: #94A3B8; font-weight: 400;
+}
 
 /* ── Pagination ── */
 .hpv-pagination {

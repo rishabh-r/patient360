@@ -37,6 +37,7 @@ export default function HealthPlanView({ onLogout }) {
   const [hedisProgress, setHedisProgress] = useState({ done: 0, total: 0 });
   const [clusterPage, setClusterPage] = useState(1);
   const [conditionPage, setConditionPage] = useState(1);
+  const [hedisPage, setHedisPage] = useState(1);
   const ITEMS_PER_PAGE = 4;
   const apiEntriesRef = useRef([]);
 
@@ -357,11 +358,11 @@ export default function HealthPlanView({ onLogout }) {
             </div>
             <div className="hpv-kpi">
               <span className="hpv-kpi-label">HEDIS Score</span>
-              <span className="hpv-kpi-val">{hedisScore !== null ? `${hedisScore}%` : hedisLoading ? '...' : '—'}</span>
+              {hedisScore !== null ? <span className="hpv-kpi-val">{hedisScore}%</span> : hedisLoading ? <span className="hpv-kpi-val hpv-kpi-loading">{hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%<span className="hpv-kpi-loading-label">calculating</span></span> : <span className="hpv-kpi-val">—</span>}
             </div>
             <div className="hpv-kpi">
               <span className="hpv-kpi-label">Care Gaps</span>
-              <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>{hedisCareGaps !== null ? hedisCareGaps.toLocaleString() : hedisLoading ? '...' : '—'}</span>
+              {hedisCareGaps !== null ? <span className="hpv-kpi-val" style={{ color: '#F59E0B' }}>{hedisCareGaps.toLocaleString()}</span> : hedisLoading ? <span className="hpv-kpi-val hpv-kpi-loading">{hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%<span className="hpv-kpi-loading-label">calculating</span></span> : <span className="hpv-kpi-val">—</span>}
             </div>
           </div>
           <div className="hpv-card">
@@ -408,11 +409,12 @@ export default function HealthPlanView({ onLogout }) {
             {hedisLoading ? (
               <div className="hpv-hedis-loading">
                 <div className="hp-spinner-inline" style={{ width: 18, height: 18, borderWidth: 2 }} />
-                <span>Calculating HEDIS measures... {hedisProgress.done}/{hedisProgress.total} patients ({hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%)</span>
+                <span>Calculating HEDIS measures... {hedisProgress.total > 0 ? Math.round((hedisProgress.done / hedisProgress.total) * 100) : 0}%</span>
               </div>
             ) : hedisGaps.length === 0 ? (
               <p style={{ color: '#94A3B8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No HEDIS data available</p>
-            ) : hedisGaps.map((item, i) => (
+            ) : (<>
+              {hedisGaps.slice((hedisPage - 1) * ITEMS_PER_PAGE, hedisPage * ITEMS_PER_PAGE).map((item, i) => (
               <div className="hpv-hedis-row" key={i}>
                 <div className="hpv-hedis-left">
                   <span className="hpv-hedis-name">{item.name}</span>
@@ -423,7 +425,15 @@ export default function HealthPlanView({ onLogout }) {
                 </div>
                 <span className="hpv-hedis-pct">{item.pct}%</span>
               </div>
-            ))}
+              ))}
+              {hedisGaps.length > ITEMS_PER_PAGE && (
+                <div className="hpv-pagination">
+                  <button className="hpv-page-btn" disabled={hedisPage <= 1} onClick={() => setHedisPage(hedisPage - 1)}>Prev</button>
+                  <span className="hpv-page-info">{hedisPage} / {Math.ceil(hedisGaps.length / ITEMS_PER_PAGE)}</span>
+                  <button className="hpv-page-btn" disabled={hedisPage >= Math.ceil(hedisGaps.length / ITEMS_PER_PAGE)} onClick={() => setHedisPage(hedisPage + 1)}>Next</button>
+                </div>
+              )}
+            </>)}
           </div>
           <div className="hpv-card">
             <h3 className="hpv-card-title">Top Conditions by Cost</h3>
