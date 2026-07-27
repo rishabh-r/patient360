@@ -65,7 +65,6 @@ export default function HealthPlanView({ onLogout }) {
         }).filter(e => e.patientId);
         setApiData(entries);
         apiEntriesRef.current = entries;
-        setTotalMembers(res?.total || entries.length);
 
         // 1) PMPM Cost
         if (entries.length) {
@@ -162,6 +161,7 @@ export default function HealthPlanView({ onLogout }) {
       // Fetch health statuses for risk tiers
       try {
         const hsRes = await callFhirApi(`${FHIR_BASE}/baseR4/Patient/health-status`);
+        setTotalMembers(hsRes?.total || 0);
         const hsEntries = (hsRes?.entry || []).map(e => {
           const ext = e.resource?.extension || [];
           const get = (url) => ext.find(x => x.url === url);
