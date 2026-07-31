@@ -101,9 +101,18 @@
 }
 
 /* ── Columns ── */
-.home-col-left,
+.home-col-left {
+  padding-top: 8px;
+}
 .home-col-right {
   padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.home-col-right .home-section-header {
+  max-width: 320px;
+  width: 100%;
 }
 
 /* ── Section Header ── */
@@ -247,6 +256,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-width: 320px;
+  margin-left: auto;
   max-width: 340px;
   margin-left: auto;
 }

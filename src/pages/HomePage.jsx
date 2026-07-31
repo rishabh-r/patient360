@@ -8,14 +8,14 @@ import '../styles/home.css';
 
 const DATA_SOURCES = [
   { icon: 'clinical', label: 'Clinical', desc: 'EHR, EMR, clinical notes', color: '#22C55E', active: true },
-  { icon: 'claims', label: 'Claims', desc: 'Medical, pharmacy, billing claims', color: '#22C55E', active: false },
-  { icon: 'membership', label: 'Membership & Eligibility', desc: 'Member, plan, and eligibility data', color: '#6366F1', active: false },
-  { icon: 'pharmacy', label: 'Pharmacy', desc: 'Prescriptions, dispensing, adherence', color: '#94A3B8', active: false },
-  { icon: 'labs', label: 'Labs', desc: 'Lab results and orders', color: '#EF4444', active: false },
-  { icon: 'sdoh', label: 'SDOH & Assessment', desc: 'Social determinants and assessments', color: '#94A3B8', active: false },
-  { icon: 'productivity', label: 'Productivity', desc: 'Operational and productivity metrics', color: '#6366F1', active: false },
-  { icon: 'billing', label: 'Patient Accounting / Billing', desc: 'Billing, payments, balances', color: '#14B8A6', active: false },
-  { icon: 'iot', label: 'IoT', desc: 'Devices, vitals, real-time data', color: '#3B82F6', active: false },
+  { icon: 'claims', label: 'Claims', desc: 'Medical, pharmacy, billing claims', color: '#22C55E', active: true },
+  { icon: 'membership', label: 'Membership & Eligibility', desc: 'Member, plan, and eligibility data', color: '#6366F1', active: true },
+  { icon: 'pharmacy', label: 'Pharmacy', desc: 'Prescriptions, dispensing, adherence', color: '#F59E0B', active: true },
+  { icon: 'labs', label: 'Labs', desc: 'Lab results and orders', color: '#EF4444', active: true },
+  { icon: 'sdoh', label: 'SDOH & Assessment', desc: 'Social determinants and assessments', color: '#8B5CF6', active: true },
+  { icon: 'productivity', label: 'Productivity', desc: 'Operational and productivity metrics', color: '#6366F1', active: true },
+  { icon: 'billing', label: 'Patient Accounting / Billing', desc: 'Billing, payments, balances', color: '#14B8A6', active: true },
+  { icon: 'iot', label: 'IoT', desc: 'Devices, vitals, real-time data', color: '#3B82F6', active: true },
 ];
 
 const OUTCOMES = [
