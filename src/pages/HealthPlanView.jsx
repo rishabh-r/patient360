@@ -5,6 +5,7 @@ import { Bar, Line, Pie } from 'react-chartjs-2';
 import { callFhirApi, buildUrl } from '../services/fhir';
 import { FHIR_BASE } from '../config/constants';
 import { calculateHedisScores } from '../services/hedis';
+import { callAI } from '../services/ai';
 import '../styles/healthplan.css';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend, Filler);
@@ -32,6 +33,8 @@ export default function HealthPlanView({ onLogout }) {
   const [dynCostTrend, setDynCostTrend] = useState(null);
   const [riskCounts, setRiskCounts] = useState({ high: 0, rising: 0, low: 0 });
   const [riskScoresByMonth, setRiskScoresByMonth] = useState(null);
+  const [aiPrediction, setAiPrediction] = useState(null);
+  const [aiPredLoading, setAiPredLoading] = useState(false);
   const [dynUtilization, setDynUtilization] = useState(null);
   const [utilLoading, setUtilLoading] = useState(false);
   const [utilProgress, setUtilProgress] = useState({ done: 0, total: 0 });
@@ -220,6 +223,66 @@ export default function HealthPlanView({ onLogout }) {
             low: sortedMs.map(k => monthMap[k].low.length),
           });
         }
+        // AI Prediction — check cache first
+        const predCached = sessionStorage.getItem('p360_pred_cache');
+        if (predCached) {
+          try { setAiPrediction(JSON.parse(predCached)); } catch {}
+        } else if (unique.length > 0) {
+          setAiPredLoading(true);
+          try {
+            const diseaseCount = {};
+            const allEntries2 = apiEntriesRef.current;
+            for (const e of allEntries2) {
+              const d = e.disease?.trim();
+              if (d) diseaseCount[d] = (diseaseCount[d] || 0) + 1;
+            }
+            const avgCost = allEntries2.length > 0 ? Math.round(allEntries2.reduce((s, e) => s + e.averageCost, 0) / allEntries2.length) : 0;
+            const avgAge = allEntries2.length > 0 ? Math.round(allEntries2.reduce((s, e) => s + (e.patientAge || 0), 0) / allEntries2.length) : 50;
+            const avgQuality = allEntries2.length > 0 ? +(allEntries2.reduce((s, e) => s + (e.qualityScore || 0), 0) / allEntries2.length).toFixed(1) : 0;
+
+            const prompt = `You are a healthcare population health analyst. Based on the current population data, predict quarterly trends for the next 5 years (20 quarters).
+
+Return ONLY valid JSON with this exact structure:
+{"riskMigration":{"labels":["Q3 2026","Q4 2026","Q1 2027",...],"high":[numbers],"rising":[numbers],"low":[numbers]},"costProjection":{"labels":["Q3 2026","Q4 2026","Q1 2027",...],"cost":[numbers]}}
+
+Rules:
+- riskMigration: predict how many members will be in each risk tier per quarter. Numbers should be realistic based on current distribution and disease mix. Consider aging population, chronic disease progression, and intervention effects.
+- costProjection: predict average PMPM cost per quarter in dollars. Consider medical inflation (~3-5%/year), disease progression, and potential care improvements.
+- Use exactly 20 data points (quarters) from Q3 2026 to Q2 2031.
+- Labels format: "Q1 2027", "Q2 2027", etc.
+- Be realistic — don't make dramatic changes unless the data warrants it.`;
+
+            const context = `Current Population Data:
+- Total members: ${unique.length}
+- Risk distribution: ${high} High Risk, ${rising} Rising Risk, ${low} Low Risk
+- Average PMPM cost: $${avgCost.toLocaleString()}
+- Average patient age: ${avgAge} years
+- Average quality score: ${avgQuality}%
+- Disease breakdown: ${Object.entries(diseaseCount).map(([d, c]) => `${d} (${c})`).join(', ')}
+- Historical risk trend (monthly): ${sortedMs.map(k => `${new Date(+k.split('-')[0], +k.split('-')[1] - 1).toLocaleString('en-US', { month: 'short', year: 'numeric' })}: ${monthMap[k].high.length}H/${monthMap[k].rising.length}R/${monthMap[k].low.length}L`).join(', ')}`;
+
+            const aiRes = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: 'gpt-4.1-mini',
+                messages: [{ role: 'system', content: prompt }, { role: 'user', content: context }],
+                temperature: 0.3, max_tokens: 1500, stream: false,
+              }),
+            });
+            if (aiRes.ok) {
+              const aiData = await aiRes.json();
+              let content = (aiData.choices?.[0]?.message?.content || '').trim();
+              if (content.startsWith('```')) content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+              const parsed = JSON.parse(content);
+              setAiPrediction(parsed);
+              try { sessionStorage.setItem('p360_pred_cache', JSON.stringify(parsed)); } catch {}
+            }
+          } catch (err) {
+            console.error('[HealthPlan] AI prediction error:', err);
+          }
+          setAiPredLoading(false);
+        }
       } catch (err) {
         console.error('[HealthPlan] health-status API error:', err);
       }
@@ -311,23 +374,24 @@ export default function HealthPlanView({ onLogout }) {
   };
 
   const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-  const predLabels = riskScoresByMonth?.labels || months;
-  const predHigh = riskScoresByMonth?.high || [8, 9, 8, 9, 8, 9];
-  const predRising = riskScoresByMonth?.rising || [6, 6, 6, 6, 6, 6];
-  const predLow = riskScoresByMonth?.low || [5, 5, 5, 5, 5, 5];
+  const predLabels = aiPrediction?.riskMigration?.labels || riskScoresByMonth?.labels || months;
+  const predHigh = aiPrediction?.riskMigration?.high || riskScoresByMonth?.high || [8, 9, 8, 9, 8, 9];
+  const predRising = aiPrediction?.riskMigration?.rising || riskScoresByMonth?.rising || [6, 6, 6, 6, 6, 6];
+  const predLow = aiPrediction?.riskMigration?.low || riskScoresByMonth?.low || [5, 5, 5, 5, 5, 5];
+  const predMax = Math.max(...predHigh, ...predRising, ...predLow, 10);
   const predictiveData = {
     labels: predLabels,
     datasets: [
-      { label: 'High Risk', data: predHigh, borderColor: '#EF4444', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#EF4444', tension: 0.3 },
-      { label: 'Rising Risk', data: predRising, borderColor: '#F59E0B', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#F59E0B', tension: 0.3 },
-      { label: 'Low Risk', data: predLow, borderColor: '#22C55E', backgroundColor: 'transparent', pointRadius: 5, pointBackgroundColor: '#22C55E', tension: 0.3 },
+      { label: 'High Risk', data: predHigh, borderColor: '#EF4444', backgroundColor: 'transparent', pointRadius: 3, pointBackgroundColor: '#EF4444', tension: 0.3 },
+      { label: 'Rising Risk', data: predRising, borderColor: '#F59E0B', backgroundColor: 'transparent', pointRadius: 3, pointBackgroundColor: '#F59E0B', tension: 0.3 },
+      { label: 'Low Risk', data: predLow, borderColor: '#22C55E', backgroundColor: 'transparent', pointRadius: 3, pointBackgroundColor: '#22C55E', tension: 0.3 },
     ],
   };
   const predictiveOpts = {
     responsive: true, maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     plugins: {
-      legend: { display: false },
+      legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } },
       tooltip: {
         backgroundColor: '#fff', titleColor: '#1E293B', bodyColor: '#64748B',
         borderColor: '#E2E8F0', borderWidth: 1, cornerRadius: 8, padding: 12,
@@ -339,7 +403,30 @@ export default function HealthPlanView({ onLogout }) {
         },
       },
     },
-    scales: { y: { min: 0, max: 10, ticks: { stepSize: 2 } } },
+    scales: { y: { min: 0, max: Math.ceil(predMax * 1.2), ticks: { stepSize: Math.ceil(predMax / 5) } }, x: { ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45 } } },
+  };
+
+  const costPredLabels = aiPrediction?.costProjection?.labels || [];
+  const costPredValues = aiPrediction?.costProjection?.cost || [];
+  const costPredMax = costPredValues.length > 0 ? Math.ceil(Math.max(...costPredValues) * 1.15) : 20000;
+  const costPredData = {
+    labels: costPredLabels,
+    datasets: [{
+      label: 'Projected PMPM',
+      data: costPredValues,
+      borderColor: '#6366F1',
+      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+      pointRadius: 3,
+      pointBackgroundColor: '#6366F1',
+      tension: 0.3,
+      borderWidth: 2,
+      fill: true,
+    }],
+  };
+  const costPredOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `PMPM: ${formatCost(ctx.parsed.y)}` } } },
+    scales: { y: { beginAtZero: false, max: costPredMax, ticks: { callback: v => formatCost(v) } }, x: { ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45 } } },
   };
 
   const utilLabels = dynUtilization?.labels || months;
@@ -481,10 +568,10 @@ export default function HealthPlanView({ onLogout }) {
           </div>
         </div>
 
-        {/* ROW: Risk Tiers + Predictive Risk Scores */}
-        <div className="hpv-two-col">
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">Risk Tiers Distribution</h3>
+        {/* Risk Tiers Distribution */}
+        <div className="hpv-card hpv-full">
+          <h3 className="hpv-card-title">Risk Tiers Distribution</h3>
+          <div className="hpv-risk-row">
             <div className="hpv-pie-wrap"><Pie data={riskPieData} options={riskPieOpts} /></div>
             <div className="hpv-pie-legend">
               <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#EF4444' }} />High Risk<span className="hpv-pie-count">{riskCounts.high.toLocaleString()}</span></div>
@@ -492,9 +579,39 @@ export default function HealthPlanView({ onLogout }) {
               <div className="hpv-pie-item"><span className="hpv-pie-dot" style={{ background: '#22C55E' }} />Low Risk<span className="hpv-pie-count">{riskCounts.low.toLocaleString()}</span></div>
             </div>
           </div>
+        </div>
+
+        {/* AI Predictions: Risk Migration + Cost Projection */}
+        <div className="hpv-two-col">
           <div className="hpv-card">
-            <h3 className="hpv-card-title">Predictive Risk Scores</h3>
-            <div className="hpv-chart-wrap"><Line data={predictiveData} options={predictiveOpts} /></div>
+            <h3 className="hpv-card-title">
+              Risk Migration Forecast (5-Year)
+              <span className="hpv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span>
+            </h3>
+            {aiPredLoading ? (
+              <div className="hpv-hedis-loading" style={{ height: 240 }}>
+                <span className="hpv-spinner" />
+                <span>AI is generating predictions...</span>
+              </div>
+            ) : (
+              <div className="hpv-chart-wrap hpv-chart-tall"><Line data={predictiveData} options={predictiveOpts} /></div>
+            )}
+          </div>
+          <div className="hpv-card">
+            <h3 className="hpv-card-title">
+              Cost Projection (5-Year)
+              <span className="hpv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span>
+            </h3>
+            {aiPredLoading ? (
+              <div className="hpv-hedis-loading" style={{ height: 240 }}>
+                <span className="hpv-spinner" />
+                <span>AI is generating predictions...</span>
+              </div>
+            ) : costPredLabels.length === 0 ? (
+              <p style={{ color: '#94A3B8', fontSize: 13, padding: '40px 0', textAlign: 'center' }}>No prediction data available</p>
+            ) : (
+              <div className="hpv-chart-wrap hpv-chart-tall"><Line data={costPredData} options={costPredOpts} /></div>
+            )}
           </div>
         </div>
 
