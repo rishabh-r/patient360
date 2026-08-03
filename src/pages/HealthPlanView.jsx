@@ -223,65 +223,10 @@ export default function HealthPlanView({ onLogout }) {
             low: sortedMs.map(k => monthMap[k].low.length),
           });
         }
-        // AI Prediction — check cache first
+        // AI Prediction — check cache only (manual trigger via button)
         const predCached = sessionStorage.getItem('p360_pred_cache');
         if (predCached) {
           try { setAiPrediction(JSON.parse(predCached)); } catch {}
-        } else if (unique.length > 0) {
-          setAiPredLoading(true);
-          try {
-            const diseaseCount = {};
-            const allEntries2 = apiEntriesRef.current;
-            for (const e of allEntries2) {
-              const d = e.disease?.trim();
-              if (d) diseaseCount[d] = (diseaseCount[d] || 0) + 1;
-            }
-            const avgCost = allEntries2.length > 0 ? Math.round(allEntries2.reduce((s, e) => s + e.averageCost, 0) / allEntries2.length) : 0;
-            const avgAge = allEntries2.length > 0 ? Math.round(allEntries2.reduce((s, e) => s + (e.patientAge || 0), 0) / allEntries2.length) : 50;
-            const avgQuality = allEntries2.length > 0 ? +(allEntries2.reduce((s, e) => s + (e.qualityScore || 0), 0) / allEntries2.length).toFixed(1) : 0;
-
-            const prompt = `You are a healthcare population health analyst. Based on the current population data, predict quarterly trends for the next 5 years (20 quarters).
-
-Return ONLY valid JSON with this exact structure:
-{"riskMigration":{"labels":["Q3 2026","Q4 2026","Q1 2027",...],"high":[numbers],"rising":[numbers],"low":[numbers]},"costProjection":{"labels":["Q3 2026","Q4 2026","Q1 2027",...],"cost":[numbers]}}
-
-Rules:
-- riskMigration: predict how many members will be in each risk tier per quarter. Numbers should be realistic based on current distribution and disease mix. Consider aging population, chronic disease progression, and intervention effects.
-- costProjection: predict average PMPM cost per quarter in dollars. Consider medical inflation (~3-5%/year), disease progression, and potential care improvements.
-- Use exactly 20 data points (quarters) from Q3 2026 to Q2 2031.
-- Labels format: "Q1 2027", "Q2 2027", etc.
-- Be realistic — don't make dramatic changes unless the data warrants it.`;
-
-            const context = `Current Population Data:
-- Total members: ${unique.length}
-- Risk distribution: ${high} High Risk, ${rising} Rising Risk, ${low} Low Risk
-- Average PMPM cost: $${avgCost.toLocaleString()}
-- Average patient age: ${avgAge} years
-- Average quality score: ${avgQuality}%
-- Disease breakdown: ${Object.entries(diseaseCount).map(([d, c]) => `${d} (${c})`).join(', ')}
-- Historical risk trend (monthly): ${sortedMs.map(k => `${new Date(+k.split('-')[0], +k.split('-')[1] - 1).toLocaleString('en-US', { month: 'short', year: 'numeric' })}: ${monthMap[k].high.length}H/${monthMap[k].rising.length}R/${monthMap[k].low.length}L`).join(', ')}`;
-
-            const aiRes = await fetch('/api/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                model: 'gpt-4.1-mini',
-                messages: [{ role: 'system', content: prompt }, { role: 'user', content: context }],
-                temperature: 0.3, max_tokens: 1500, stream: false,
-              }),
-            });
-            if (aiRes.ok) {
-              const aiData = await aiRes.json();
-              let content = (aiData.choices?.[0]?.message?.content || '').trim();
-              if (content.startsWith('```')) content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-              const parsed = JSON.parse(content);
-              setAiPrediction(parsed);
-              try { sessionStorage.setItem('p360_pred_cache', JSON.stringify(parsed)); } catch {}
-            }
-          } catch (err) {
-            console.error('[HealthPlan] AI prediction error:', err);
-          }
-          setAiPredLoading(false);
         }
       } catch (err) {
         console.error('[HealthPlan] health-status API error:', err);
@@ -359,6 +304,54 @@ Rules:
       await Promise.all([hedisTask, utilTask]);
     })();
   }, []);
+
+  async function startAiPrediction() {
+    if (aiPredLoading || aiPrediction) return;
+    setAiPredLoading(true);
+    try {
+      const allEntries2 = apiEntriesRef.current;
+      const diseaseCount = {};
+      for (const e of allEntries2) { const d = e.disease?.trim(); if (d) diseaseCount[d] = (diseaseCount[d] || 0) + 1; }
+      const avgCost = allEntries2.length > 0 ? Math.round(allEntries2.reduce((s, e) => s + e.averageCost, 0) / allEntries2.length) : 0;
+      const avgAge = allEntries2.length > 0 ? Math.round(allEntries2.reduce((s, e) => s + (e.patientAge || 0), 0) / allEntries2.length) : 50;
+      const avgQuality = allEntries2.length > 0 ? +(allEntries2.reduce((s, e) => s + (e.qualityScore || 0), 0) / allEntries2.length).toFixed(1) : 0;
+
+      const prompt = `You are a healthcare population health analyst. Based on the current population data, predict quarterly trends for the next 5 years (20 quarters).
+
+Return ONLY valid JSON with this exact structure:
+{"riskMigration":{"labels":["Q3 2026","Q4 2026","Q1 2027",...],"high":[numbers],"rising":[numbers],"low":[numbers]},"costProjection":{"labels":["Q3 2026","Q4 2026","Q1 2027",...],"cost":[numbers]}}
+
+Rules:
+- riskMigration: predict how many members will be in each risk tier per quarter. Numbers should be realistic based on current distribution and disease mix. Consider aging population, chronic disease progression, and intervention effects.
+- costProjection: predict average PMPM cost per quarter in dollars. Consider medical inflation (~3-5%/year), disease progression, and potential care improvements.
+- Use exactly 20 data points (quarters) from Q3 2026 to Q2 2031.
+- Labels format: "Q1 2027", "Q2 2027", etc.
+- Be realistic — don't make dramatic changes unless the data warrants it.`;
+
+      const context = `Current Population Data:
+- Total members: ${riskCounts.high + riskCounts.rising + riskCounts.low}
+- Risk distribution: ${riskCounts.high} High Risk, ${riskCounts.rising} Rising Risk, ${riskCounts.low} Low Risk
+- Average PMPM cost: $${avgCost.toLocaleString()}
+- Average patient age: ${avgAge} years
+- Average quality score: ${avgQuality}%
+- Disease breakdown: ${Object.entries(diseaseCount).map(([d, c]) => `${d} (${c})`).join(', ')}`;
+
+      const aiRes = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-4.1-mini', messages: [{ role: 'system', content: prompt }, { role: 'user', content: context }], temperature: 0.3, max_tokens: 1500, stream: false }),
+      });
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        let content = (aiData.choices?.[0]?.message?.content || '').trim();
+        if (content.startsWith('```')) content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+        const parsed = JSON.parse(content);
+        setAiPrediction(parsed);
+        try { sessionStorage.setItem('p360_pred_cache', JSON.stringify(parsed)); } catch {}
+      }
+    } catch (err) { console.error('[HealthPlan] AI prediction error:', err); }
+    setAiPredLoading(false);
+  }
 
   const riskPieData = {
     labels: ['High Risk', 'Rising Risk', 'Low Risk'],
@@ -582,37 +575,36 @@ Rules:
         </div>
 
         {/* AI Predictions: Risk Migration + Cost Projection */}
-        <div className="hpv-two-col">
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">
-              Risk Migration Forecast (5-Year)
+        <div className="hpv-card hpv-full">
+          <div className="hpv-pred-header">
+            <h3 className="hpv-card-title" style={{ margin: 0 }}>
+              AI Predictive Analytics (5-Year Forecast)
               <span className="hpv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span>
             </h3>
-            {aiPredLoading ? (
-              <div className="hpv-hedis-loading" style={{ height: 240 }}>
-                <span className="hpv-spinner" />
-                <span>AI is generating predictions...</span>
-              </div>
-            ) : (
-              <div className="hpv-chart-wrap hpv-chart-tall"><Line data={predictiveData} options={predictiveOpts} /></div>
-            )}
+            {aiPrediction && !aiPredLoading && <button className="hpv-pred-rerun" onClick={() => { setAiPrediction(null); sessionStorage.removeItem('p360_pred_cache'); }}>Re-analyze</button>}
           </div>
-          <div className="hpv-card">
-            <h3 className="hpv-card-title">
-              Cost Projection (5-Year)
-              <span className="hpv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span>
-            </h3>
-            {aiPredLoading ? (
-              <div className="hpv-hedis-loading" style={{ height: 240 }}>
-                <span className="hpv-spinner" />
-                <span>AI is generating predictions...</span>
+          {!aiPrediction && !aiPredLoading ? (
+            <div className="hpv-pred-start">
+              <p className="hpv-pred-start-text">AI will analyze current population data — risk distribution, disease mix, costs, and quality scores — to forecast 5-year trends.</p>
+              <button className="hpv-pred-start-btn" onClick={startAiPrediction}>Start Analysis</button>
+            </div>
+          ) : aiPredLoading ? (
+            <div className="hpv-hedis-loading" style={{ padding: '40px 0' }}>
+              <span className="hpv-spinner" />
+              <span>AI is analyzing population data and generating 5-year predictions...</span>
+            </div>
+          ) : (
+            <div className="hpv-two-col" style={{ marginTop: 16 }}>
+              <div>
+                <h4 className="hpv-pred-subtitle">Risk Migration Forecast <span className="hpv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h4>
+                <div className="hpv-chart-wrap hpv-chart-tall"><Line data={predictiveData} options={predictiveOpts} /></div>
               </div>
-            ) : costPredLabels.length === 0 ? (
-              <p style={{ color: '#94A3B8', fontSize: 13, padding: '40px 0', textAlign: 'center' }}>No prediction data available</p>
-            ) : (
-              <div className="hpv-chart-wrap hpv-chart-tall"><Line data={costPredData} options={costPredOpts} /></div>
-            )}
-          </div>
+              <div>
+                <h4 className="hpv-pred-subtitle">Cost Projection <span className="hpv-ai-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"/></svg> AI</span></h4>
+                <div className="hpv-chart-wrap hpv-chart-tall"><Line data={costPredData} options={costPredOpts} /></div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ROW: HEDIS + Top Conditions */}
