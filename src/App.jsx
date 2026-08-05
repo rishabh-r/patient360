@@ -28,6 +28,8 @@ function App() {
       window.location.href = `/?id=${refId}`;
     } else if (role === 'CARE_MANAGER') {
       window.location.href = `/care-manager?id=${refId}`;
+    } else if (role === 'HEALTH') {
+      window.location.href = '/health-plan';
     } else {
       window.location.href = '/';
     }
