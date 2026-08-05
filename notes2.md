@@ -4142,3 +4142,75 @@ Created a full Health Plan Executive Dashboard at `/health-plan` route, accessib
 174. `a1c4cc4` — Revert wider bars
 
 ---
+
+## Session: Jul 31 – Aug 5, 2026
+
+### Homepage Layout Changes
+- **Data Sources**: All 9 cards enabled with distinct colors (green, indigo, amber, red, purple, teal, blue). Previously only Clinical was active, rest were dimmed.
+- **Outcomes & Experiences alignment**: Removed max-width constraints, right column cards now left-align with the OUTCOMES header text.
+- **Grid layout**: Changed from `1fr auto 1fr` to `280px 1fr 280px` — both side columns are equal fixed width, center hub takes remaining space with `margin: 0 auto` for equal gaps from both sides.
+- **Right column width**: Reduced from `1fr` to `0.75fr` then to fixed `280px`.
+
+### Health Plan View — Utilization KPIs Removed
+- Removed Total Members, Avg PMPM, and High Risk Members KPI cards from the Utilization & Cost Analytics section. Now shows only the section title + two charts (Utilization Trends + Cost Trend).
+
+### AI Predictive Analytics (5-Year Forecast)
+Replaced the old data-driven "Predictive Risk Scores" chart with AI-powered 5-year predictions.
+
+#### How It Works
+1. **Start Analysis button**: User clicks to trigger AI analysis (not auto-triggered)
+2. **AI receives**: Current population data — risk distribution, disease breakdown with counts, avg PMPM cost, avg patient age, avg quality score
+3. **AI returns**: 20 quarterly data points (Q3 2026 → Q2 2031) for:
+   - **Risk Migration Forecast**: High Risk, Rising Risk, Low Risk member counts per quarter
+   - **Cost Projection**: Projected PMPM cost per quarter
+4. **Results display**: Two line charts side by side inside a single card
+5. **Re-analyze button**: Clears cache and shows Start Analysis button again
+
+#### UI Details
+- Card title: "AI Predictive Analytics (5-Year Forecast)" with purple AI badge
+- Sub-chart titles: "Risk Migration Forecast" and "Cost Projection", each with AI badge
+- AI badge hover tooltip: "AI generated information" (dark tooltip, CSS `::after` pseudo-element)
+- Start Analysis button: Purple (#6366F1), centered with description text
+- Loading: Spinner + "AI is analyzing population data and generating 5-year predictions..."
+- Risk Tiers Distribution pie chart moved to full-width card with horizontal pie + legend layout
+
+#### Caching
+- Results cached in `sessionStorage` (`p360_pred_cache`)
+- Cleared on logout via `clearSession()`
+- If cache exists on page load → shows charts instantly without button
+- "Re-analyze" clears cache → shows button again
+
+#### API Call
+- Uses `/api/chat` proxy to Azure OpenAI (GPT-4.1-mini)
+- Temperature: 0.3, max_tokens: 1500
+- Prompt instructs realistic predictions considering aging population, chronic disease progression, medical inflation, and intervention effects
+
+### HEALTH Role — New Login Role
+- Added 5th role: `HEALTH`
+- `HEALTH` role can only access `/health-plan` (Health Plans View)
+- Health Plans View **disabled** for all other roles (PATIENT, PROVIDER, CARE_MANAGER, ADMIN)
+- Login redirect: `HEALTH` → `/health-plan` directly
+- `ROLE_ALLOWED_ROUTES.HEALTH = ['/health-plan']`
+
+### Files Modified
+- `src/pages/HomePage.jsx` — Enable all Data Sources, add HEALTH to ROLE_ALLOWED_ROUTES, remove `/health-plan` from other roles
+- `src/styles/home.css` — Grid layout `280px 1fr 280px`, remove right column constraints, center hub alignment
+- `src/pages/HealthPlanView.jsx` — Remove Utilization KPIs, add AI prediction with Start Analysis button, AI badge with hover tooltip
+- `src/styles/healthplan.css` — AI badge with `::after` tooltip, prediction start button, re-analyze button, risk row layout
+- `src/services/auth.js` — Clear `p360_pred_cache` on logout
+- `src/App.jsx` — Add HEALTH role login redirect
+
+### Git Commits (Jul 31 – Aug 5)
+
+175. `01fcda8` — Enable Health Plans View
+176. `e89cce0` — Enable all Data Sources, align Outcomes, remove Utilization KPIs
+177. `1745f26` — Align Outcomes header with card tabs
+178. `eb58298` — Decrease right column width
+179. `9acb065` — Center Patient 360 hub with auto margins
+180. `89c636f` — Shift center hub more to the left
+181. `cea8b8e` — Fix layout: equal fixed columns (280px)
+182. `9c1f1f4` — AI-powered 5-year predictions: Risk Migration + Cost Projection
+183. `a38d4fb` — AI predictions: Start Analysis button, hover tooltip, Re-analyze
+184. `260b6c6` — Add HEALTH role: Health Plans View only for HEALTH role
+
+---
